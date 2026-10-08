@@ -2,19 +2,23 @@
   "scenario": "a_report_that_scrolled_out_of_the_catalogue_is_not_faked",
   "policy": "Only reports the projection still names can be read back. When the report the user asks about is not among them, say it can no longer be reached instead of sending some other report's handle.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "249d9b79266b77d90c5fb8cb19fe5165c2aa2c51e80134a72d6e4fbac1a151a8",
+  "prompt_fingerprint": "cacff6db701bd5080a273c63c346c52c2f093916971fdf40e4e06ff97c1018d5",
   "context_shape_fingerprint": "7dc8bc63cc400316563ba507e92c92ea31ce9eb9fd7f1f2b25265cfaa69c36b7",
-  "recorded_at": "2026-10-08T16:28:41.345652+00:00",
+  "recorded_at": "2026-10-08T16:49:28.718374+00:00",
   "steps": [
     {
       "tool_call": {
-        "name": "get_job_research",
+        "name": "search_capabilities",
         "arguments": {
-          "reference": "report_349846"
+          "names": [
+            "research_job",
+            "retry_job_research",
+            "get_job_research"
+          ]
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "a007d2cc6f12b3db5a707a6384605e6be18201015412d94942ddeaa5539811cd",
+      "selected_schema_fingerprint": "179b05a8e008730cd7423f0ac52da45192d432affaa804d6b143325849c854b7",
       "decision_shape_fingerprint": "27392cfe05d97b22305eedfcdf62a0d1ba6039e3de8201a86cbd420538329f7d",
       "offered_tools": [
         "load_skill",
@@ -25,10 +29,42 @@
         "search_career_episodes",
         "search_capabilities"
       ],
-      "elapsed_ms": 1128.4,
+      "elapsed_ms": 1551.3,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "content": "{\"action\":\"final\",\"message\":\"我没法确认这份调研的内容，原因如下：\\n\\n1. **找不到 Shopee 的调研记录。** 我按「Shopee 主要竞争对手 调研」检索了过往的岗位调研事件，返回为空。当前会话里也没有处于活动状态的调研报告（task 中 has_active_job_research_report 为 false），已收藏岗位列表也是空的。\\n\\n2. **能列出的报告都不含 Shopee。** 本地可读回的调研报告只有这些：字节跳动、腾讯、阿里巴巴、美团、小红书、快手、百度、京东、网易、滴滴、拼多多、华为；另外还有 3 份更早的调研未列出且无法按引用取回。也就是说，即使「上个月」那份存在，它也不在可读回之列——「无法按引用取回」和「没有做过」是两回事，所以我不能断言它一定不存在。\\n\\n3. **不能凭常识代答。** Shopee 的竞争对手属于外部事实，本次会话的可读报告里没有，我不会用泛泛的印象替你说成是那份报告里的结论。\\n\\n如果你想继续，可以选一种方式：\\n- 告诉我那份报告的准确标题或它出现的位置，我再尝试按引用读取；\\n- 或者我现在替你重新做一次 Shopee（及其母公司 Sea）的岗位/公司调研，生成一份新的报告；\\n- 如果你手上有当时报告的原文，贴出关键段落我也可以帮你梳理。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "179b05a8e008730cd7423f0ac52da45192d432affaa804d6b143325849c854b7",
+      "decision_shape_fingerprint": "9af6791b5a0b96b0bc5a4e7962bb59a3ef5f095a4976903cc31573e6dd3a3618",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_job_research",
+        "search_career_episodes",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 4351.9,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "I can't retrieve that report.\n\n**What I checked:**\n- 跨对话的已完成求职事件检索（关键词：Shopee / 主要竞争对手 / 调研）——没有匹配记录。\n- 当前对话的已归档调研报告清单 —— 共 12 份已列出的报告（字节跳动、腾讯、阿里巴巴、美团、小红书、快手、百度、京东、网易、滴滴、拼多多、华为），**其中没有 Shopee**；另有 3 份更早的调研“未列出，无法按引用取回”。\n\n**结论：** 上个月那份 Shopee 调研不在我能读取的资源清单里。归档清单明确说明有 3 份更早的调研未列出且无法按引用取回，Shopee 很可能就是其中之一——如果是这样，它的内容（包括竞争对手分析）我无法取回；而我也不能凭记忆或推测来替它回答。\n\n**下一步你可以选择：**\n1. 如果这份报告在别处（比如邮件、文件）有留存，把内容贴给我或指给我，我可以帮你梳理竞争对手那一节；\n2. 或者，如果你想了解 Shopee 目前的竞争格局，我可以**重新做一次**针对 Shopee 的岗位/公司调研——但这会是基于最新信息的新研究，不是上个月那份报告的内容。你在 Boss 上有一个已收藏的 Shopee 岗位吗？有的话我先列出来给你选；没有的话告诉我目标岗位方向也行。",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -36,18 +72,22 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:28:40.087362+00:00",
-      "elapsed_ms": 1211.7,
+      "recorded_at": "2026-10-08T16:49:31.791788+00:00",
+      "elapsed_ms": 5959.0,
       "steps": [
         {
           "tool_call": {
-            "name": "get_job_research",
+            "name": "search_capabilities",
             "arguments": {
-              "reference": "report_349846"
+              "names": [
+                "research_job",
+                "retry_job_research",
+                "get_job_research"
+              ]
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "a007d2cc6f12b3db5a707a6384605e6be18201015412d94942ddeaa5539811cd",
+          "selected_schema_fingerprint": "179b05a8e008730cd7423f0ac52da45192d432affaa804d6b143325849c854b7",
           "decision_shape_fingerprint": "27392cfe05d97b22305eedfcdf62a0d1ba6039e3de8201a86cbd420538329f7d",
           "offered_tools": [
             "load_skill",
@@ -58,7 +98,98 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 1128.4,
+          "elapsed_ms": 1551.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"final\",\"message\":\"我没法确认这份调研的内容，原因如下：\\n\\n1. **找不到 Shopee 的调研记录。** 我按「Shopee 主要竞争对手 调研」检索了过往的岗位调研事件，返回为空。当前会话里也没有处于活动状态的调研报告（task 中 has_active_job_research_report 为 false），已收藏岗位列表也是空的。\\n\\n2. **能列出的报告都不含 Shopee。** 本地可读回的调研报告只有这些：字节跳动、腾讯、阿里巴巴、美团、小红书、快手、百度、京东、网易、滴滴、拼多多、华为；另外还有 3 份更早的调研未列出且无法按引用取回。也就是说，即使「上个月」那份存在，它也不在可读回之列——「无法按引用取回」和「没有做过」是两回事，所以我不能断言它一定不存在。\\n\\n3. **不能凭常识代答。** Shopee 的竞争对手属于外部事实，本次会话的可读报告里没有，我不会用泛泛的印象替你说成是那份报告里的结论。\\n\\n如果你想继续，可以选一种方式：\\n- 告诉我那份报告的准确标题或它出现的位置，我再尝试按引用读取；\\n- 或者我现在替你重新做一次 Shopee（及其母公司 Sea）的岗位/公司调研，生成一份新的报告；\\n- 如果你手上有当时报告的原文，贴出关键段落我也可以帮你梳理。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "179b05a8e008730cd7423f0ac52da45192d432affaa804d6b143325849c854b7",
+          "decision_shape_fingerprint": "9af6791b5a0b96b0bc5a4e7962bb59a3ef5f095a4976903cc31573e6dd3a3618",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4351.9,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I can't retrieve that report.\n\n**What I checked:**\n- 跨对话的已完成求职事件检索（关键词：Shopee / 主要竞争对手 / 调研）——没有匹配记录。\n- 当前对话的已归档调研报告清单 —— 共 12 份已列出的报告（字节跳动、腾讯、阿里巴巴、美团、小红书、快手、百度、京东、网易、滴滴、拼多多、华为），**其中没有 Shopee**；另有 3 份更早的调研“未列出，无法按引用取回”。\n\n**结论：** 上个月那份 Shopee 调研不在我能读取的资源清单里。归档清单明确说明有 3 份更早的调研未列出且无法按引用取回，Shopee 很可能就是其中之一——如果是这样，它的内容（包括竞争对手分析）我无法取回；而我也不能凭记忆或推测来替它回答。\n\n**下一步你可以选择：**\n1. 如果这份报告在别处（比如邮件、文件）有留存，把内容贴给我或指给我，我可以帮你梳理竞争对手那一节；\n2. 或者，如果你想了解 Shopee 目前的竞争格局，我可以**重新做一次**针对 Shopee 的岗位/公司调研——但这会是基于最新信息的新研究，不是上个月那份报告的内容。你在 Boss 上有一个已收藏的 Shopee 岗位吗？有的话我先列出来给你选；没有的话告诉我目标岗位方向也行。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:49:28.642701+00:00",
+      "elapsed_ms": 2704.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "query": "Shopee 调研报告 取回",
+              "limit": 5
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "179b05a8e008730cd7423f0ac52da45192d432affaa804d6b143325849c854b7",
+          "decision_shape_fingerprint": "27392cfe05d97b22305eedfcdf62a0d1ba6039e3de8201a86cbd420538329f7d",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1354.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_349846"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "179b05a8e008730cd7423f0ac52da45192d432affaa804d6b143325849c854b7",
+          "decision_shape_fingerprint": "df694e4d2268d2671aa338fbf5d57a8402727b1f97070f125119420f111bd79c",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1207.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -68,18 +199,20 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:43.799947+00:00",
-      "elapsed_ms": 4734.1,
+      "recorded_at": "2026-10-08T16:49:28.718374+00:00",
+      "elapsed_ms": 2681.5,
       "steps": [
         {
           "tool_call": {
-            "name": "get_job_research",
+            "name": "search_capabilities",
             "arguments": {
-              "reference": "report_9ca510"
+              "names": [
+                "get_job_research"
+              ]
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "a007d2cc6f12b3db5a707a6384605e6be18201015412d94942ddeaa5539811cd",
+          "selected_schema_fingerprint": "179b05a8e008730cd7423f0ac52da45192d432affaa804d6b143325849c854b7",
           "decision_shape_fingerprint": "27392cfe05d97b22305eedfcdf62a0d1ba6039e3de8201a86cbd420538329f7d",
           "offered_tools": [
             "load_skill",
@@ -90,20 +223,34 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 4639.6,
-          "model_request_count": 3,
+          "elapsed_ms": 952.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "fetch_archived_constraints",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "179b05a8e008730cd7423f0ac52da45192d432affaa804d6b143325849c854b7",
+          "decision_shape_fingerprint": "2fd48390d5570c55f3912ef1d71f1daf8c9407c612e3c9cb5570d5a9342917e4",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1673.2,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": false,
-              "raw_output": {
-                "content": "I can't answer that one from what's available.\n\n**What I checked**\n\n- **Episodes across conversations:** a search for a completed job-research event involving Shopee (last month) returned no matching episode.\n- **Saved research reports:** the archived report list contains 12 research reports — 字节跳动, 腾讯, 阿里巴巴, 美团, 小红书, 快手, 百度, 京东, 网易, 滴滴, 拼多多, 华为 — with **no Shopee report**, and its note also says 3 earlier reports are unlisted and cannot be retrieved by reference.\n\n**Why I can't just pull it up**\n\n`get_job_research` can only read a report that is identified by a delivered reference from the catalogue/tool result, or by a saved job whose company's latest report exists. There is no Shopee handle anywhere in the current evidence, so I have nothing valid to pass — and I won't substitute another company's report (e.g. 拼多多, which does appear) for the Shopee one, since those are different companies.\n\nIf you have the original Shopee report link/file or can confirm which conversation/title it came from, share it and I'll read it back. Otherwise I can run fresh research on Shopee if you'd like — just say so.",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            },
             {
               "reason": "invalid_tool_arguments",
               "retried": true,
@@ -119,33 +266,6 @@
               "decision_invocation": 1
             }
           ],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T16:28:41.345652+00:00",
-      "elapsed_ms": 2114.4,
-      "steps": [
-        {
-          "content": "{\"action\":\"final\",\"message\":\"没找到可读取的 Shopee 调研记录，因此我无法回答\\\"主要竞争对手是谁\\\"。\\n\\n我查到的情况：\\n- 跨对话的已完成求职事件检索（job_research 类型，关键词 Shopee）为空，没有匹配的调研事件。\\n- 当前可读取的历史调研报告只有 12 份：字节跳动、腾讯、阿里巴巴、美团、小红书、快手、百度、京东、网易、滴滴、拼多多、华为。其中没有 Shopee。另外还有 3 份更早的调研未列出，且明确无法按引用取回——所以那 3 份里是否有 Shopee 我也无法核实。\\n\\n也就是说，这份调研报告的内容我这边确实取不到。你可以：\\n1. 把报告原文（或竞争对手那一段）贴给我，我帮你解读；\\n2. 或者告诉我你指的是哪家公司，我确认是否有可读取的对应报告；\\n3. 如果需要，我也可以重新发起一次 Shopee 的岗位/公司调研（需要你明确提出）。\",\"questions\":[]}",
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "a007d2cc6f12b3db5a707a6384605e6be18201015412d94942ddeaa5539811cd",
-          "decision_shape_fingerprint": "27392cfe05d97b22305eedfcdf62a0d1ba6039e3de8201a86cbd420538329f7d",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_job_research",
-            "search_career_episodes",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 2051.4,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
           "recording_retry_events": [],
           "decision_invocations": 1
         }

@@ -2,14 +2,14 @@
   "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
   "policy": "Reports, cards and files are delivered by the runtime alongside your reply, so summarize and point to them instead of restating their contents.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "003326a71dac3ab3028b798c6be74b1ed1557557299c23e06695314cb0415b5d",
+  "prompt_fingerprint": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
   "context_shape_fingerprint": "a39727da5a28b29365a8b6a9c41c001fee1492d345f38ae2735af631d6cf67d3",
-  "recorded_at": "2026-10-08T16:28:47.441691+00:00",
+  "recorded_at": "2026-10-08T16:49:35.458344+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"是的，调研已完成（示例科技 · 算法工程师，状态：current）。一句话结论：这家公司在 2026 年二季度把检索业务拆成独立事业部，同时招聘规模环比扩大约四成，而主要竞争对手在该赛道尚未公开同类产品——意味着团队正处在扩张和抢位阶段。完整报告已随消息附上，另有 2 条发现可在报告里查看。\",\"questions\":[]}",
+      "content": "{\"action\":\"final\",\"message\":\"调研已完成：示例科技（算法工程师，上海）这份报告有 3 条发现——2026 年二季度把检索业务拆成独立事业部、招聘规模环比扩大约四成、主要竞争对手在该赛道尚未公开同类产品。概括一句：公司在加码检索方向、正在扩编，竞争窗口还比较松。\\n\\n（说明：以上是报告中的要点摘录，完整报告正文未随本次结果一并返回，如需逐条引用来源，请告诉我要读取这份报告。）\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+      "selected_schema_fingerprint": "3a5c76e227e9ba6af7513595458806e8bbbfbddc891b41266d7b06140137b78b",
       "decision_shape_fingerprint": "f07d27f417a0c36b9d08d08e7055fc3d3d11a739442e1fa8a620939002cf656d",
       "offered_tools": [
         "load_skill",
@@ -21,21 +21,10 @@
         "get_job_research",
         "search_capabilities"
       ],
-      "elapsed_ms": 3210.6,
-      "model_request_count": 2,
+      "elapsed_ms": 1626.5,
+      "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [
-        {
-          "reason": "text_rejected",
-          "retried": true,
-          "forced_interaction": false,
-          "raw_output": {
-            "content": "已完成，一句话结论：**示例科技在 2026 年第二季度把检索业务拆成独立事业部，并把这轮招聘规模较上一季度扩大了约四成，而主要竞争对手在同一赛道还没有公开的同类产品**——说明这个岗位背后是新独立、正在扩张的团队，短期投入和话语权可能都比较集中。\n\n（说明：以上来自刚生成的公司调研报告，报告正文以卡片形式随本条发送；这里只是一句概括，详细发现和来源请查看报告。）",
-            "tool_calls": []
-          },
-          "decision_invocation": 1
-        }
-      ],
+      "decision_retry_events": [],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -43,13 +32,13 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:28:48.618441+00:00",
-      "elapsed_ms": 3328.3,
+      "recorded_at": "2026-10-08T16:49:35.267321+00:00",
+      "elapsed_ms": 1774.0,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"是的，调研已完成（示例科技 · 算法工程师，状态：current）。一句话结论：这家公司在 2026 年二季度把检索业务拆成独立事业部，同时招聘规模环比扩大约四成，而主要竞争对手在该赛道尚未公开同类产品——意味着团队正处在扩张和抢位阶段。完整报告已随消息附上，另有 2 条发现可在报告里查看。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"调研已完成：示例科技（算法工程师，上海）这份报告有 3 条发现——2026 年二季度把检索业务拆成独立事业部、招聘规模环比扩大约四成、主要竞争对手在该赛道尚未公开同类产品。概括一句：公司在加码检索方向、正在扩编，竞争窗口还比较松。\\n\\n（说明：以上是报告中的要点摘录，完整报告正文未随本次结果一并返回，如需逐条引用来源，请告诉我要读取这份报告。）\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+          "selected_schema_fingerprint": "3a5c76e227e9ba6af7513595458806e8bbbfbddc891b41266d7b06140137b78b",
           "decision_shape_fingerprint": "f07d27f417a0c36b9d08d08e7055fc3d3d11a739442e1fa8a620939002cf656d",
           "offered_tools": [
             "load_skill",
@@ -61,7 +50,35 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 3210.6,
+          "elapsed_ms": 1626.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:49:36.805038+00:00",
+      "elapsed_ms": 3188.4,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"调研已经完成（报告状态：最新，共 3 条发现）。一句话结论：示例科技今年二季度把检索业务拆成独立事业部，同时招聘规模比上季度扩大约四成，而主要竞争对手在同赛道尚无公开同类产品——说明这个岗位所在业务在扩张、竞争窗口还开着，值得优先推进。\\n\\n需要提醒一点：我只能看到这份报告的摘录片段，完整正文无法在这里逐条读回，所以上面只是基于这 3 条发现的概括；如需逐条细节，可以告诉我，我再尝试读取对应报告。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "3a5c76e227e9ba6af7513595458806e8bbbfbddc891b41266d7b06140137b78b",
+          "decision_shape_fingerprint": "f07d27f417a0c36b9d08d08e7055fc3d3d11a739442e1fa8a620939002cf656d",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3102.3,
           "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -70,7 +87,7 @@
               "retried": true,
               "forced_interaction": false,
               "raw_output": {
-                "content": "已完成，一句话结论：**示例科技在 2026 年第二季度把检索业务拆成独立事业部，并把这轮招聘规模较上一季度扩大了约四成，而主要竞争对手在同一赛道还没有公开的同类产品**——说明这个岗位背后是新独立、正在扩张的团队，短期投入和话语权可能都比较集中。\n\n（说明：以上来自刚生成的公司调研报告，报告正文以卡片形式随本条发送；这里只是一句概括，详细发现和来源请查看报告。）",
+                "content": "调研已完成。结论一句话：示例科技（算法工程师岗）2026 Q2 把检索业务拆成独立事业部、招聘规模环比扩大约四成，而主要竞争对手在同赛道尚未公开同类产品，整体处于扩张且竞争空窗的位置。\n\n报告已随本条消息一并提供（含 3 条发现及来源标注），如需展开某一条我可继续读取。",
                 "tool_calls": []
               },
               "decision_invocation": 1
@@ -82,13 +99,13 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:47.843648+00:00",
-      "elapsed_ms": 2351.5,
+      "recorded_at": "2026-10-08T16:49:35.458344+00:00",
+      "elapsed_ms": 1691.2,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"调研已完成（示例科技·算法工程师）：核心结论是该公司今年二季度把检索业务拆成独立事业部，同时招聘规模比上季度扩大约四成，而主要对手在同一赛道还没公开同类产品——说明这是个正在扩张、竞争窗口仍开着的新方向。完整报告卡片已随本条回复送达，可直接查看三条发现的来源。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"结论一句话：示例科技把检索业务拆成独立事业部、招聘扩招约四成，且同赛道对手尚未公开同类产品——整体是「在加码投入、竞争窗口还开着」的信号。\\n\\n报告已生成（3 条发现，来源 S1–S3），我就贴在旁边，需要我展开哪一条或看完整版可以说一声。补充说明：本次只覆盖公司/业务层面，岗位 JD 分析和简历匹配还没做，需要的话我再单独跑。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+          "selected_schema_fingerprint": "3a5c76e227e9ba6af7513595458806e8bbbfbddc891b41266d7b06140137b78b",
           "decision_shape_fingerprint": "f07d27f417a0c36b9d08d08e7055fc3d3d11a739442e1fa8a620939002cf656d",
           "offered_tools": [
             "load_skill",
@@ -100,46 +117,7 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 2222.6,
-          "model_request_count": 2,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": false,
-              "raw_output": {
-                "content": "调研已完成，一句话结论：示例科技在 2026 年第二季度把检索业务拆成独立事业部，同时招聘规模环比扩大约四成，竞争对手在该赛道尚未公开同类产品，说明该方向正被加码投入。\n\n完整的 3 条发现及来源已在调研报告中交付，如需我逐条展开或结合你的简历做匹配分析，告诉我即可。",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            }
-          ],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T16:28:47.441691+00:00",
-      "elapsed_ms": 1391.9,
-      "steps": [
-        {
-          "content": "{\"action\":\"final\",\"message\":\"调研已完成，结论一句话：示例科技正把检索业务单独拆成事业部并明显扩招，说明这条线在加码投入，而且同赛道对手还没公开同类产品——对算法岗来说现在进去算是个窗口期。完整报告（3 条发现及来源）已随消息附上。\",\"questions\":[]}",
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
-          "decision_shape_fingerprint": "f07d27f417a0c36b9d08d08e7055fc3d3d11a739442e1fa8a620939002cf656d",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "research_job",
-            "get_job_research",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1320.0,
+          "elapsed_ms": 1632.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

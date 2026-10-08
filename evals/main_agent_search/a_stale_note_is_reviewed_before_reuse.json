@@ -2,14 +2,14 @@
   "scenario": "a_stale_note_is_reviewed_before_reuse",
   "policy": "When working_notes includes stale_days, review whether each note still holds before carrying it forward, and use update_working_notes to remove outdated material.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "a623fbde6daf29497fd8be708ff56a864da2bd50a6b9e231be56c6e68fba0a31",
+  "prompt_fingerprint": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
   "context_shape_fingerprint": "9861cd4ddcd7cabe495311bb491bf981775e82b7334ac346af733f0ff66d278e",
-  "recorded_at": "2026-10-08T16:23:59.518706+00:00",
+  "recorded_at": "2026-10-08T16:48:53.756290+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"请问您想找什么类型的岗位？另外，您希望在哪个城市找工作？\",\"questions\":[]}",
+      "content": "{\"action\":\"ask_user\",\"message\":\"请问你想在哪个城市找工作？\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "d237c090fa6203b722bd0139d2d5f15acd48b4e64548747bc2e94c793a8b7454",
+      "selected_schema_fingerprint": "39c20b1816ed611647dc3be9259e5936ec6738fa4163ad7f6a1d6bbe587a504a",
       "decision_shape_fingerprint": "3ebe16021926f6979940ff1c46b6d8930618d72aa1f02abdfd979656ff2ce64f",
       "offered_tools": [
         "load_skill",
@@ -19,7 +19,7 @@
         "open_job_search",
         "search_capabilities"
       ],
-      "elapsed_ms": 3529.0,
+      "elapsed_ms": 2417.0,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -30,13 +30,13 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:23:56.886161+00:00",
-      "elapsed_ms": 3607.6,
+      "recorded_at": "2026-10-08T16:48:50.870068+00:00",
+      "elapsed_ms": 2478.9,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请问您想找什么类型的岗位？另外，您希望在哪个城市找工作？\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问你想在哪个城市找工作？\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "d237c090fa6203b722bd0139d2d5f15acd48b4e64548747bc2e94c793a8b7454",
+          "selected_schema_fingerprint": "39c20b1816ed611647dc3be9259e5936ec6738fa4163ad7f6a1d6bbe587a504a",
           "decision_shape_fingerprint": "3ebe16021926f6979940ff1c46b6d8930618d72aa1f02abdfd979656ff2ce64f",
           "offered_tools": [
             "load_skill",
@@ -46,7 +46,7 @@
             "open_job_search",
             "search_capabilities"
           ],
-          "elapsed_ms": 3529.0,
+          "elapsed_ms": 2417.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -56,13 +56,13 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:24:02.357322+00:00",
-      "elapsed_ms": 5803.5,
+      "recorded_at": "2026-10-08T16:48:52.228210+00:00",
+      "elapsed_ms": 2837.6,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请问你想找什么类型的岗位？另外，你希望在哪个城市找工作？\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问您想找什么类型的岗位？例如：Rust 开发工程师。另外，目标城市是哪里？\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "d237c090fa6203b722bd0139d2d5f15acd48b4e64548747bc2e94c793a8b7454",
+          "selected_schema_fingerprint": "39c20b1816ed611647dc3be9259e5936ec6738fa4163ad7f6a1d6bbe587a504a",
           "decision_shape_fingerprint": "3ebe16021926f6979940ff1c46b6d8930618d72aa1f02abdfd979656ff2ce64f",
           "offered_tools": [
             "load_skill",
@@ -72,38 +72,23 @@
             "open_job_search",
             "search_capabilities"
           ],
-          "elapsed_ms": 5658.8,
-          "model_request_count": 2,
+          "elapsed_ms": 2741.7,
+          "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "invalid_tool_arguments",
-              "retried": true,
-              "raw_output": {
-                "content": "",
-                "tool_calls": [
-                  {
-                    "name": "open_job_search",
-                    "arguments": "{\"keyword\": \"Rust\"}"
-                  }
-                ]
-              },
-              "decision_invocation": 1
-            }
-          ],
+          "decision_retry_events": [],
           "recording_retry_events": [],
           "decision_invocations": 1
         }
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:23:59.518706+00:00",
-      "elapsed_ms": 2625.1,
+      "recorded_at": "2026-10-08T16:48:53.756290+00:00",
+      "elapsed_ms": 2879.3,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请问您想搜索什么关键词的岗位？另外，目标城市是哪里？\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问您想在哪个城市找工作？另外，您想找什么类型的岗位（例如：Rust开发、后端工程师等）？\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "d237c090fa6203b722bd0139d2d5f15acd48b4e64548747bc2e94c793a8b7454",
+          "selected_schema_fingerprint": "39c20b1816ed611647dc3be9259e5936ec6738fa4163ad7f6a1d6bbe587a504a",
           "decision_shape_fingerprint": "3ebe16021926f6979940ff1c46b6d8930618d72aa1f02abdfd979656ff2ce64f",
           "offered_tools": [
             "load_skill",
@@ -113,7 +98,7 @@
             "open_job_search",
             "search_capabilities"
           ],
-          "elapsed_ms": 2558.7,
+          "elapsed_ms": 2818.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

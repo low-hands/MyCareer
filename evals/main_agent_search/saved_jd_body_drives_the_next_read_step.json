@@ -2,9 +2,9 @@
   "scenario": "saved_jd_body_drives_the_next_read_step",
   "policy": "A bounded observation body is approved presenter text from the read result. Use an explicit requirement stated in that body to choose the user's requested next operation without guessing from the receipt.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "84c6db35c30194dc13ff579d8b64b94218a317fd8488f56faab7ff5b8b16e725",
+  "prompt_fingerprint": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7",
   "context_shape_fingerprint": "55820bf48f6f2198d501a39f4f7141c3382fd8eb4342d7e462a4e8514f57b864",
-  "recorded_at": "2026-10-08T16:24:33.767650+00:00",
+  "recorded_at": "2026-10-08T16:49:29.528859+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,7 +12,7 @@
         "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
+      "selected_schema_fingerprint": "36de4e1d45acf4cebb8b27ed17557bbeff0f2fd69de2cd0760b07554a4eb8013",
       "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
       "offered_tools": [
         "load_skill",
@@ -24,7 +24,7 @@
         "create_interview",
         "search_capabilities"
       ],
-      "elapsed_ms": 2791.6,
+      "elapsed_ms": 4062.4,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -35,8 +35,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:24:32.842861+00:00",
-      "elapsed_ms": 2920.2,
+      "recorded_at": "2026-10-08T16:49:28.951849+00:00",
+      "elapsed_ms": 4123.0,
       "steps": [
         {
           "tool_call": {
@@ -44,7 +44,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
+          "selected_schema_fingerprint": "36de4e1d45acf4cebb8b27ed17557bbeff0f2fd69de2cd0760b07554a4eb8013",
           "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
           "offered_tools": [
             "load_skill",
@@ -56,7 +56,7 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 2791.6,
+          "elapsed_ms": 4062.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -66,8 +66,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:24:33.598670+00:00",
-      "elapsed_ms": 3512.2,
+      "recorded_at": "2026-10-08T16:49:27.676902+00:00",
+      "elapsed_ms": 2319.4,
       "steps": [
         {
           "tool_call": {
@@ -75,7 +75,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
+          "selected_schema_fingerprint": "36de4e1d45acf4cebb8b27ed17557bbeff0f2fd69de2cd0760b07554a4eb8013",
           "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
           "offered_tools": [
             "load_skill",
@@ -87,7 +87,7 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 3340.0,
+          "elapsed_ms": 2257.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -97,8 +97,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:24:33.767650+00:00",
-      "elapsed_ms": 3492.5,
+      "recorded_at": "2026-10-08T16:49:29.528859+00:00",
+      "elapsed_ms": 2952.9,
       "steps": [
         {
           "tool_call": {
@@ -106,7 +106,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2c6a7dd35d304d4e50e4542ef21487841afb48fe693e703266d74177b314b119",
+          "selected_schema_fingerprint": "36de4e1d45acf4cebb8b27ed17557bbeff0f2fd69de2cd0760b07554a4eb8013",
           "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
           "offered_tools": [
             "load_skill",
@@ -118,7 +118,7 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 3399.3,
+          "elapsed_ms": 2856.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

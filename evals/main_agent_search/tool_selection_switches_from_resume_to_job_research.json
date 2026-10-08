@@ -2,19 +2,21 @@
   "scenario": "tool_selection_switches_from_resume_to_job_research",
   "policy": "When a requested business tool is not yet offered, discover it and continue the user's task in the same conversation.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "003326a71dac3ab3028b798c6be74b1ed1557557299c23e06695314cb0415b5d",
+  "prompt_fingerprint": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
   "context_shape_fingerprint": "9ea445ee9609e1f03030d660b96ddd4f6484086fa09142d64c438ccf82a4ad1a",
-  "recorded_at": "2026-10-08T16:25:31.060688+00:00",
+  "recorded_at": "2026-10-08T16:50:23.308921+00:00",
   "steps": [
     {
       "tool_call": {
-        "name": "get_saved_job",
+        "name": "search_capabilities",
         "arguments": {
-          "selection_index": 1
+          "names": [
+            "list_resumes"
+          ]
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+      "selected_schema_fingerprint": "3a5c76e227e9ba6af7513595458806e8bbbfbddc891b41266d7b06140137b78b",
       "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
       "offered_tools": [
         "load_skill",
@@ -26,7 +28,33 @@
         "get_job_research",
         "search_capabilities"
       ],
-      "elapsed_ms": 5521.2,
+      "elapsed_ms": 3688.4,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "tool_call": {
+        "name": "list_resumes",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "21c687e15d077c12c33dba910dcc89606f8c3c2dc1f32e11906c40653257c9c8",
+      "decision_shape_fingerprint": "2e2c6a648041ce86095f621f72d0a1d415fc1459cfc0cd409f83dc99f92a0e6f",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_resumes",
+        "get_saved_job",
+        "research_job",
+        "get_job_research",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 5524.7,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -37,18 +65,20 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:25:29.030802+00:00",
-      "elapsed_ms": 5625.7,
+      "recorded_at": "2026-10-08T16:50:25.154593+00:00",
+      "elapsed_ms": 9393.7,
       "steps": [
         {
           "tool_call": {
-            "name": "get_saved_job",
+            "name": "search_capabilities",
             "arguments": {
-              "selection_index": 1
+              "names": [
+                "list_resumes"
+              ]
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+          "selected_schema_fingerprint": "3a5c76e227e9ba6af7513595458806e8bbbfbddc891b41266d7b06140137b78b",
           "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
           "offered_tools": [
             "load_skill",
@@ -60,35 +90,33 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 5521.2,
+          "elapsed_ms": 3688.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
           "recording_retry_events": [],
           "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T16:25:29.485645+00:00",
-      "elapsed_ms": 4792.3,
-      "steps": [
+        },
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前没有绑定任何简历。请问您是要上传简历文件让我查看吗？如果是，请附上简历文件。\\n\\n另外，关于研究示例科技公司的竞争对手，我可以为您启动岗位调研。您确认要进行这项调研吗？\",\"questions\":[]}",
+          "tool_call": {
+            "name": "list_resumes",
+            "arguments": {}
+          },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
-          "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
+          "selected_schema_fingerprint": "21c687e15d077c12c33dba910dcc89606f8c3c2dc1f32e11906c40653257c9c8",
+          "decision_shape_fingerprint": "2e2c6a648041ce86095f621f72d0a1d415fc1459cfc0cd409f83dc99f92a0e6f",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
+            "list_resumes",
             "get_saved_job",
             "research_job",
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 4703.6,
+          "elapsed_ms": 5524.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -98,19 +126,19 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:25:31.060688+00:00",
-      "elapsed_ms": 6267.2,
+      "recorded_at": "2026-10-08T16:50:21.931845+00:00",
+      "elapsed_ms": 6156.4,
       "steps": [
         {
           "tool_call": {
             "name": "research_job",
             "arguments": {
-              "focus": "主要竞争对手",
+              "focus": "主要竞争对手、市场竞争格局",
               "selection_index": 1
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "45cdfe40403b3c677db31e3906ae684f0a156c68b2e5e47035d9675d719c8ae4",
+          "selected_schema_fingerprint": "3a5c76e227e9ba6af7513595458806e8bbbfbddc891b41266d7b06140137b78b",
           "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
           "offered_tools": [
             "load_skill",
@@ -122,7 +150,41 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 6201.8,
+          "elapsed_ms": 6000.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:50:23.308921+00:00",
+      "elapsed_ms": 6623.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "research_job",
+            "arguments": {
+              "selection_index": 1,
+              "focus": "主要竞争对手、市场竞争格局"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "3a5c76e227e9ba6af7513595458806e8bbbfbddc891b41266d7b06140137b78b",
+          "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6559.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

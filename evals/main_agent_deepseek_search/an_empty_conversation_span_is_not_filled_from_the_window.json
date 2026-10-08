@@ -2,15 +2,15 @@
   "scenario": "an_empty_conversation_span_is_not_filled_from_the_window",
   "policy": "It never searches another conversation or substitutes nearby rows when the requested span is empty. If the requested resource has no matching handle, say it is not currently reachable or ask the user to identify it.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "14da4cf3cbd107b1a10db8c7ddb53ecf9145f01d2adb79c9ce3dd82697a95804",
-  "context_shape_fingerprint": "99ca3c33195ad84be197dbb5ca8aa07e819bd3f141b101da3dd9aee39fedb075",
-  "recorded_at": "2026-10-08T16:28:59.485217+00:00",
+  "prompt_fingerprint": "a331e59211246e6c7daf6f1b96a597090b2e67f043fce8e7d7133865385679ff",
+  "context_shape_fingerprint": "40991f20c8ddbd06faa3fc2a3d01083b600b9f1e046ece1f6d3085177f1b2b24",
+  "recorded_at": "2026-10-08T16:49:46.813028+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"时段 100–110 没有可读内容：该区间没有任何消息（返回 0/0 条）。这段对话可读的范围只到序号 8，所以 100–110 落在记录之外，不存在被省略的历史。\\n\\n如果你要的是这段窗口里的内容，目前可见的是序号 1–8（摘要覆盖）加上第 9 条起的最近消息。需要的话我可以按关键词去检索 1–8 之间的原始消息，比如你之前保存的岗位或 JD。\",\"questions\":[]}",
+      "content": "{\"action\":\"final\",\"message\":\"我按你给的精确范围读取了会话序号 100–110，结果是空的：返回 0/0 条，readback 状态为 unavailable（该结果只有回执，没有内容）。\\n\\n也就是说，这段序号内没有任何对话消息可供读回——可能这个对话根本没到那个长度（目前可见历史只到 sequence 10，摘要覆盖 1–8），或者这些序号不存在。\\n\\n如果你其实是想回看某段较早的内容，告诉我大致主题或关键词（比如\\\"美团 JD\\\"、\\\"城市\\\"），我可以用关键词去检索被压缩的历史片段；也可以说明确的序号范围，我再精确读取。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
-      "decision_shape_fingerprint": "8c2ebffbf49bfc3c0b94f711eb7fa8dfd3f77209ce70797888d2ea7cf55991e8",
+      "selected_schema_fingerprint": "7f55a243fce05e922c6983d1d33216309b69a1a7a3ef3ff09c50fd83e0ca1fcc",
+      "decision_shape_fingerprint": "3051cbe876028a85712019554bdbb1607655ec76fa291e7d8c6c1460bfe4ac41",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -18,7 +18,7 @@
         "search_career_memory",
         "search_capabilities"
       ],
-      "elapsed_ms": 1778.6,
+      "elapsed_ms": 1812.3,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -29,14 +29,14 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:28:58.916667+00:00",
-      "elapsed_ms": 1876.4,
+      "recorded_at": "2026-10-08T16:49:45.302776+00:00",
+      "elapsed_ms": 1889.7,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"时段 100–110 没有可读内容：该区间没有任何消息（返回 0/0 条）。这段对话可读的范围只到序号 8，所以 100–110 落在记录之外，不存在被省略的历史。\\n\\n如果你要的是这段窗口里的内容，目前可见的是序号 1–8（摘要覆盖）加上第 9 条起的最近消息。需要的话我可以按关键词去检索 1–8 之间的原始消息，比如你之前保存的岗位或 JD。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"我按你给的精确范围读取了会话序号 100–110，结果是空的：返回 0/0 条，readback 状态为 unavailable（该结果只有回执，没有内容）。\\n\\n也就是说，这段序号内没有任何对话消息可供读回——可能这个对话根本没到那个长度（目前可见历史只到 sequence 10，摘要覆盖 1–8），或者这些序号不存在。\\n\\n如果你其实是想回看某段较早的内容，告诉我大致主题或关键词（比如\\\"美团 JD\\\"、\\\"城市\\\"），我可以用关键词去检索被压缩的历史片段；也可以说明确的序号范围，我再精确读取。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
-          "decision_shape_fingerprint": "8c2ebffbf49bfc3c0b94f711eb7fa8dfd3f77209ce70797888d2ea7cf55991e8",
+          "selected_schema_fingerprint": "7f55a243fce05e922c6983d1d33216309b69a1a7a3ef3ff09c50fd83e0ca1fcc",
+          "decision_shape_fingerprint": "3051cbe876028a85712019554bdbb1607655ec76fa291e7d8c6c1460bfe4ac41",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -44,7 +44,7 @@
             "search_career_memory",
             "search_capabilities"
           ],
-          "elapsed_ms": 1778.6,
+          "elapsed_ms": 1812.3,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -54,14 +54,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:58.541051+00:00",
-      "elapsed_ms": 1350.9,
+      "recorded_at": "2026-10-08T16:49:45.601788+00:00",
+      "elapsed_ms": 2051.3,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 读回来是空的：这段范围内没有任何消息（返回 0 条）。当前这个对话只覆盖到序号 8，最近的原始消息从序号 9 开始，所以 100–110 落在实际存在的范围之外——不是被截断，是本来就没有内容。\\n\\n如果你想找的是更早的某段内容，可以告诉我具体想找什么（比如「美团 JD」或「算法工程师」），我可以按关键词在已有范围内检索；或者确认一下你想读的序号是不是记错了。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 这段没有可读的内容。\\n\\n- 读取结果是 0/0 条，即该区间在本会话中没有任何消息记录（不是被压缩，也不是内容被裁掉——返回体没有截断）。\\n- 目前这个会话的记录边界是：摘要覆盖 1–8，原生消息从第 9 条开始，到现在只有第 9、10 条。所以 100–110 属于超出实际会话范围、尚未产生的序号。\\n\\n如果你其实是想看更早的那段（1–8 的摘要之外的原始消息），我可以按关键词读取那段压缩历史；或者你确认一下是不是序号记错了。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
-          "decision_shape_fingerprint": "8c2ebffbf49bfc3c0b94f711eb7fa8dfd3f77209ce70797888d2ea7cf55991e8",
+          "selected_schema_fingerprint": "7f55a243fce05e922c6983d1d33216309b69a1a7a3ef3ff09c50fd83e0ca1fcc",
+          "decision_shape_fingerprint": "3051cbe876028a85712019554bdbb1607655ec76fa291e7d8c6c1460bfe4ac41",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -69,7 +69,7 @@
             "search_career_memory",
             "search_capabilities"
           ],
-          "elapsed_ms": 1245.7,
+          "elapsed_ms": 1990.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -79,14 +79,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:59.485217+00:00",
-      "elapsed_ms": 2326.8,
+      "recorded_at": "2026-10-08T16:49:46.813028+00:00",
+      "elapsed_ms": 2379.5,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"读回来了，但那个区间是空的：会话序号 100–110 返回 0 条消息。\\n\\n本会话目前只覆盖到序号 8（摘要到 8），原生近期消息从序号 9 开始；也就是说 100–110 还没发生，所以没有内容可读。\\n\\n关于你先前问的 美团 JD：当前运行时里没有活动的岗位、JD 快照或岗位分析（has_active_jd_snapshot / has_active_job_posting / has_active_job_analysis 全部为 false），我手上只剩「美团这份只是窗口里的对照，不是目标岗位」这一句结论，JD 具体内容不在我可读的证据里。如果你要真正评估它，请把 JD 文本或链接发给我（或让我从已保存岗位里定位这份美团岗位），我再基于它做分析；否则我只能空口泛泛而谈，那对你没价值。\\n\\n另外之前留的城市问题还没定（默认城市未确认），这会影响筛选范围——你定了城市我再继续。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"序号 100–110 这段没有可读的内容：读取结果显示区间内返回 0/0 条消息（state: conversation_span_empty），所以这段要么不存在，要么超出了本会话目前的记录范围。\\n\\n目前这个会话只到序号 10，摘要覆盖 1–8，原始消息从 9 开始。如果你想看的是：\\n- 1–8 这段被摘要压缩的历史，可以直接读回来（可按关键词聚焦）；\\n- 或者你其实想找某个具体话题（比如那份美团 JD 的来龙去脉），告诉我关键词，我去检索压缩区间里的相关消息。\\n\\n另外提醒一句：序号 9 里的美团 JD 只是窗口内的对照材料，不是你最初设定的目标岗位；当前也没有已保存岗位、目标岗位或岗位分析结果，所以我还无法对它做实质评价。需要的话，可以先把它保存/选定下来，我再分析它的要求。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
-          "decision_shape_fingerprint": "8c2ebffbf49bfc3c0b94f711eb7fa8dfd3f77209ce70797888d2ea7cf55991e8",
+          "selected_schema_fingerprint": "7f55a243fce05e922c6983d1d33216309b69a1a7a3ef3ff09c50fd83e0ca1fcc",
+          "decision_shape_fingerprint": "3051cbe876028a85712019554bdbb1607655ec76fa291e7d8c6c1460bfe4ac41",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -94,7 +94,7 @@
             "search_career_memory",
             "search_capabilities"
           ],
-          "elapsed_ms": 2172.6,
+          "elapsed_ms": 2321.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

@@ -2,60 +2,20 @@
   "scenario": "a_core_request_routes_before_job_analysis",
   "policy": "Discover the requested job analysis capability if needed, then analyze the selected job without starting resume matching.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "1f9d6392aa63f9569003d06b2552c1a889f22449f43c2c77ea0f29c5d0bd2111",
+  "prompt_fingerprint": "fd8957399acfb7084ae0ec5f8ffa49230d20c0dc2cfc47a8199e337feb1d2000",
   "context_shape_fingerprint": "2aa360c39eadbf98b807908a01ae52f5b981555d4d3e1b54908e774f1a9b4225",
-  "recorded_at": "2026-10-08T16:25:22.678653+00:00",
+  "recorded_at": "2026-10-08T16:50:09.575233+00:00",
   "steps": [
     {
       "tool_call": {
-        "name": "search_capabilities",
-        "arguments": {
-          "names": [
-            "analyze_job"
-          ]
-        }
-      },
-      "scenario_step": 0,
-      "selected_schema_fingerprint": "147c440bb367e572be9c48a5f155bfe075a34cbe3e869f3d279d40addca9d43f",
-      "decision_shape_fingerprint": "4bc9ff06aff14f8aa883bc259a2da523346094173b4a3db67c78d3a726f97e08",
-      "offered_tools": [
-        "load_skill",
-        "read_conversation_span",
-        "fetch_archived_constraints",
-        "search_career_memory",
-        "get_saved_job",
-        "search_capabilities"
-      ],
-      "elapsed_ms": 6574.4,
-      "model_request_count": 1,
-      "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [
-        {
-          "reason": "implicit_capability_load",
-          "retried": true,
-          "raw_output": {
-            "content": "当前已有一个活跃岗位（示例科技 - 算法工程师），且没有绑定简历版本。用户要求只做独立的 JD 分析，不做简历匹配。\n\n根据工具描述：\n- `analyze_job` 的说明是\"分析已选岗位的职位要求；已有分析时先检查是否仍对应当前 JD\"\n- `match_resume_to_job` 被阻塞，因为它需要先用 `analyze_job` 分析当前 JD，并同时选定一个岗位和一个简历版本\n\n但用户明确说不要做简历匹配，只需要独立 JD 分析。`analyze_job` 本身只需要已选岗位即可执行，不需要简历。当前 `has_active_job_posting` 为 true，说明有活跃岗位。\n\n我应该调用 `analyze_job` 来分析当前选中的岗位。\n\n",
-            "tool_calls": [
-              {
-                "name": "analyze_job",
-                "arguments": "{}"
-              }
-            ]
-          },
-          "decision_invocation": 1
-        }
-      ],
-      "recording_retry_events": [],
-      "decision_invocations": 1
-    },
-    {
-      "tool_call": {
         "name": "analyze_job",
-        "arguments": {}
+        "arguments": {
+          "selection_index": 1
+        }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "cfcc405d00bf973d195d8d520302219fe4bc42d4f0760cc75718f4d5e1385f7f",
-      "decision_shape_fingerprint": "c83952c135cdfe121806534d7e03240d1b08dc0e88d2c141c59781141aadaf8f",
+      "selected_schema_fingerprint": "56e78259067b278b1483429d2334d05b913e0cd3ea27dbc2f7f345e54ba614b5",
+      "decision_shape_fingerprint": "9579f42c120fff753948fc53b4d5a561efeab1eabe8ba73c4cffd628694f18ce",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -63,9 +23,10 @@
         "search_career_memory",
         "get_saved_job",
         "analyze_job",
+        "correct_job_requirement_tier",
         "search_capabilities"
       ],
-      "elapsed_ms": 2169.1,
+      "elapsed_ms": 3606.4,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -76,59 +37,19 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:25:19.908331+00:00",
-      "elapsed_ms": 8839.4,
+      "recorded_at": "2026-10-08T16:50:07.532851+00:00",
+      "elapsed_ms": 3710.6,
       "steps": [
         {
           "tool_call": {
-            "name": "search_capabilities",
-            "arguments": {
-              "names": [
-                "analyze_job"
-              ]
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "147c440bb367e572be9c48a5f155bfe075a34cbe3e869f3d279d40addca9d43f",
-          "decision_shape_fingerprint": "4bc9ff06aff14f8aa883bc259a2da523346094173b4a3db67c78d3a726f97e08",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 6574.4,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "implicit_capability_load",
-              "retried": true,
-              "raw_output": {
-                "content": "当前已有一个活跃岗位（示例科技 - 算法工程师），且没有绑定简历版本。用户要求只做独立的 JD 分析，不做简历匹配。\n\n根据工具描述：\n- `analyze_job` 的说明是\"分析已选岗位的职位要求；已有分析时先检查是否仍对应当前 JD\"\n- `match_resume_to_job` 被阻塞，因为它需要先用 `analyze_job` 分析当前 JD，并同时选定一个岗位和一个简历版本\n\n但用户明确说不要做简历匹配，只需要独立 JD 分析。`analyze_job` 本身只需要已选岗位即可执行，不需要简历。当前 `has_active_job_posting` 为 true，说明有活跃岗位。\n\n我应该调用 `analyze_job` 来分析当前选中的岗位。\n\n",
-                "tool_calls": [
-                  {
-                    "name": "analyze_job",
-                    "arguments": "{}"
-                  }
-                ]
-              },
-              "decision_invocation": 1
-            }
-          ],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        },
-        {
-          "tool_call": {
             "name": "analyze_job",
-            "arguments": {}
+            "arguments": {
+              "selection_index": 1
+            }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "cfcc405d00bf973d195d8d520302219fe4bc42d4f0760cc75718f4d5e1385f7f",
-          "decision_shape_fingerprint": "c83952c135cdfe121806534d7e03240d1b08dc0e88d2c141c59781141aadaf8f",
+          "selected_schema_fingerprint": "56e78259067b278b1483429d2334d05b913e0cd3ea27dbc2f7f345e54ba614b5",
+          "decision_shape_fingerprint": "9579f42c120fff753948fc53b4d5a561efeab1eabe8ba73c4cffd628694f18ce",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -136,9 +57,10 @@
             "search_career_memory",
             "get_saved_job",
             "analyze_job",
+            "correct_job_requirement_tier",
             "search_capabilities"
           ],
-          "elapsed_ms": 2169.1,
+          "elapsed_ms": 3606.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -148,28 +70,30 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:25:24.651537+00:00",
-      "elapsed_ms": 9243.2,
+      "recorded_at": "2026-10-08T16:50:09.246760+00:00",
+      "elapsed_ms": 5128.0,
       "steps": [
         {
           "tool_call": {
-            "name": "get_saved_job",
+            "name": "analyze_job",
             "arguments": {
               "selection_index": 1
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "147c440bb367e572be9c48a5f155bfe075a34cbe3e869f3d279d40addca9d43f",
-          "decision_shape_fingerprint": "4bc9ff06aff14f8aa883bc259a2da523346094173b4a3db67c78d3a726f97e08",
+          "selected_schema_fingerprint": "56e78259067b278b1483429d2334d05b913e0cd3ea27dbc2f7f345e54ba614b5",
+          "decision_shape_fingerprint": "9579f42c120fff753948fc53b4d5a561efeab1eabe8ba73c4cffd628694f18ce",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_saved_job",
+            "analyze_job",
+            "correct_job_requirement_tier",
             "search_capabilities"
           ],
-          "elapsed_ms": 9143.6,
+          "elapsed_ms": 5036.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -179,28 +103,28 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:25:22.678653+00:00",
-      "elapsed_ms": 6780.9,
+      "recorded_at": "2026-10-08T16:50:09.575233+00:00",
+      "elapsed_ms": 2156.6,
       "steps": [
         {
           "tool_call": {
-            "name": "get_saved_job",
-            "arguments": {
-              "selection_index": 1
-            }
+            "name": "analyze_job",
+            "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "147c440bb367e572be9c48a5f155bfe075a34cbe3e869f3d279d40addca9d43f",
-          "decision_shape_fingerprint": "4bc9ff06aff14f8aa883bc259a2da523346094173b4a3db67c78d3a726f97e08",
+          "selected_schema_fingerprint": "56e78259067b278b1483429d2334d05b913e0cd3ea27dbc2f7f345e54ba614b5",
+          "decision_shape_fingerprint": "9579f42c120fff753948fc53b4d5a561efeab1eabe8ba73c4cffd628694f18ce",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_saved_job",
+            "analyze_job",
+            "correct_job_requirement_tier",
             "search_capabilities"
           ],
-          "elapsed_ms": 6716.8,
+          "elapsed_ms": 2093.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

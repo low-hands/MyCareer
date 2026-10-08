@@ -2,17 +2,22 @@
   "scenario": "overdue_brief_routes_to_the_action_list",
   "policy": "Tool observation facts are approved decision values. When the user explicitly asks for a conditional follow-up, use the overdue count rather than giving a generic answer or guessing the brief body.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "9248176469c375b8b8488fc54845f99da65b3f5f4e8f8d3aa937a13a828a3bbb",
+  "prompt_fingerprint": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd",
   "context_shape_fingerprint": "4f01d61c362426228a14e63b2cc775db5eeb2444c3d667f88636706317829086",
-  "recorded_at": "2026-10-08T16:28:43.478692+00:00",
+  "recorded_at": "2026-10-08T16:49:32.087078+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "list_action_items",
-        "arguments": {}
+        "arguments": {
+          "statuses": [
+            "open",
+            "snoozed"
+          ]
+        }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "beef37a8f02f425607fa324a4aef2d7d5d40dc39d8b28e03338b3ba031e6954c",
+      "selected_schema_fingerprint": "d1001ea8f62b47500ba997f0f054b66b58a85c0c8e4d5f76a53c8df5ca8ab782",
       "decision_shape_fingerprint": "ba0f8f6087f2474dd7d95917aaaf58975974a5f22e7b9a70dc914415eff131ed",
       "offered_tools": [
         "load_skill",
@@ -23,7 +28,7 @@
         "list_action_items",
         "search_capabilities"
       ],
-      "elapsed_ms": 1161.4,
+      "elapsed_ms": 1231.5,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -34,70 +39,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:28:43.078891+00:00",
-      "elapsed_ms": 1228.3,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "list_action_items",
-            "arguments": {}
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "beef37a8f02f425607fa324a4aef2d7d5d40dc39d8b28e03338b3ba031e6954c",
-          "decision_shape_fingerprint": "ba0f8f6087f2474dd7d95917aaaf58975974a5f22e7b9a70dc914415eff131ed",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_daily_brief",
-            "list_action_items",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1161.4,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T16:28:43.261745+00:00",
-      "elapsed_ms": 1115.7,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "list_action_items",
-            "arguments": {
-              "timezone": "Asia/Shanghai"
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "beef37a8f02f425607fa324a4aef2d7d5d40dc39d8b28e03338b3ba031e6954c",
-          "decision_shape_fingerprint": "ba0f8f6087f2474dd7d95917aaaf58975974a5f22e7b9a70dc914415eff131ed",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_daily_brief",
-            "list_action_items",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 977.2,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T16:28:43.478692+00:00",
-      "elapsed_ms": 1102.7,
+      "recorded_at": "2026-10-08T16:49:31.980728+00:00",
+      "elapsed_ms": 1291.3,
       "steps": [
         {
           "tool_call": {
@@ -110,7 +53,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "beef37a8f02f425607fa324a4aef2d7d5d40dc39d8b28e03338b3ba031e6954c",
+          "selected_schema_fingerprint": "d1001ea8f62b47500ba997f0f054b66b58a85c0c8e4d5f76a53c8df5ca8ab782",
           "decision_shape_fingerprint": "ba0f8f6087f2474dd7d95917aaaf58975974a5f22e7b9a70dc914415eff131ed",
           "offered_tools": [
             "load_skill",
@@ -121,7 +64,72 @@
             "list_action_items",
             "search_capabilities"
           ],
-          "elapsed_ms": 1030.4,
+          "elapsed_ms": 1231.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:49:31.911682+00:00",
+      "elapsed_ms": 1051.8,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_action_items",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "d1001ea8f62b47500ba997f0f054b66b58a85c0c8e4d5f76a53c8df5ca8ab782",
+          "decision_shape_fingerprint": "ba0f8f6087f2474dd7d95917aaaf58975974a5f22e7b9a70dc914415eff131ed",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 974.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:49:32.087078+00:00",
+      "elapsed_ms": 1170.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_action_items",
+            "arguments": {
+              "statuses": [
+                "open",
+                "snoozed"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "d1001ea8f62b47500ba997f0f054b66b58a85c0c8e4d5f76a53c8df5ca8ab782",
+          "decision_shape_fingerprint": "ba0f8f6087f2474dd7d95917aaaf58975974a5f22e7b9a70dc914415eff131ed",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1104.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

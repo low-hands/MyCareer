@@ -2,14 +2,14 @@
   "scenario": "a_bare_confirmation_expires_after_the_adjacent_turn",
   "policy": "A bare confirmation authorizes a pending career fact, job intent, or free-text preference only on the immediately adjacent user turn and only when task.bare_confirmation_target names that type.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "5a0aea32754e4c07f64f168b1ef0aa5317a765b2e7e6251003245f73c46f6a37",
+  "prompt_fingerprint": "05c4b66d5a4152d90df20a0f0bf64f2040eeb94d234f86eb3dccdff1f7b2f2bd",
   "context_shape_fingerprint": "689602ed95dd0a57a9d5a4844f3b033e6663bb6d60aa9b43c2792b1dcefefd89",
-  "recorded_at": "2026-10-08T16:24:06.012274+00:00",
+  "recorded_at": "2026-10-08T16:49:00.175318+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你想看哪个城市或岗位方向，例如\\\"北京 Java 开发\\\"或\\\"上海 产品经理\\\"。\",\"questions\":[]}",
+      "content": "{\"action\":\"ask_user\",\"message\":\"你想看哪个城市或岗位方向？\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "c2bde49092ac5dfaa865e9ec9784ea13d4973245a62fe56a388c393ae84f01a3",
+      "selected_schema_fingerprint": "6990ca182cdeabae933e5d2432c0a20c0ed53f3034897100598e185e152f2bd3",
       "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
       "offered_tools": [
         "load_skill",
@@ -19,10 +19,31 @@
         "confirm_job_intent",
         "search_capabilities"
       ],
-      "elapsed_ms": 3069.8,
-      "model_request_count": 1,
+      "elapsed_ms": 7608.7,
+      "model_request_count": 3,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [],
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "要看新岗位，我需要先了解你的求职方向。请问：\n\n1. 你想找什么类型的岗位？（例如：前端开发、产品经理、数据分析师等）\n2. 你希望在哪个城市工作？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        },
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": true,
+          "raw_output": {
+            "content": "要看新岗位，我需要先了解你的求职意向。目前没有已确认的目标岗位方向。\n\n请告诉我：\n1. 你想看什么类型的岗位？（例如：前端开发、产品经理、数据分析师等）\n2. 希望在哪个城市工作？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -30,13 +51,13 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:24:00.603698+00:00",
-      "elapsed_ms": 3130.1,
+      "recorded_at": "2026-10-08T16:48:59.622882+00:00",
+      "elapsed_ms": 7662.3,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你想看哪个城市或岗位方向，例如\\\"北京 Java 开发\\\"或\\\"上海 产品经理\\\"。\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"你想看哪个城市或岗位方向？\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "c2bde49092ac5dfaa865e9ec9784ea13d4973245a62fe56a388c393ae84f01a3",
+          "selected_schema_fingerprint": "6990ca182cdeabae933e5d2432c0a20c0ed53f3034897100598e185e152f2bd3",
           "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
           "offered_tools": [
             "load_skill",
@@ -46,18 +67,39 @@
             "confirm_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 3069.8,
-          "model_request_count": 1,
+          "elapsed_ms": 7608.7,
+          "model_request_count": 3,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "要看新岗位，我需要先了解你的求职方向。请问：\n\n1. 你想找什么类型的岗位？（例如：前端开发、产品经理、数据分析师等）\n2. 你希望在哪个城市工作？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "要看新岗位，我需要先了解你的求职意向。目前没有已确认的目标岗位方向。\n\n请告诉我：\n1. 你想看什么类型的岗位？（例如：前端开发、产品经理、数据分析师等）\n2. 希望在哪个城市工作？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:24:06.711719+00:00",
-      "elapsed_ms": 7181.1,
+      "recorded_at": "2026-10-08T16:48:57.949023+00:00",
+      "elapsed_ms": 5710.2,
       "steps": [
         {
           "tool_call": {
@@ -69,7 +111,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "c2bde49092ac5dfaa865e9ec9784ea13d4973245a62fe56a388c393ae84f01a3",
+          "selected_schema_fingerprint": "6990ca182cdeabae933e5d2432c0a20c0ed53f3034897100598e185e152f2bd3",
           "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
           "offered_tools": [
             "load_skill",
@@ -79,7 +121,7 @@
             "confirm_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 3169.0,
+          "elapsed_ms": 3004.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -87,9 +129,14 @@
           "decision_invocations": 1
         },
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你想搜索的岗位关键词（例如：Java工程师、产品经理）以及城市（例如：北京、上海）。\",\"questions\":[]}",
+          "tool_call": {
+            "name": "open_job_search",
+            "arguments": {
+              "keyword": "新岗位"
+            }
+          },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "4f459deb67e2aa14bbceb9671a82724bf45a25993138ce5ccc2f3bad3cd3e5fb",
+          "selected_schema_fingerprint": "0f64eac659066be0e7fea9036ab344737271d120048c0eb3d243b008bd0b1782",
           "decision_shape_fingerprint": "0c560dc62f6a531200b004b0bd649db2b9fceaff98459c1deb681a5d65bd3ce3",
           "offered_tools": [
             "load_skill",
@@ -100,7 +147,7 @@
             "confirm_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 3949.3,
+          "elapsed_ms": 2650.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -110,8 +157,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:24:06.012274+00:00",
-      "elapsed_ms": 5401.1,
+      "recorded_at": "2026-10-08T16:49:00.175318+00:00",
+      "elapsed_ms": 6395.4,
       "steps": [
         {
           "tool_call": {
@@ -123,7 +170,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "c2bde49092ac5dfaa865e9ec9784ea13d4973245a62fe56a388c393ae84f01a3",
+          "selected_schema_fingerprint": "6990ca182cdeabae933e5d2432c0a20c0ed53f3034897100598e185e152f2bd3",
           "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
           "offered_tools": [
             "load_skill",
@@ -133,7 +180,7 @@
             "confirm_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 2313.1,
+          "elapsed_ms": 3594.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -141,9 +188,9 @@
           "decision_invocations": 1
         },
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你想搜索的岗位关键词（例如“产品经理”、“Java开发”等）以及目标城市。\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你想搜索的岗位关键词（例如“产品经理”“Java开发”等）以及目标城市。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "4f459deb67e2aa14bbceb9671a82724bf45a25993138ce5ccc2f3bad3cd3e5fb",
+          "selected_schema_fingerprint": "0f64eac659066be0e7fea9036ab344737271d120048c0eb3d243b008bd0b1782",
           "decision_shape_fingerprint": "0c560dc62f6a531200b004b0bd649db2b9fceaff98459c1deb681a5d65bd3ce3",
           "offered_tools": [
             "load_skill",
@@ -154,7 +201,7 @@
             "confirm_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 3026.1,
+          "elapsed_ms": 2710.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

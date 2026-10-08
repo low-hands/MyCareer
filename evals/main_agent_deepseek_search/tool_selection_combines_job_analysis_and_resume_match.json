@@ -2,9 +2,9 @@
   "scenario": "tool_selection_combines_job_analysis_and_resume_match",
   "policy": "For a request that needs job analysis followed by resume matching, complete the job step and use the analysis result for matching without asking the user to restart.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "63be03b2fbabb86692bb371ceb2a688bbbc27ea840b3838de1f3dc07b505b3bb",
+  "prompt_fingerprint": "1af3bc11afa72a3cf56513e56afc3d253cf4d8362b6ee1e0f85fb4273fb46b77",
   "context_shape_fingerprint": "6815cc9ecb474dff505afcb66df1cd7af4b2af133352b45b229f27d07771adf1",
-  "recorded_at": "2026-10-08T16:29:06.223379+00:00",
+  "recorded_at": "2026-10-08T16:49:52.664310+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,7 +12,7 @@
         "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "a711de7004b8c727adcd6ba0cf2d858f7d0e77552846c8d92cfc22b3f4bae8c9",
+      "selected_schema_fingerprint": "8e69538505c17f40fbc5fcd8f899cd901c6f7b853e73a1effc0ad28d0a19f4cf",
       "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
       "offered_tools": [
         "load_skill",
@@ -24,10 +24,29 @@
         "compare_saved_jobs",
         "search_capabilities"
       ],
-      "elapsed_ms": 1088.4,
-      "model_request_count": 1,
+      "elapsed_ms": 2429.2,
+      "model_request_count": 2,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [],
+      "decision_retry_events": [
+        {
+          "reason": "multiple_tool_calls",
+          "retried": true,
+          "raw_output": {
+            "content": "I'll start by analyzing the job, then match it against your current resume.\n\nThe saved job pool shows one candidate — 示例科技 · 算法工程师 (Shanghai, 30-50K) — which I'll treat as \"这个岗位.\"",
+            "tool_calls": [
+              {
+                "name": "analyze_job",
+                "arguments": "{}"
+              },
+              {
+                "name": "search_capabilities",
+                "arguments": "{\"names\": [\"match_resume_to_job\", \"list_resumes\"]}"
+              }
+            ]
+          },
+          "decision_invocation": 1
+        }
+      ],
       "recording_retry_events": [],
       "decision_invocations": 1
     },
@@ -37,7 +56,7 @@
         "arguments": {}
       },
       "scenario_step": 1,
-      "selected_schema_fingerprint": "97d36e109dd0bf879732924c2364e2685503fff7185eb34a635b55d76adddde7",
+      "selected_schema_fingerprint": "a04c0882e4cd2d60fb0798f5956a341de9e40c88e8ce884d7ed7be528b9b0fde",
       "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
       "offered_tools": [
         "load_skill",
@@ -50,7 +69,7 @@
         "match_resume_to_job",
         "search_capabilities"
       ],
-      "elapsed_ms": 1029.1,
+      "elapsed_ms": 1098.8,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -61,8 +80,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:29:05.857784+00:00",
-      "elapsed_ms": 2201.8,
+      "recorded_at": "2026-10-08T16:49:53.201736+00:00",
+      "elapsed_ms": 3619.7,
       "steps": [
         {
           "tool_call": {
@@ -70,7 +89,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "a711de7004b8c727adcd6ba0cf2d858f7d0e77552846c8d92cfc22b3f4bae8c9",
+          "selected_schema_fingerprint": "8e69538505c17f40fbc5fcd8f899cd901c6f7b853e73a1effc0ad28d0a19f4cf",
           "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
           "offered_tools": [
             "load_skill",
@@ -82,10 +101,29 @@
             "compare_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1088.4,
-          "model_request_count": 1,
+          "elapsed_ms": 2429.2,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "multiple_tool_calls",
+              "retried": true,
+              "raw_output": {
+                "content": "I'll start by analyzing the job, then match it against your current resume.\n\nThe saved job pool shows one candidate — 示例科技 · 算法工程师 (Shanghai, 30-50K) — which I'll treat as \"这个岗位.\"",
+                "tool_calls": [
+                  {
+                    "name": "analyze_job",
+                    "arguments": "{}"
+                  },
+                  {
+                    "name": "search_capabilities",
+                    "arguments": "{\"names\": [\"match_resume_to_job\", \"list_resumes\"]}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         },
@@ -95,7 +133,7 @@
             "arguments": {}
           },
           "scenario_step": 1,
-          "selected_schema_fingerprint": "97d36e109dd0bf879732924c2364e2685503fff7185eb34a635b55d76adddde7",
+          "selected_schema_fingerprint": "a04c0882e4cd2d60fb0798f5956a341de9e40c88e8ce884d7ed7be528b9b0fde",
           "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
           "offered_tools": [
             "load_skill",
@@ -108,7 +146,7 @@
             "match_resume_to_job",
             "search_capabilities"
           ],
-          "elapsed_ms": 1029.1,
+          "elapsed_ms": 1098.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -118,18 +156,16 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:29:06.738359+00:00",
-      "elapsed_ms": 2431.7,
+      "recorded_at": "2026-10-08T16:49:52.098467+00:00",
+      "elapsed_ms": 2415.7,
       "steps": [
         {
           "tool_call": {
-            "name": "get_saved_job",
-            "arguments": {
-              "selection_index": 1
-            }
+            "name": "analyze_job",
+            "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "a711de7004b8c727adcd6ba0cf2d858f7d0e77552846c8d92cfc22b3f4bae8c9",
+          "selected_schema_fingerprint": "8e69538505c17f40fbc5fcd8f899cd901c6f7b853e73a1effc0ad28d0a19f4cf",
           "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
           "offered_tools": [
             "load_skill",
@@ -141,7 +177,7 @@
             "compare_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1445.7,
+          "elapsed_ms": 1203.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -154,7 +190,7 @@
             "arguments": {}
           },
           "scenario_step": 1,
-          "selected_schema_fingerprint": "97d36e109dd0bf879732924c2364e2685503fff7185eb34a635b55d76adddde7",
+          "selected_schema_fingerprint": "a04c0882e4cd2d60fb0798f5956a341de9e40c88e8ce884d7ed7be528b9b0fde",
           "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
           "offered_tools": [
             "load_skill",
@@ -167,7 +203,7 @@
             "match_resume_to_job",
             "search_capabilities"
           ],
-          "elapsed_ms": 883.2,
+          "elapsed_ms": 1146.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -177,8 +213,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:29:06.223379+00:00",
-      "elapsed_ms": 1763.7,
+      "recorded_at": "2026-10-08T16:49:52.664310+00:00",
+      "elapsed_ms": 2756.1,
       "steps": [
         {
           "tool_call": {
@@ -188,7 +224,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "a711de7004b8c727adcd6ba0cf2d858f7d0e77552846c8d92cfc22b3f4bae8c9",
+          "selected_schema_fingerprint": "8e69538505c17f40fbc5fcd8f899cd901c6f7b853e73a1effc0ad28d0a19f4cf",
           "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
           "offered_tools": [
             "load_skill",
@@ -200,7 +236,7 @@
             "compare_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 903.2,
+          "elapsed_ms": 1655.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -213,7 +249,7 @@
             "arguments": {}
           },
           "scenario_step": 1,
-          "selected_schema_fingerprint": "97d36e109dd0bf879732924c2364e2685503fff7185eb34a635b55d76adddde7",
+          "selected_schema_fingerprint": "a04c0882e4cd2d60fb0798f5956a341de9e40c88e8ce884d7ed7be528b9b0fde",
           "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
           "offered_tools": [
             "load_skill",
@@ -226,7 +262,7 @@
             "match_resume_to_job",
             "search_capabilities"
           ],
-          "elapsed_ms": 744.9,
+          "elapsed_ms": 999.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

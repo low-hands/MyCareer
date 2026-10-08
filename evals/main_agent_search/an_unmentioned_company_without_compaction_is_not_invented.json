@@ -2,18 +2,15 @@
   "scenario": "an_unmentioned_company_without_compaction_is_not_invented",
   "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "1af4f1f7c2a52f1c0e4508dadfea88ccac798138f6a096ce425b4a93b26f18a2",
-  "context_shape_fingerprint": "0aaffe507c543f652ac9efaa8d5df33f36fc2623a917defa92da0d16371efafd",
-  "recorded_at": "2026-10-08T16:25:07.341834+00:00",
+  "prompt_fingerprint": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8",
+  "context_shape_fingerprint": "50fe34d484f6fd66869bc1ab8ded0fe6df1901306ded2c5eea550a3075bba81a",
+  "recorded_at": "2026-10-08T16:50:03.243450+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "list_target_roles",
-        "arguments": {}
-      },
+      "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你的目标公司全名是什么？\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
-      "decision_shape_fingerprint": "b0fcf9b77ee8ad1c8f79118791c2506e4da3980c00baddce40e6347f818304c0",
+      "selected_schema_fingerprint": "8ed9ee8c2c1f388a70819d9a46ab8ab953031fa178d3327b128533661f792b88",
+      "decision_shape_fingerprint": "0c52b7b5eb7657c9e87d39a493ec63a3fb06c3183cde6ccb50c209bb61fea582",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -23,7 +20,7 @@
         "list_target_roles",
         "search_capabilities"
       ],
-      "elapsed_ms": 2255.5,
+      "elapsed_ms": 3223.7,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -34,17 +31,14 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:25:05.994824+00:00",
-      "elapsed_ms": 2311.3,
+      "recorded_at": "2026-10-08T16:50:02.715794+00:00",
+      "elapsed_ms": 3310.8,
       "steps": [
         {
-          "tool_call": {
-            "name": "list_target_roles",
-            "arguments": {}
-          },
+          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你的目标公司全名是什么？\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
-          "decision_shape_fingerprint": "b0fcf9b77ee8ad1c8f79118791c2506e4da3980c00baddce40e6347f818304c0",
+          "selected_schema_fingerprint": "8ed9ee8c2c1f388a70819d9a46ab8ab953031fa178d3327b128533661f792b88",
+          "decision_shape_fingerprint": "0c52b7b5eb7657c9e87d39a493ec63a3fb06c3183cde6ccb50c209bb61fea582",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -54,7 +48,7 @@
             "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 2255.5,
+          "elapsed_ms": 3223.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -64,8 +58,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:25:07.409051+00:00",
-      "elapsed_ms": 3244.5,
+      "recorded_at": "2026-10-08T16:50:03.092102+00:00",
+      "elapsed_ms": 3675.0,
       "steps": [
         {
           "tool_call": {
@@ -73,8 +67,8 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
-          "decision_shape_fingerprint": "b0fcf9b77ee8ad1c8f79118791c2506e4da3980c00baddce40e6347f818304c0",
+          "selected_schema_fingerprint": "8ed9ee8c2c1f388a70819d9a46ab8ab953031fa178d3327b128533661f792b88",
+          "decision_shape_fingerprint": "0c52b7b5eb7657c9e87d39a493ec63a3fb06c3183cde6ccb50c209bb61fea582",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -84,7 +78,7 @@
             "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 3184.5,
+          "elapsed_ms": 3575.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -94,17 +88,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:25:07.341834+00:00",
-      "elapsed_ms": 2934.8,
+      "recorded_at": "2026-10-08T16:50:03.243450+00:00",
+      "elapsed_ms": 3672.7,
       "steps": [
         {
-          "tool_call": {
-            "name": "list_target_roles",
-            "arguments": {}
-          },
+          "content": "{\"action\":\"ask_user\",\"message\":\"你提到的目标公司全名是什么？（例如：美团、阿里巴巴等）\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "29f82a928606f04de4dc42860fde7c1f7f31bf4079756bdf08d75d7d2323e949",
-          "decision_shape_fingerprint": "b0fcf9b77ee8ad1c8f79118791c2506e4da3980c00baddce40e6347f818304c0",
+          "selected_schema_fingerprint": "8ed9ee8c2c1f388a70819d9a46ab8ab953031fa178d3327b128533661f792b88",
+          "decision_shape_fingerprint": "0c52b7b5eb7657c9e87d39a493ec63a3fb06c3183cde6ccb50c209bb61fea582",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -114,7 +105,7 @@
             "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 2875.0,
+          "elapsed_ms": 3618.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

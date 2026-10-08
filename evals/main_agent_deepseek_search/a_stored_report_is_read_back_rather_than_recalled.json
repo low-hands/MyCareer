@@ -2,9 +2,9 @@
   "scenario": "a_stored_report_is_read_back_rather_than_recalled",
   "policy": "A native chat turn ending in a runtime resources line may carry a stored report handle whose full contents are not present. To discuss that report, read it back with the matching tool by passing that exact handle.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "fd23c9034917aa9129919fe11ccb5047fae3eddd9e7b5cabc2b9d1fd993b95ba",
+  "prompt_fingerprint": "a88fbee81fc5ff1b78319e1e49066f154141f1f8aaf529c06a47bb8373389e82",
   "context_shape_fingerprint": "6870b9be60f58b242200c44bb7cdbe61d9f7030dda2dccbbbcdc767e3921ad85",
-  "recorded_at": "2026-10-08T16:28:39.948585+00:00",
+  "recorded_at": "2026-10-08T16:49:28.527280+00:00",
   "steps": [
     {
       "tool_call": {
@@ -14,7 +14,7 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "e765cfd92dc9bdd94ab8fb1500e05b168a7b79e7e13457f5ac55cd891d0c1e2d",
+      "selected_schema_fingerprint": "54b66d4af35e69d4990f05332c717e8ac867e1db9cab7ea484e4215e65a1c112",
       "decision_shape_fingerprint": "0d324e864ba122b60e1a571dd2a4d90c7e013e56fd5023fa8b16a81666aa9529",
       "offered_tools": [
         "load_skill",
@@ -28,7 +28,7 @@
         "search_career_episodes",
         "search_capabilities"
       ],
-      "elapsed_ms": 1304.3,
+      "elapsed_ms": 1559.2,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -39,8 +39,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:28:39.563558+00:00",
-      "elapsed_ms": 1362.0,
+      "recorded_at": "2026-10-08T16:49:26.495019+00:00",
+      "elapsed_ms": 1800.8,
       "steps": [
         {
           "tool_call": {
@@ -50,7 +50,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "e765cfd92dc9bdd94ab8fb1500e05b168a7b79e7e13457f5ac55cd891d0c1e2d",
+          "selected_schema_fingerprint": "54b66d4af35e69d4990f05332c717e8ac867e1db9cab7ea484e4215e65a1c112",
           "decision_shape_fingerprint": "0d324e864ba122b60e1a571dd2a4d90c7e013e56fd5023fa8b16a81666aa9529",
           "offered_tools": [
             "load_skill",
@@ -64,7 +64,7 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 1304.3,
+          "elapsed_ms": 1559.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -74,8 +74,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:39.704243+00:00",
-      "elapsed_ms": 1314.2,
+      "recorded_at": "2026-10-08T16:49:26.652897+00:00",
+      "elapsed_ms": 1771.9,
       "steps": [
         {
           "tool_call": {
@@ -85,7 +85,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "e765cfd92dc9bdd94ab8fb1500e05b168a7b79e7e13457f5ac55cd891d0c1e2d",
+          "selected_schema_fingerprint": "54b66d4af35e69d4990f05332c717e8ac867e1db9cab7ea484e4215e65a1c112",
           "decision_shape_fingerprint": "0d324e864ba122b60e1a571dd2a4d90c7e013e56fd5023fa8b16a81666aa9529",
           "offered_tools": [
             "load_skill",
@@ -99,7 +99,7 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 1254.1,
+          "elapsed_ms": 1690.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -109,8 +109,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:39.948585+00:00",
-      "elapsed_ms": 1457.4,
+      "recorded_at": "2026-10-08T16:49:28.527280+00:00",
+      "elapsed_ms": 3538.5,
       "steps": [
         {
           "tool_call": {
@@ -120,7 +120,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "e765cfd92dc9bdd94ab8fb1500e05b168a7b79e7e13457f5ac55cd891d0c1e2d",
+          "selected_schema_fingerprint": "54b66d4af35e69d4990f05332c717e8ac867e1db9cab7ea484e4215e65a1c112",
           "decision_shape_fingerprint": "0d324e864ba122b60e1a571dd2a4d90c7e013e56fd5023fa8b16a81666aa9529",
           "offered_tools": [
             "load_skill",
@@ -134,10 +134,21 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 1375.2,
-          "model_request_count": 1,
+          "elapsed_ms": 3434.6,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "我无法从已有的调研报告中读出竞争对手信息——报告正文是通过资源卡片交付的，我这边只能看到它的标题和引用编号，看不到内容。而且「这家公司」目前也没有唯一的指向：当前会话里我无法确认你刚才那句「这家公司」指的是哪一家。\n\n另外，你的收藏岗位里有一个「示例科技 · 算法工程师（上海）」，但那是否就是你要问的公司，我不清楚，不能替你假定。\n\n请告诉我其中一项：\n\n1. 你要问的公司名称（比如就是收藏列表里的「示例科技」）；\n2. 或者你手上那份报告对应的公司名，我好用对应的引用去读回报告内容。\n\n你给我公司名之后，我就可以重新读那份已生成的调研报告，把里面的竞争对手部分如实转述给你。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }

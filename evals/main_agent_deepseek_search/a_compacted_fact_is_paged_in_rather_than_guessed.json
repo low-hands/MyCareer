@@ -2,22 +2,20 @@
   "scenario": "a_compacted_fact_is_paged_in_rather_than_guessed",
   "policy": "When through_sequence and recent_from_sequence expose an omitted-history gap (or recent_from_sequence is greater than 1), and the fact the user asks for is absent from both conversation_summary in working-memory data and the native prior chat turns, call read_conversation_span for sequence 1 through through_sequence before answering; never substitute another company or nearby fact from the recent window.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "abe8c8474ec95bfdda912434db024888cd0d0cee012e44f7b88caad22f665307",
-  "context_shape_fingerprint": "858a4dc22365f69af8e2ef703b5af4f758be3e46bb68961b5e5df18086a1a031",
-  "recorded_at": "2026-10-08T16:28:56.570840+00:00",
+  "prompt_fingerprint": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+  "context_shape_fingerprint": "0962bb1832e53a1642833a8f8dce11bd3048ab0b610bb8a59225fbf2b2897a54",
+  "recorded_at": "2026-10-08T16:49:41.303923+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "read_conversation_span",
         "arguments": {
-          "from_sequence": 1,
-          "through_sequence": 8,
-          "query": "目标公司 指定 公司全名"
+          "query": "目标公司 全名 指定 美团"
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "92a968bcd1ff1aafcf59d456c1bb45563f2ea22b4773cee531fa84301da4e541",
-      "decision_shape_fingerprint": "0b48eb9d32224625125460b9e86b3213acbfdcc698ac487d90e04d874b7fc74e",
+      "selected_schema_fingerprint": "48de561ddab7da15af691dd18e83f89706911779aa289f800a142b3c629b6d09",
+      "decision_shape_fingerprint": "9493d5c0b76f3e48801e6c6c75e8139e41fef5d580a38ed065f94a7faac7e73f",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -28,7 +26,7 @@
         "list_target_roles",
         "search_capabilities"
       ],
-      "elapsed_ms": 1477.4,
+      "elapsed_ms": 1046.9,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -39,21 +37,19 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:28:54.314742+00:00",
-      "elapsed_ms": 1576.7,
+      "recorded_at": "2026-10-08T16:49:41.204158+00:00",
+      "elapsed_ms": 1106.3,
       "steps": [
         {
           "tool_call": {
             "name": "read_conversation_span",
             "arguments": {
-              "from_sequence": 1,
-              "through_sequence": 8,
-              "query": "目标公司 指定 公司全名"
+              "query": "目标公司 全名 指定 美团"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "92a968bcd1ff1aafcf59d456c1bb45563f2ea22b4773cee531fa84301da4e541",
-          "decision_shape_fingerprint": "0b48eb9d32224625125460b9e86b3213acbfdcc698ac487d90e04d874b7fc74e",
+          "selected_schema_fingerprint": "48de561ddab7da15af691dd18e83f89706911779aa289f800a142b3c629b6d09",
+          "decision_shape_fingerprint": "9493d5c0b76f3e48801e6c6c75e8139e41fef5d580a38ed065f94a7faac7e73f",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -64,7 +60,7 @@
             "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 1477.4,
+          "elapsed_ms": 1046.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -74,21 +70,19 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:54.503924+00:00",
-      "elapsed_ms": 1646.8,
+      "recorded_at": "2026-10-08T16:49:41.647781+00:00",
+      "elapsed_ms": 1453.5,
       "steps": [
         {
           "tool_call": {
             "name": "read_conversation_span",
             "arguments": {
-              "from_sequence": 1,
-              "through_sequence": 8,
-              "query": "目标公司 美团 全名"
+              "query": "目标公司 美团 指定"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "92a968bcd1ff1aafcf59d456c1bb45563f2ea22b4773cee531fa84301da4e541",
-          "decision_shape_fingerprint": "0b48eb9d32224625125460b9e86b3213acbfdcc698ac487d90e04d874b7fc74e",
+          "selected_schema_fingerprint": "48de561ddab7da15af691dd18e83f89706911779aa289f800a142b3c629b6d09",
+          "decision_shape_fingerprint": "9493d5c0b76f3e48801e6c6c75e8139e41fef5d580a38ed065f94a7faac7e73f",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -99,7 +93,7 @@
             "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 1489.1,
+          "elapsed_ms": 1355.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -109,21 +103,19 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:56.570840+00:00",
-      "elapsed_ms": 3483.3,
+      "recorded_at": "2026-10-08T16:49:41.303923+00:00",
+      "elapsed_ms": 1048.5,
       "steps": [
         {
           "tool_call": {
             "name": "read_conversation_span",
             "arguments": {
-              "from_sequence": 1,
-              "through_sequence": 8,
-              "query": "目标公司 指定 美团"
+              "query": "目标公司 全名 美团 指定"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "92a968bcd1ff1aafcf59d456c1bb45563f2ea22b4773cee531fa84301da4e541",
-          "decision_shape_fingerprint": "0b48eb9d32224625125460b9e86b3213acbfdcc698ac487d90e04d874b7fc74e",
+          "selected_schema_fingerprint": "48de561ddab7da15af691dd18e83f89706911779aa289f800a142b3c629b6d09",
+          "decision_shape_fingerprint": "9493d5c0b76f3e48801e6c6c75e8139e41fef5d580a38ed065f94a7faac7e73f",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -134,21 +126,10 @@
             "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 3285.6,
-          "model_request_count": 2,
+          "elapsed_ms": 939.4,
+          "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": false,
-              "raw_output": {
-                "content": "这个我无法从现有记录里给出——摘要和运行状态里都没有出现你一开始指定的目标公司名称，`saved_jobs`、`target_roles`、`current_targets.md` 目前也都是空的（无已保存岗位、无目标岗位方向），所以我不能凭空说一个名字。\n\n刚才提到美团，是窗口里出现过的对照，不能当成你最初指定的那家。\n\n要确认原始说法，有两个办法：\n- 你可以直接告诉我目标公司的全名；\n- 或者我去读第 1–8 段原始对话消息（摘要覆盖的那段范围）找你的原话——不过这只是检索聊天原文，不是权威的目标记录。\n\n要我去翻一下那段原始消息吗？",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            }
-          ],
+          "decision_retry_events": [],
           "recording_retry_events": [],
           "decision_invocations": 1
         }

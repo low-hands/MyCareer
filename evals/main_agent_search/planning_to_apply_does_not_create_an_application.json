@@ -2,22 +2,15 @@
   "scenario": "planning_to_apply_does_not_create_an_application",
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "9d43067ed3c2c1f5f88e9070f2e049f15bc129966aaea0d61e93e6705b1734e6",
+  "prompt_fingerprint": "da31282fa90291b4f0c8e5b6f3ab693f23277471f87df0741c941656c55d42b2",
   "context_shape_fingerprint": "19863eb67cb394d3676b27e179a7258cc12b11bdc829c26f953d9c95f1736fec",
-  "recorded_at": "2026-10-08T16:24:10.314145+00:00",
+  "recorded_at": "2026-10-08T16:49:01.587513+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "search_capabilities",
-        "arguments": {
-          "names": [
-            "list_resumes"
-          ]
-        }
-      },
+      "content": "{\"action\":\"questionnaire\",\"message\":\"为了更好地协助你完成投递准备，请回答以下问题：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你是否已经准备好了简历？\",\"kind\":\"single\",\"options\":[{\"value\":\"yes\",\"label\":\"已准备好\",\"meaning\":\"choice\"},{\"value\":\"no\",\"label\":\"需要帮助准备/定制简历\",\"meaning\":\"choice\"}],\"allow_free_text\":false,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"这个岗位是你想要投递的目标吗？\",\"kind\":\"single\",\"options\":[{\"value\":\"confirm\",\"label\":\"是的，就是这个岗位\",\"meaning\":\"choice\"},{\"value\":\"different\",\"label\":\"不是，我想投递其他岗位\",\"meaning\":\"choice\"}],\"allow_free_text\":false,\"allow_skip\":false}]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
-      "decision_shape_fingerprint": "2ad94564c9b7889c119a411ae8400f27875a297eb55d8d78b5d01b045f1f1d63",
+      "selected_schema_fingerprint": "8e43efa5f19f11ff0ca9438f3920c1b92dddbb5fd30128a2f8166720b941eed4",
+      "decision_shape_fingerprint": "5931183d57e495c634a166ef85bd8c0500f5b7db2b3f571059b24d140e66aa47",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -25,38 +18,11 @@
         "search_career_memory",
         "get_saved_job",
         "analyze_job",
-        "correct_job_requirement_tier",
         "compare_saved_jobs",
+        "propose_job_intent",
         "search_capabilities"
       ],
-      "elapsed_ms": 2681.7,
-      "model_request_count": 1,
-      "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [],
-      "recording_retry_events": [],
-      "decision_invocations": 1
-    },
-    {
-      "tool_call": {
-        "name": "list_resumes",
-        "arguments": {}
-      },
-      "scenario_step": 0,
-      "selected_schema_fingerprint": "0ebc96e8f754508b932876ce04f29ddd1c31c9568f8f7faf8d67efb3de0a0d8f",
-      "decision_shape_fingerprint": "a8b23c6a3a90c6c743095eee91a157c9ee7f2ba3fedd3ed40fe729f9b7492998",
-      "offered_tools": [
-        "load_skill",
-        "read_conversation_span",
-        "fetch_archived_constraints",
-        "search_career_memory",
-        "list_resumes",
-        "get_saved_job",
-        "analyze_job",
-        "correct_job_requirement_tier",
-        "compare_saved_jobs",
-        "search_capabilities"
-      ],
-      "elapsed_ms": 2322.2,
+      "elapsed_ms": 9545.2,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -67,21 +33,14 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:24:05.865033+00:00",
-      "elapsed_ms": 5070.7,
+      "recorded_at": "2026-10-08T16:49:03.501965+00:00",
+      "elapsed_ms": 9610.7,
       "steps": [
         {
-          "tool_call": {
-            "name": "search_capabilities",
-            "arguments": {
-              "names": [
-                "list_resumes"
-              ]
-            }
-          },
+          "content": "{\"action\":\"questionnaire\",\"message\":\"为了更好地协助你完成投递准备，请回答以下问题：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你是否已经准备好了简历？\",\"kind\":\"single\",\"options\":[{\"value\":\"yes\",\"label\":\"已准备好\",\"meaning\":\"choice\"},{\"value\":\"no\",\"label\":\"需要帮助准备/定制简历\",\"meaning\":\"choice\"}],\"allow_free_text\":false,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"这个岗位是你想要投递的目标吗？\",\"kind\":\"single\",\"options\":[{\"value\":\"confirm\",\"label\":\"是的，就是这个岗位\",\"meaning\":\"choice\"},{\"value\":\"different\",\"label\":\"不是，我想投递其他岗位\",\"meaning\":\"choice\"}],\"allow_free_text\":false,\"allow_skip\":false}]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
-          "decision_shape_fingerprint": "2ad94564c9b7889c119a411ae8400f27875a297eb55d8d78b5d01b045f1f1d63",
+          "selected_schema_fingerprint": "8e43efa5f19f11ff0ca9438f3920c1b92dddbb5fd30128a2f8166720b941eed4",
+          "decision_shape_fingerprint": "5931183d57e495c634a166ef85bd8c0500f5b7db2b3f571059b24d140e66aa47",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -89,38 +48,11 @@
             "search_career_memory",
             "get_saved_job",
             "analyze_job",
-            "correct_job_requirement_tier",
             "compare_saved_jobs",
+            "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 2681.7,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        },
-        {
-          "tool_call": {
-            "name": "list_resumes",
-            "arguments": {}
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "0ebc96e8f754508b932876ce04f29ddd1c31c9568f8f7faf8d67efb3de0a0d8f",
-          "decision_shape_fingerprint": "a8b23c6a3a90c6c743095eee91a157c9ee7f2ba3fedd3ed40fe729f9b7492998",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "list_resumes",
-            "get_saved_job",
-            "analyze_job",
-            "correct_job_requirement_tier",
-            "compare_saved_jobs",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 2322.2,
+          "elapsed_ms": 9545.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -130,19 +62,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:24:05.946994+00:00",
-      "elapsed_ms": 3556.6,
+      "recorded_at": "2026-10-08T16:49:03.135288+00:00",
+      "elapsed_ms": 7910.2,
       "steps": [
         {
-          "tool_call": {
-            "name": "get_saved_job",
-            "arguments": {
-              "selection_index": 1
-            }
-          },
+          "content": "{\"action\":\"ask_user\",\"message\":\"你希望我帮你做什么？比如：分析这个岗位的职位要求、检查你的简历与岗位的匹配度，或者直接创建投递记录？\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
-          "decision_shape_fingerprint": "2ad94564c9b7889c119a411ae8400f27875a297eb55d8d78b5d01b045f1f1d63",
+          "selected_schema_fingerprint": "8e43efa5f19f11ff0ca9438f3920c1b92dddbb5fd30128a2f8166720b941eed4",
+          "decision_shape_fingerprint": "5931183d57e495c634a166ef85bd8c0500f5b7db2b3f571059b24d140e66aa47",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -150,33 +77,39 @@
             "search_career_memory",
             "get_saved_job",
             "analyze_job",
-            "correct_job_requirement_tier",
             "compare_saved_jobs",
+            "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 3443.2,
-          "model_request_count": 1,
+          "elapsed_ms": 7849.4,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "我看到您有一个已收藏的岗位：示例科技的算法工程师（上海，30-50K）。\n\n在帮您准备投递之前，我需要先了解一些信息。请问您是否已经准备好了简历？如果有，请附上您的简历文件。\n\n另外，您是希望我：\n1. 分析这个岗位的详细要求\n2. 将您的简历与这个岗位进行匹配\n3. 还是直接创建投递记录\n\n请告诉我您的下一步打算，以及是否需要我先分析这个岗位的JD？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:24:10.314145+00:00",
-      "elapsed_ms": 5800.6,
+      "recorded_at": "2026-10-08T16:49:01.587513+00:00",
+      "elapsed_ms": 4468.9,
       "steps": [
         {
-          "tool_call": {
-            "name": "get_saved_job",
-            "arguments": {
-              "selection_index": 1
-            }
-          },
+          "content": "{\"action\":\"ask_user\",\"message\":\"您说准备投这个岗位了，请问您希望：1) 先分析岗位详细要求；2) 直接创建投递记录；3) 还是需要我先帮您查看是否有可用的简历？\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
-          "decision_shape_fingerprint": "2ad94564c9b7889c119a411ae8400f27875a297eb55d8d78b5d01b045f1f1d63",
+          "selected_schema_fingerprint": "8e43efa5f19f11ff0ca9438f3920c1b92dddbb5fd30128a2f8166720b941eed4",
+          "decision_shape_fingerprint": "5931183d57e495c634a166ef85bd8c0500f5b7db2b3f571059b24d140e66aa47",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -184,11 +117,11 @@
             "search_career_memory",
             "get_saved_job",
             "analyze_job",
-            "correct_job_requirement_tier",
             "compare_saved_jobs",
+            "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 5724.6,
+          "elapsed_ms": 4407.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

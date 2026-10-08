@@ -2,14 +2,14 @@
   "scenario": "a_nonretryable_read_failure_is_not_reissued",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question only when another distinct operation is genuinely required; never repeat a failed non-retryable call.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "e1e36a269f2ba396ef0b8c429f9aa1ab291428729fbc404c0266dec491c2d1f0",
+  "prompt_fingerprint": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f",
   "context_shape_fingerprint": "9350a7c40ad7d4095b44ba3e388f0548663a66790a77ab8cb4401d09333d7a32",
-  "recorded_at": "2026-10-08T16:28:51.500141+00:00",
+  "recorded_at": "2026-10-08T16:49:39.430731+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"这次查找没能完成：收藏岗位库在响应查询时失败了（失败不可重试，回执中没有可读结果），所以我现在无法列出你保存过的 RAG 岗位，也没有任何可用的替代数据来源。\\n\\n建议稍后再试一次；如果仍然失败，可能需要检查岗位库服务状态。需要的话，我也可以在你确认后改为按其他条件（如公司或岗位名）重新查找。\",\"questions\":[]}",
+      "content": "{\"action\":\"final\",\"message\":\"很抱歉，这次查询没能完成：岗位库当前无法响应「RAG」相关的已收藏岗位查询，工具返回的是一次失败的接收凭据，没有可读取的结果内容，因此我无法列出或确认任何已收藏的 RAG 岗位。\\n\\n建议稍后再让我查一次；如果之后仍失败，可以换用更宽泛的关键词（例如只搜「检索」「大模型」）再试。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "6a4f584cf8cceb3dcb72944215fe3a805e3d7d50da81fb34a94594e94793a9a8",
+      "selected_schema_fingerprint": "17ae93863dcd3206b4b52f398cad4aa2e63a3477c1f59a9fec4b661e1860fe51",
       "decision_shape_fingerprint": "9f12f5a8ee62a163073a05c0274a972ac0a8e32edd4d04d358b1f1bb047822b6",
       "offered_tools": [
         "load_skill",
@@ -19,7 +19,7 @@
         "find_saved_jobs",
         "search_capabilities"
       ],
-      "elapsed_ms": 1367.2,
+      "elapsed_ms": 1822.0,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -30,13 +30,13 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:28:50.730775+00:00",
-      "elapsed_ms": 1487.4,
+      "recorded_at": "2026-10-08T16:49:38.636112+00:00",
+      "elapsed_ms": 1907.6,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"这次查找没能完成：收藏岗位库在响应查询时失败了（失败不可重试，回执中没有可读结果），所以我现在无法列出你保存过的 RAG 岗位，也没有任何可用的替代数据来源。\\n\\n建议稍后再试一次；如果仍然失败，可能需要检查岗位库服务状态。需要的话，我也可以在你确认后改为按其他条件（如公司或岗位名）重新查找。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"很抱歉，这次查询没能完成：岗位库当前无法响应「RAG」相关的已收藏岗位查询，工具返回的是一次失败的接收凭据，没有可读取的结果内容，因此我无法列出或确认任何已收藏的 RAG 岗位。\\n\\n建议稍后再让我查一次；如果之后仍失败，可以换用更宽泛的关键词（例如只搜「检索」「大模型」）再试。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "6a4f584cf8cceb3dcb72944215fe3a805e3d7d50da81fb34a94594e94793a9a8",
+          "selected_schema_fingerprint": "17ae93863dcd3206b4b52f398cad4aa2e63a3477c1f59a9fec4b661e1860fe51",
           "decision_shape_fingerprint": "9f12f5a8ee62a163073a05c0274a972ac0a8e32edd4d04d358b1f1bb047822b6",
           "offered_tools": [
             "load_skill",
@@ -46,7 +46,7 @@
             "find_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1367.2,
+          "elapsed_ms": 1822.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -56,13 +56,13 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:51.019781+00:00",
-      "elapsed_ms": 1496.5,
+      "recorded_at": "2026-10-08T16:49:38.941601+00:00",
+      "elapsed_ms": 2090.3,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"很抱歉，这次没能帮你查到已收藏的 RAG 岗位：岗位库返回了「无法完成这次查询」的失败结果，且该失败标注为不可重试，所以我不会用相同的查询反复尝试。\\n\\n目前无法确认你收藏的岗位里有哪些与 RAG 相关，也不宜编造或从其他来源替代。建议稍后再试一次本次查询；如果你想换一种方式，也可以告诉我更具体的条件（例如目标公司或岗位名称关键字），我再重新查询。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"很抱歉，这次没能帮你查到保存过的 RAG 岗位：岗位库当前无法完成这次查询（工具返回为失败，且不可重试相同查询）。\\n\\n目前我无法读取你的已收藏岗位列表，所以既不能列出结果，也不能确认是否真的没有匹配项——这是查询失败，不是「没有保存过」。\\n\\n你可以稍后再让我试一次；如果你记得岗位的公司或职位名称，也可以先告诉我，我可以在岗位库恢复后按名称再找。需要我现在做别的事（比如根据你的目标岗位方向看看）也可以说一声。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "6a4f584cf8cceb3dcb72944215fe3a805e3d7d50da81fb34a94594e94793a9a8",
+          "selected_schema_fingerprint": "17ae93863dcd3206b4b52f398cad4aa2e63a3477c1f59a9fec4b661e1860fe51",
           "decision_shape_fingerprint": "9f12f5a8ee62a163073a05c0274a972ac0a8e32edd4d04d358b1f1bb047822b6",
           "offered_tools": [
             "load_skill",
@@ -72,7 +72,7 @@
             "find_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1404.0,
+          "elapsed_ms": 1882.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -82,13 +82,13 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:51.500141+00:00",
-      "elapsed_ms": 1839.1,
+      "recorded_at": "2026-10-08T16:49:39.430731+00:00",
+      "elapsed_ms": 2115.7,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"没能查到结果：岗位库当前无法完成这次「RAG」岗位查询（工具返回失败，且明确不可重试相同查询），所以现在无法确认你保存过哪些 RAG 岗位，也没有可读回的岗位列表。\\n\\n可选做法：\\n1. 稍后再让我查一次（换一个时间点重试，不是原样重试）；\\n2. 若你记得岗位的公司或标题关键词，直接告诉我，我可以按关键词再找；\\n3. 也可让我打开招聘网站按「RAG」搜索新岗位（需要你确认要做搜索，我不会擅自打开）。\\n\\n要我先试哪一种？\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"很抱歉，这次查询没能完成：岗位库（已保存岗位）当前无法响应我对「RAG」相关收藏岗位的检索，返回的是失败状态，且没有可读回的记录内容，因此我现在无法列出你保存过的 RAG 岗位。\\n\\n说明两点：\\n- 这是一次能力端的失败，不是你信息缺失的问题；按失败提示，我不应原样重试同一查询。\\n- 我也没有看到任何可用的替代来源可以顶替岗位库，所以不会用猜测或历史印象来拼凑岗位清单。\\n\\n你可以这样做：\\n1. 稍后再让我重试一次（例如说「再查一次保存的 RAG 岗位」），可能是岗位库暂时性不可用；\\n2. 或者你直接告诉我公司名或岗位名，我可以换一个条件再去岗位库里定位。\\n\\n需要我现在换个关键词试一次吗？\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "6a4f584cf8cceb3dcb72944215fe3a805e3d7d50da81fb34a94594e94793a9a8",
+          "selected_schema_fingerprint": "17ae93863dcd3206b4b52f398cad4aa2e63a3477c1f59a9fec4b661e1860fe51",
           "decision_shape_fingerprint": "9f12f5a8ee62a163073a05c0274a972ac0a8e32edd4d04d358b1f1bb047822b6",
           "offered_tools": [
             "load_skill",
@@ -98,7 +98,7 @@
             "find_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1689.6,
+          "elapsed_ms": 2052.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

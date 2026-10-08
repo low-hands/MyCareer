@@ -2,9 +2,9 @@
   "scenario": "stated_intent_is_proposed_before_it_is_recorded",
   "policy": "When the user states job intent in their own words, call propose_job_intent with only what they said, read the result back, and call confirm_job_intent only after they agree to it. A salary belongs to one target role and needs target_role_selection_index from list_target_roles.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "04e7debb078783e1a2c32b225703c281f1e521d178de877b40bcad5d9ba3c614",
+  "prompt_fingerprint": "d094b52aeeb24bf6c7604bbf710bde257bc5f0d16d7853d348c7cf2b7de6af45",
   "context_shape_fingerprint": "f839e86544bfb5cb57c3afe825baa6ca5b0cb1894daf0513b46fe685578ffa97",
-  "recorded_at": "2026-10-08T16:26:30.797719+00:00",
+  "recorded_at": "2026-10-08T16:48:57.111485+00:00",
   "steps": [
     {
       "tool_call": {
@@ -16,7 +16,7 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "2c915cb024ba2ba39499550794bb135f6924bc5ec8da24a5d747f921119d86da",
+      "selected_schema_fingerprint": "9627e9fd468143fd613c2967abd86b41cc86f075ed06f0ef94929de759f373ea",
       "decision_shape_fingerprint": "1fbfe5443fc2d03bd5c01e662ebdaa1b6310cca70887d0d3df3a09bb9c05bab2",
       "offered_tools": [
         "load_skill",
@@ -27,15 +27,15 @@
         "search_career_episodes",
         "search_capabilities"
       ],
-      "elapsed_ms": 27209.6,
-      "model_request_count": 6,
+      "elapsed_ms": 13393.1,
+      "model_request_count": 4,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [
         {
           "reason": "invalid_tool_arguments",
           "retried": true,
           "raw_output": {
-            "content": "我需要先展示你的求职意向变更，等待你确认后再保存。让我调用 propose_job_intent 来展示这个意向。\n\n",
+            "content": "我需要先展示你的求职意向变更，等待你确认后再保存。让我使用 propose_job_intent 来展示这个意向。\n\n",
             "tool_calls": [
               {
                 "name": "propose_job_intent",
@@ -49,11 +49,11 @@
           "reason": "invalid_tool_arguments",
           "retried": false,
           "raw_output": {
-            "content": "我需要先展示您的求职意向变更，等待您确认后才能保存。让我使用 propose_job_intent 来展示这个意向。\n\n",
+            "content": "我需要先展示您表达的求职意向，等待您确认后再保存。\n\n",
             "tool_calls": [
               {
                 "name": "propose_job_intent",
-                "arguments": "{\"target_role_selection_index\": null, \"pref_scope\": \"global\", \"timescale\": \"permanent\", \"city\": \"上海\", \"salary_expectation\": \"40K以上\", \"experience\": null, \"education\": null, \"hard_constraints\": \n[]\n\n}"
+                "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
               }
             ]
           },
@@ -63,7 +63,7 @@
           "reason": "invalid_tool_arguments",
           "retried": true,
           "raw_output": {
-            "content": "我来展示你明确表达的求职意向，等待你的确认。\n\n",
+            "content": "我将展示您表达的求职意向，等待您确认后才会保存。\n\n",
             "tool_calls": [
               {
                 "name": "propose_job_intent",
@@ -74,45 +74,27 @@
           "decision_invocation": 2
         },
         {
-          "reason": "invalid_tool_arguments",
-          "retried": false,
-          "raw_output": {
-            "content": "我需要先展示你明确表达的求职意向变更，等待确认后才能保存。\n\n",
-            "tool_calls": [
-              {
-                "name": "propose_job_intent",
-                "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
-              }
-            ]
-          },
-          "decision_invocation": 2
-        },
-        {
-          "reason": "invalid_tool_arguments",
+          "reason": "implicit_capability_load",
           "retried": true,
           "raw_output": {
-            "content": "我需要先展示您的求职意向变更，等待您确认后再保存。\n\n",
+            "content": "我需要先了解您想针对哪个目标岗位方向记录这个意向。让我先查看您已记录的目标岗位方向。\n\n",
             "tool_calls": [
               {
-                "name": "propose_job_intent",
-                "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
+                "name": "list_target_roles",
+                "arguments": "{}"
               }
             ]
           },
-          "decision_invocation": 3
+          "decision_invocation": 2
         }
       ],
       "recording_retry_events": [
         {
           "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
           "decision_invocation": 1
-        },
-        {
-          "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
-          "decision_invocation": 2
         }
       ],
-      "decision_invocations": 3
+      "decision_invocations": 2
     },
     {
       "tool_call": {
@@ -120,7 +102,7 @@
         "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "0271d3c7e4e9d206ef0f9274046ceaf867439a66b25d564360408f03b205ed0b",
+      "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
       "decision_shape_fingerprint": "8979eefeb257f7f1f0d368e8fedaf8f836fd74b1840cb8d30942efc618b22392",
       "offered_tools": [
         "load_skill",
@@ -132,7 +114,7 @@
         "search_career_episodes",
         "search_capabilities"
       ],
-      "elapsed_ms": 1453.4,
+      "elapsed_ms": 2036.7,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -149,7 +131,7 @@
         }
       },
       "scenario_step": 1,
-      "selected_schema_fingerprint": "0271d3c7e4e9d206ef0f9274046ceaf867439a66b25d564360408f03b205ed0b",
+      "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
       "decision_shape_fingerprint": "5953e10926919dd75074cb324dfb54faa877630b5c0407ef0df919b79cbe3a66",
       "offered_tools": [
         "load_skill",
@@ -161,7 +143,7 @@
         "search_career_episodes",
         "search_capabilities"
       ],
-      "elapsed_ms": 3665.8,
+      "elapsed_ms": 2462.1,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -172,8 +154,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:26:51.754614+00:00",
-      "elapsed_ms": 32471.1,
+      "recorded_at": "2026-10-08T16:48:51.952667+00:00",
+      "elapsed_ms": 18196.8,
       "steps": [
         {
           "tool_call": {
@@ -185,7 +167,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2c915cb024ba2ba39499550794bb135f6924bc5ec8da24a5d747f921119d86da",
+          "selected_schema_fingerprint": "9627e9fd468143fd613c2967abd86b41cc86f075ed06f0ef94929de759f373ea",
           "decision_shape_fingerprint": "1fbfe5443fc2d03bd5c01e662ebdaa1b6310cca70887d0d3df3a09bb9c05bab2",
           "offered_tools": [
             "load_skill",
@@ -196,7 +178,157 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 27209.6,
+          "elapsed_ms": 13393.1,
+          "model_request_count": 4,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "我需要先展示你的求职意向变更，等待你确认后再保存。让我使用 propose_job_intent 来展示这个意向。\n\n",
+                "tool_calls": [
+                  {
+                    "name": "propose_job_intent",
+                    "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": false,
+              "raw_output": {
+                "content": "我需要先展示您表达的求职意向，等待您确认后再保存。\n\n",
+                "tool_calls": [
+                  {
+                    "name": "propose_job_intent",
+                    "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "我将展示您表达的求职意向，等待您确认后才会保存。\n\n",
+                "tool_calls": [
+                  {
+                    "name": "propose_job_intent",
+                    "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 2
+            },
+            {
+              "reason": "implicit_capability_load",
+              "retried": true,
+              "raw_output": {
+                "content": "我需要先了解您想针对哪个目标岗位方向记录这个意向。让我先查看您已记录的目标岗位方向。\n\n",
+                "tool_calls": [
+                  {
+                    "name": "list_target_roles",
+                    "arguments": "{}"
+                  }
+                ]
+              },
+              "decision_invocation": 2
+            }
+          ],
+          "recording_retry_events": [
+            {
+              "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+              "decision_invocation": 1
+            }
+          ],
+          "decision_invocations": 2
+        },
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
+          "decision_shape_fingerprint": "8979eefeb257f7f1f0d368e8fedaf8f836fd74b1840cb8d30942efc618b22392",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2036.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "propose_job_intent",
+            "arguments": {
+              "target_role_selection_index": 1,
+              "city": "上海",
+              "salary_expectation": "40K 以上"
+            }
+          },
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
+          "decision_shape_fingerprint": "5953e10926919dd75074cb324dfb54faa877630b5c0407ef0df919b79cbe3a66",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2462.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:49:07.381397+00:00",
+      "elapsed_ms": 33564.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "list_target_roles"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9627e9fd468143fd613c2967abd86b41cc86f075ed06f0ef94929de759f373ea",
+          "decision_shape_fingerprint": "1fbfe5443fc2d03bd5c01e662ebdaa1b6310cca70887d0d3df3a09bb9c05bab2",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 29683.9,
           "model_request_count": 6,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -204,7 +336,7 @@
               "reason": "invalid_tool_arguments",
               "retried": true,
               "raw_output": {
-                "content": "我需要先展示你的求职意向变更，等待你确认后再保存。让我调用 propose_job_intent 来展示这个意向。\n\n",
+                "content": "我来展示你表达的求职意向，等待你确认后再保存。\n\n",
                 "tool_calls": [
                   {
                     "name": "propose_job_intent",
@@ -218,11 +350,11 @@
               "reason": "invalid_tool_arguments",
               "retried": false,
               "raw_output": {
-                "content": "我需要先展示您的求职意向变更，等待您确认后才能保存。让我使用 propose_job_intent 来展示这个意向。\n\n",
+                "content": "用户希望记录求职意向：上海、算法岗、期望薪资40K以上。\n\n根据工具描述，`propose_job_intent` 用于展示用户的求职意向变更（不保存），需要等待用户确认后才能通过 `confirm_job_intent` 保存。\n\n当前状态：\n- 没有激活的目标岗位（target_roles 为空）\n- 需要先调用 `propose_job_intent` 展示意图\n\n对于 `propose_job_intent` 的参数：\n- city: \"上海\"\n- salary_expectation: \"40K以上\" \n- target_role_selection_index: 由于没有列出目标岗位，且用户说的是\"算法岗\"这个通用描述而非从列表中选择的具体岗位，这里应该为 null\n- 其他字段如 experience、education 用户未提及，不应推断\n\n让我先调用 propose_job_intent 来展示这个意向。\n\n",
                 "tool_calls": [
                   {
                     "name": "propose_job_intent",
-                    "arguments": "{\"target_role_selection_index\": null, \"pref_scope\": \"global\", \"timescale\": \"permanent\", \"city\": \"上海\", \"salary_expectation\": \"40K以上\", \"experience\": null, \"education\": null, \"hard_constraints\": \n[]\n\n}"
+                    "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K以上\"}"
                   }
                 ]
               },
@@ -232,7 +364,7 @@
               "reason": "invalid_tool_arguments",
               "retried": true,
               "raw_output": {
-                "content": "我来展示你明确表达的求职意向，等待你的确认。\n\n",
+                "content": "我需要先展示您表达的求职意向，等待您确认后再保存。\n\n",
                 "tool_calls": [
                   {
                     "name": "propose_job_intent",
@@ -246,11 +378,11 @@
               "reason": "invalid_tool_arguments",
               "retried": false,
               "raw_output": {
-                "content": "我需要先展示你明确表达的求职意向变更，等待确认后才能保存。\n\n",
+                "content": "",
                 "tool_calls": [
                   {
                     "name": "propose_job_intent",
-                    "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
+                    "arguments": "{\"target_role_selection_index\": null, \"pref_scope\": \"global\", \"timescale\": \"permanent\", \"city\": \"上海\", \"salary_expectation\": \"40K 以上\", \"experience\": null, \"education\": null, \"hard_constraints\": \n[]\n\n}"
                   }
                 ]
               },
@@ -260,7 +392,7 @@
               "reason": "invalid_tool_arguments",
               "retried": true,
               "raw_output": {
-                "content": "我需要先展示您的求职意向变更，等待您确认后再保存。\n\n",
+                "content": "我需要先展示您的求职意向变更，等待您确认后才能保存。\n\n",
                 "tool_calls": [
                   {
                     "name": "propose_job_intent",
@@ -289,7 +421,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "0271d3c7e4e9d206ef0f9274046ceaf867439a66b25d564360408f03b205ed0b",
+          "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
           "decision_shape_fingerprint": "8979eefeb257f7f1f0d368e8fedaf8f836fd74b1840cb8d30942efc618b22392",
           "offered_tools": [
             "load_skill",
@@ -301,7 +433,7 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 1453.4,
+          "elapsed_ms": 1516.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -318,7 +450,7 @@
             }
           },
           "scenario_step": 1,
-          "selected_schema_fingerprint": "0271d3c7e4e9d206ef0f9274046ceaf867439a66b25d564360408f03b205ed0b",
+          "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
           "decision_shape_fingerprint": "5953e10926919dd75074cb324dfb54faa877630b5c0407ef0df919b79cbe3a66",
           "offered_tools": [
             "load_skill",
@@ -330,7 +462,7 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 3665.8,
+          "elapsed_ms": 2067.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -340,8 +472,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:26:30.807944+00:00",
-      "elapsed_ms": 11585.8,
+      "recorded_at": "2026-10-08T16:48:57.111485+00:00",
+      "elapsed_ms": 18793.3,
       "steps": [
         {
           "tool_call": {
@@ -353,7 +485,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2c915cb024ba2ba39499550794bb135f6924bc5ec8da24a5d747f921119d86da",
+          "selected_schema_fingerprint": "9627e9fd468143fd613c2967abd86b41cc86f075ed06f0ef94929de759f373ea",
           "decision_shape_fingerprint": "1fbfe5443fc2d03bd5c01e662ebdaa1b6310cca70887d0d3df3a09bb9c05bab2",
           "offered_tools": [
             "load_skill",
@@ -364,15 +496,15 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 6490.9,
-          "model_request_count": 2,
+          "elapsed_ms": 13476.0,
+          "model_request_count": 4,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
             {
               "reason": "invalid_tool_arguments",
               "retried": true,
               "raw_output": {
-                "content": "我来帮你记录求职意向。首先展示一下会记录的意向内容，等待你的确认。\n\n",
+                "content": "我需要先展示你的求职意向变更，等待你确认后再保存。让我使用 propose_job_intent 来展示这个意向。\n\n",
                 "tool_calls": [
                   {
                     "name": "propose_job_intent",
@@ -383,10 +515,38 @@
               "decision_invocation": 1
             },
             {
+              "reason": "invalid_tool_arguments",
+              "retried": false,
+              "raw_output": {
+                "content": "我需要先展示您的求职意向，等待您确认后才能保存。让我使用 propose_job_intent 来展示这个意向。\n\n",
+                "tool_calls": [
+                  {
+                    "name": "propose_job_intent",
+                    "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "我将先展示你的求职意向，等待你确认后再保存。\n\n",
+                "tool_calls": [
+                  {
+                    "name": "propose_job_intent",
+                    "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 2
+            },
+            {
               "reason": "implicit_capability_load",
               "retried": true,
               "raw_output": {
-                "content": "我需要使用 propose_job_intent 来展示您的求职意向，但需要先确定目标岗位。让我先列出可用的目标岗位选项。\n\n",
+                "content": "我需要先列出可用的目标岗位方向，以便为\"算法岗\"获取正确的选择索引。\n\n",
                 "tool_calls": [
                   {
                     "name": "list_target_roles",
@@ -394,11 +554,16 @@
                   }
                 ]
               },
+              "decision_invocation": 2
+            }
+          ],
+          "recording_retry_events": [
+            {
+              "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
               "decision_invocation": 1
             }
           ],
-          "recording_retry_events": [],
-          "decision_invocations": 1
+          "decision_invocations": 2
         },
         {
           "tool_call": {
@@ -406,7 +571,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "0271d3c7e4e9d206ef0f9274046ceaf867439a66b25d564360408f03b205ed0b",
+          "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
           "decision_shape_fingerprint": "8979eefeb257f7f1f0d368e8fedaf8f836fd74b1840cb8d30942efc618b22392",
           "offered_tools": [
             "load_skill",
@@ -418,7 +583,7 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 1842.6,
+          "elapsed_ms": 2016.3,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -435,7 +600,7 @@
             }
           },
           "scenario_step": 1,
-          "selected_schema_fingerprint": "0271d3c7e4e9d206ef0f9274046ceaf867439a66b25d564360408f03b205ed0b",
+          "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
           "decision_shape_fingerprint": "5953e10926919dd75074cb324dfb54faa877630b5c0407ef0df919b79cbe3a66",
           "offered_tools": [
             "load_skill",
@@ -447,124 +612,7 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 2904.5,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T16:26:30.797719+00:00",
-      "elapsed_ms": 11545.5,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "search_capabilities",
-            "arguments": {
-              "names": [
-                "list_target_roles"
-              ]
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "2c915cb024ba2ba39499550794bb135f6924bc5ec8da24a5d747f921119d86da",
-          "decision_shape_fingerprint": "1fbfe5443fc2d03bd5c01e662ebdaa1b6310cca70887d0d3df3a09bb9c05bab2",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "propose_job_intent",
-            "search_career_episodes",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 6656.5,
-          "model_request_count": 2,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "invalid_tool_arguments",
-              "retried": true,
-              "raw_output": {
-                "content": "我需要先展示你的求职意向变更，等待你确认后再保存。\n\n",
-                "tool_calls": [
-                  {
-                    "name": "propose_job_intent",
-                    "arguments": "{\"city\": \"上海\", \"salary_expectation\": \"40K 以上\"}"
-                  }
-                ]
-              },
-              "decision_invocation": 1
-            },
-            {
-              "reason": "implicit_capability_load",
-              "retried": true,
-              "raw_output": {
-                "content": "我需要用 propose_job_intent 来展示你明确表达的求职意向变更，但当前没有目标岗位方向（target_roles）可供选择。\n\n让我先查看一下是否有已记录的目标岗位方向：\n\n",
-                "tool_calls": [
-                  {
-                    "name": "list_target_roles",
-                    "arguments": "{}"
-                  }
-                ]
-              },
-              "decision_invocation": 1
-            }
-          ],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        },
-        {
-          "tool_call": {
-            "name": "list_target_roles",
-            "arguments": {}
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "0271d3c7e4e9d206ef0f9274046ceaf867439a66b25d564360408f03b205ed0b",
-          "decision_shape_fingerprint": "8979eefeb257f7f1f0d368e8fedaf8f836fd74b1840cb8d30942efc618b22392",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "list_target_roles",
-            "propose_job_intent",
-            "search_career_episodes",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1659.3,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        },
-        {
-          "tool_call": {
-            "name": "propose_job_intent",
-            "arguments": {
-              "target_role_selection_index": 1,
-              "city": "上海",
-              "salary_expectation": "40K 以上"
-            }
-          },
-          "scenario_step": 1,
-          "selected_schema_fingerprint": "0271d3c7e4e9d206ef0f9274046ceaf867439a66b25d564360408f03b205ed0b",
-          "decision_shape_fingerprint": "5953e10926919dd75074cb324dfb54faa877630b5c0407ef0df919b79cbe3a66",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "list_target_roles",
-            "propose_job_intent",
-            "search_career_episodes",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 2890.2,
+          "elapsed_ms": 3229.3,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

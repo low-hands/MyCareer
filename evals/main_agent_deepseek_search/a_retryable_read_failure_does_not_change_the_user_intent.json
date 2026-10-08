@@ -2,9 +2,9 @@
   "scenario": "a_retryable_read_failure_does_not_change_the_user_intent",
   "policy": "Do not switch a failed saved-job lookup into a new browser search unless the user asks for new jobs. A retryable failure may be retried or explained, but it must not silently become discovery.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "e1e36a269f2ba396ef0b8c429f9aa1ab291428729fbc404c0266dec491c2d1f0",
+  "prompt_fingerprint": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f",
   "context_shape_fingerprint": "37f048c49dcc5a1603a30c1635d95e9939d05660fb35d4589f5e037566930600",
-  "recorded_at": "2026-10-08T16:28:50.007651+00:00",
+  "recorded_at": "2026-10-08T16:49:37.800786+00:00",
   "steps": [
     {
       "tool_call": {
@@ -14,7 +14,7 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "6a4f584cf8cceb3dcb72944215fe3a805e3d7d50da81fb34a94594e94793a9a8",
+      "selected_schema_fingerprint": "17ae93863dcd3206b4b52f398cad4aa2e63a3477c1f59a9fec4b661e1860fe51",
       "decision_shape_fingerprint": "8ac9268f974af339081154c3da3698a823fc541a87c4e6264d2cb4e496a5ddc8",
       "offered_tools": [
         "load_skill",
@@ -24,7 +24,7 @@
         "find_saved_jobs",
         "search_capabilities"
       ],
-      "elapsed_ms": 1177.2,
+      "elapsed_ms": 1183.4,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -35,8 +35,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:28:49.235765+00:00",
-      "elapsed_ms": 1361.3,
+      "recorded_at": "2026-10-08T16:49:37.307092+00:00",
+      "elapsed_ms": 1244.5,
       "steps": [
         {
           "tool_call": {
@@ -46,7 +46,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "6a4f584cf8cceb3dcb72944215fe3a805e3d7d50da81fb34a94594e94793a9a8",
+          "selected_schema_fingerprint": "17ae93863dcd3206b4b52f398cad4aa2e63a3477c1f59a9fec4b661e1860fe51",
           "decision_shape_fingerprint": "8ac9268f974af339081154c3da3698a823fc541a87c4e6264d2cb4e496a5ddc8",
           "offered_tools": [
             "load_skill",
@@ -56,7 +56,7 @@
             "find_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1177.2,
+          "elapsed_ms": 1183.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -66,13 +66,13 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:49.511932+00:00",
-      "elapsed_ms": 1659.9,
+      "recorded_at": "2026-10-08T16:49:37.957013+00:00",
+      "elapsed_ms": 1691.6,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"暂时查不了：岗位库此刻不可用（本次调用失败，未返回任何已收藏岗位内容，因此我无法给出你的 RAG 岗位列表）。这属于暂时的服务故障，不是你缺少信息。\\n\\n这个查询是可重试的，你可以稍后让我再试一次；如果岗位库恢复，我会重新按 \\\"RAG\\\" 检索你保存过的岗位，并把候选项列给你挑选。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"很抱歉，本次查询没有成功：已收藏岗位库（find_saved_jobs）暂时不可用，返回的是失败状态，且没有可读取的内容，因此我目前无法列出你保存过的 RAG 岗位，也无法确认其中是否有相关岗位。\\n\\n这属于临时的服务不可用（该调用标记为可重试），而不是你没有保存过岗位。请稍后让我再试一次；如果你愿意，我现在也可以立即重试同一查询。\\n\\n另外，如果你能提供岗位名称、公司或大致保存时间中的任意线索，重试时我可以更精准地筛选。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "6a4f584cf8cceb3dcb72944215fe3a805e3d7d50da81fb34a94594e94793a9a8",
+          "selected_schema_fingerprint": "17ae93863dcd3206b4b52f398cad4aa2e63a3477c1f59a9fec4b661e1860fe51",
           "decision_shape_fingerprint": "8ac9268f974af339081154c3da3698a823fc541a87c4e6264d2cb4e496a5ddc8",
           "offered_tools": [
             "load_skill",
@@ -82,7 +82,7 @@
             "find_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1502.6,
+          "elapsed_ms": 1582.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -92,18 +92,13 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:50.007651+00:00",
-      "elapsed_ms": 1357.5,
+      "recorded_at": "2026-10-08T16:49:37.800786+00:00",
+      "elapsed_ms": 1413.0,
       "steps": [
         {
-          "tool_call": {
-            "name": "find_saved_jobs",
-            "arguments": {
-              "query": "RAG"
-            }
-          },
+          "content": "{\"action\":\"final\",\"message\":\"暂时没能查到你的已收藏岗位：岗位库现在不可用（本次查询失败，系统提示可重试）。因此我无法确认你保存过哪些 RAG 相关岗位，也不会用其他来源替代——已收藏岗位只能从这个岗位库读取。\\n\\n你可以稍后让我重试一次；如果重试仍然失败，我会如实告诉你仍然不可用。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "6a4f584cf8cceb3dcb72944215fe3a805e3d7d50da81fb34a94594e94793a9a8",
+          "selected_schema_fingerprint": "17ae93863dcd3206b4b52f398cad4aa2e63a3477c1f59a9fec4b661e1860fe51",
           "decision_shape_fingerprint": "8ac9268f974af339081154c3da3698a823fc541a87c4e6264d2cb4e496a5ddc8",
           "offered_tools": [
             "load_skill",
@@ -113,7 +108,7 @@
             "find_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1219.3,
+          "elapsed_ms": 1347.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

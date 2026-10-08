@@ -2,9 +2,9 @@
   "scenario": "a_stale_working_note_is_merged_not_overwritten",
   "policy": "Always pass the revision from the current working_notes projection; after working_notes_stale, merge the current note before retrying and never overwrite it directly.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "396b58d25784f3d4f63c086ac8d2e1345b33ba5883fa0eba0306671965ab11b3",
+  "prompt_fingerprint": "0afbecd4ba9b920cabf512ceae5d91e3c1fb28a4da89d5cfc8cf7ae3c1437afc",
   "context_shape_fingerprint": "0cfdc22cccc7021027b33b750ce32018aa2830cce3bebf30c3b9fe5066e95ddc",
-  "recorded_at": "2026-10-08T16:24:12.668862+00:00",
+  "recorded_at": "2026-10-08T16:49:04.486980+00:00",
   "steps": [
     {
       "tool_call": {
@@ -15,8 +15,8 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "b93bad9c95d182d97e64d0d70b12243cc4090699f99b86353e7f2b5b392a153f",
-      "decision_shape_fingerprint": "829e01beaf193c6b1bb72508cad9bec82d0bb25c064d1e3847cddf183e6399b5",
+      "selected_schema_fingerprint": "68edfa6a11a3a01b4594171716adbf71018a29c782699a3537cf018eeea6b501",
+      "decision_shape_fingerprint": "8c91a3c62811cf9762b120e809382b7cf47a2bdbfff3f7f462afb6a72ac20bd7",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -27,7 +27,7 @@
         "list_email_events",
         "search_capabilities"
       ],
-      "elapsed_ms": 3449.9,
+      "elapsed_ms": 3229.6,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -38,8 +38,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:24:09.571764+00:00",
-      "elapsed_ms": 3531.6,
+      "recorded_at": "2026-10-08T16:49:03.611731+00:00",
+      "elapsed_ms": 3304.3,
       "steps": [
         {
           "tool_call": {
@@ -50,8 +50,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "b93bad9c95d182d97e64d0d70b12243cc4090699f99b86353e7f2b5b392a153f",
-          "decision_shape_fingerprint": "829e01beaf193c6b1bb72508cad9bec82d0bb25c064d1e3847cddf183e6399b5",
+          "selected_schema_fingerprint": "68edfa6a11a3a01b4594171716adbf71018a29c782699a3537cf018eeea6b501",
+          "decision_shape_fingerprint": "8c91a3c62811cf9762b120e809382b7cf47a2bdbfff3f7f462afb6a72ac20bd7",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -62,7 +62,7 @@
             "list_email_events",
             "search_capabilities"
           ],
-          "elapsed_ms": 3449.9,
+          "elapsed_ms": 3229.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -72,8 +72,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:24:10.605969+00:00",
-      "elapsed_ms": 3879.1,
+      "recorded_at": "2026-10-08T16:49:04.415115+00:00",
+      "elapsed_ms": 3596.7,
       "steps": [
         {
           "tool_call": {
@@ -84,8 +84,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "b93bad9c95d182d97e64d0d70b12243cc4090699f99b86353e7f2b5b392a153f",
-          "decision_shape_fingerprint": "829e01beaf193c6b1bb72508cad9bec82d0bb25c064d1e3847cddf183e6399b5",
+          "selected_schema_fingerprint": "68edfa6a11a3a01b4594171716adbf71018a29c782699a3537cf018eeea6b501",
+          "decision_shape_fingerprint": "8c91a3c62811cf9762b120e809382b7cf47a2bdbfff3f7f462afb6a72ac20bd7",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -96,7 +96,7 @@
             "list_email_events",
             "search_capabilities"
           ],
-          "elapsed_ms": 3765.9,
+          "elapsed_ms": 3500.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -106,8 +106,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:24:12.668862+00:00",
-      "elapsed_ms": 4353.8,
+      "recorded_at": "2026-10-08T16:49:04.486980+00:00",
+      "elapsed_ms": 2891.6,
       "steps": [
         {
           "tool_call": {
@@ -118,8 +118,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "b93bad9c95d182d97e64d0d70b12243cc4090699f99b86353e7f2b5b392a153f",
-          "decision_shape_fingerprint": "829e01beaf193c6b1bb72508cad9bec82d0bb25c064d1e3847cddf183e6399b5",
+          "selected_schema_fingerprint": "68edfa6a11a3a01b4594171716adbf71018a29c782699a3537cf018eeea6b501",
+          "decision_shape_fingerprint": "8c91a3c62811cf9762b120e809382b7cf47a2bdbfff3f7f462afb6a72ac20bd7",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -130,7 +130,7 @@
             "list_email_events",
             "search_capabilities"
           ],
-          "elapsed_ms": 4214.1,
+          "elapsed_ms": 2824.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

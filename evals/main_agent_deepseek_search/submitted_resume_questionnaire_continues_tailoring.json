@@ -2,19 +2,17 @@
   "scenario": "submitted_resume_questionnaire_continues_tailoring",
   "policy": "After a user submits answers to a questionnaire for the current resume tailoring task, continue that task with the bound resume and match. Skipped and absent answers are not career facts or permission to invent experience.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "bf985de437769ed121c02a32950fd07288d9bd0fa890c027049019f17eb58920",
+  "prompt_fingerprint": "7bf4a78e7e4a1b2bf4e3f572b3bcfa4d28b0b133be00446a477dc18421fa823e",
   "context_shape_fingerprint": "2a7924fc8dda76d33903c9162cba2cf866d73a90fa7322af9149bfec6ac7b293",
-  "recorded_at": "2026-10-08T16:29:02.695609+00:00",
+  "recorded_at": "2026-10-08T16:49:48.184087+00:00",
   "steps": [
     {
       "tool_call": {
-        "name": "draft_resume_tailoring",
-        "arguments": {
-          "tailoring_goal": "定制简历以匹配当前岗位。用户自述补充信息：1) 前端经验：使用 React 开发过内部管理页面；2) 向量数据库：没有使用过；3) Dify：了解基础工作流配置；4) AI 编程工具：日常使用 Claude Code 和 Cursor；5) 开源项目或博客：未提供（跳过）。请注意：这些为用户自述，需以简历与匹配结果中的既有证据为准，不得据此扩写为项目、年限或成果；向量数据库经验缺失应如实呈现，不做虚构。"
-        }
+        "name": "get_resume_job_match",
+        "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "45cb5bf619c0aefa65d050ca10cb439d99c45983411bb9c26c07714768e704cc",
+      "selected_schema_fingerprint": "16ae7db91d452417c80a0e6b7ed2b82c6169b91aba1829c233d6250e9b6ba330",
       "decision_shape_fingerprint": "6bddffff91b499e5abdd6e927202879af45789ae4ea6704d2e132d21e93e488e",
       "offered_tools": [
         "load_skill",
@@ -29,7 +27,7 @@
         "propose_memory_tombstone",
         "search_capabilities"
       ],
-      "elapsed_ms": 1661.6,
+      "elapsed_ms": 2727.7,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -40,44 +38,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:29:01.906381+00:00",
-      "elapsed_ms": 1733.1,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "draft_resume_tailoring",
-            "arguments": {
-              "tailoring_goal": "定制简历以匹配当前岗位。用户自述补充信息：1) 前端经验：使用 React 开发过内部管理页面；2) 向量数据库：没有使用过；3) Dify：了解基础工作流配置；4) AI 编程工具：日常使用 Claude Code 和 Cursor；5) 开源项目或博客：未提供（跳过）。请注意：这些为用户自述，需以简历与匹配结果中的既有证据为准，不得据此扩写为项目、年限或成果；向量数据库经验缺失应如实呈现，不做虚构。"
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "45cb5bf619c0aefa65d050ca10cb439d99c45983411bb9c26c07714768e704cc",
-          "decision_shape_fingerprint": "6bddffff91b499e5abdd6e927202879af45789ae4ea6704d2e132d21e93e488e",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "find_saved_jobs",
-            "get_saved_job",
-            "get_resume_job_match",
-            "draft_resume_tailoring",
-            "get_career_memory_detail",
-            "propose_memory_tombstone",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1661.6,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T16:29:01.705852+00:00",
-      "elapsed_ms": 1062.5,
+      "recorded_at": "2026-10-08T16:49:49.541441+00:00",
+      "elapsed_ms": 2821.8,
       "steps": [
         {
           "tool_call": {
@@ -85,7 +47,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "45cb5bf619c0aefa65d050ca10cb439d99c45983411bb9c26c07714768e704cc",
+          "selected_schema_fingerprint": "16ae7db91d452417c80a0e6b7ed2b82c6169b91aba1829c233d6250e9b6ba330",
           "decision_shape_fingerprint": "6bddffff91b499e5abdd6e927202879af45789ae4ea6704d2e132d21e93e488e",
           "offered_tools": [
             "load_skill",
@@ -100,7 +62,7 @@
             "propose_memory_tombstone",
             "search_capabilities"
           ],
-          "elapsed_ms": 986.0,
+          "elapsed_ms": 2727.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -110,18 +72,16 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:29:02.695609+00:00",
-      "elapsed_ms": 1565.2,
+      "recorded_at": "2026-10-08T16:49:49.467984+00:00",
+      "elapsed_ms": 2611.1,
       "steps": [
         {
           "tool_call": {
-            "name": "draft_resume_tailoring",
-            "arguments": {
-              "tailoring_goal": "针对当前岗位匹配结果定制简历：突出 React 内部管理页面开发经验、Dify 基础工作流配置了解、日常使用 Claude Code 和 Cursor 的 AI 编程工具经验；不涉及向量数据库经验，不编造开源项目或博客。"
-            }
+            "name": "get_resume_job_match",
+            "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "45cb5bf619c0aefa65d050ca10cb439d99c45983411bb9c26c07714768e704cc",
+          "selected_schema_fingerprint": "16ae7db91d452417c80a0e6b7ed2b82c6169b91aba1829c233d6250e9b6ba330",
           "decision_shape_fingerprint": "6bddffff91b499e5abdd6e927202879af45789ae4ea6704d2e132d21e93e488e",
           "offered_tools": [
             "load_skill",
@@ -136,7 +96,60 @@
             "propose_memory_tombstone",
             "search_capabilities"
           ],
-          "elapsed_ms": 1436.3,
+          "elapsed_ms": 2487.3,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "multiple_tool_calls",
+              "retried": true,
+              "raw_output": {
+                "content": "I'll load the tailoring capability and check the active match first.",
+                "tool_calls": [
+                  {
+                    "name": "get_resume_job_match",
+                    "arguments": "{}"
+                  },
+                  {
+                    "name": "draft_resume_tailoring",
+                    "arguments": "{\"tailoring_goal\": \"结合用户补充信息生成定制草稿：前端经验=使用 React 开发过内部管理页面（不扩展为项目成果或年限）；未使用过向量数据库（不得声称掌握）；Dify=了解基础工作流配置（仅此程度）；AI 编程工具=日常使用 Claude Code 和 Cursor；开源项目或博客=未提供，保持空缺不编造。\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:49:48.184087+00:00",
+      "elapsed_ms": 1295.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_resume_job_match",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "16ae7db91d452417c80a0e6b7ed2b82c6169b91aba1829c233d6250e9b6ba330",
+          "decision_shape_fingerprint": "6bddffff91b499e5abdd6e927202879af45789ae4ea6704d2e132d21e93e488e",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "get_saved_job",
+            "get_resume_job_match",
+            "draft_resume_tailoring",
+            "get_career_memory_detail",
+            "propose_memory_tombstone",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1166.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

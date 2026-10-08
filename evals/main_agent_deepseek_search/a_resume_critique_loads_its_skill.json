@@ -2,9 +2,9 @@
   "scenario": "a_resume_critique_loads_its_skill",
   "policy": "A request to review, critique or improve an attached resume without naming a job loads the resume-critique skill and follows it; comparing a resume with a job is match_resume_to_job.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "39786f6dd77a0ebad75be615a22b5b0f60a7219b2d24d2e6da94a275d5561009",
+  "prompt_fingerprint": "699de04d30227db368ac05b8eda655cbb78e9c0aa78f7f883ada4eaf3208cc6b",
   "context_shape_fingerprint": "92af7027d1fa4470173dd363bd2f57e6209c21138065300fc113d56f0320ce65",
-  "recorded_at": "2026-10-08T16:29:01.071597+00:00",
+  "recorded_at": "2026-10-08T16:49:48.053926+00:00",
   "steps": [
     {
       "tool_call": {
@@ -14,7 +14,7 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "debfcc685bdd3ac6ce7b3780cc1b174dcec1fbfc4efdd147d3d9ab3d831196e4",
+      "selected_schema_fingerprint": "945ef065146c7e02b19bd2b95212045643f9caaeab864391e8f6c249e154523e",
       "decision_shape_fingerprint": "7f4f0ef6a0a1fb9f89e5d1f7ee309516f8c26bdd8c06d9a8b62072c8889e123a",
       "offered_tools": [
         "load_skill",
@@ -24,7 +24,7 @@
         "export_resume_artifact",
         "search_capabilities"
       ],
-      "elapsed_ms": 1643.9,
+      "elapsed_ms": 1149.3,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -35,8 +35,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:29:00.636720+00:00",
-      "elapsed_ms": 1785.3,
+      "recorded_at": "2026-10-08T16:49:46.818049+00:00",
+      "elapsed_ms": 1208.9,
       "steps": [
         {
           "tool_call": {
@@ -46,7 +46,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "debfcc685bdd3ac6ce7b3780cc1b174dcec1fbfc4efdd147d3d9ab3d831196e4",
+          "selected_schema_fingerprint": "945ef065146c7e02b19bd2b95212045643f9caaeab864391e8f6c249e154523e",
           "decision_shape_fingerprint": "7f4f0ef6a0a1fb9f89e5d1f7ee309516f8c26bdd8c06d9a8b62072c8889e123a",
           "offered_tools": [
             "load_skill",
@@ -56,7 +56,7 @@
             "export_resume_artifact",
             "search_capabilities"
           ],
-          "elapsed_ms": 1643.9,
+          "elapsed_ms": 1149.3,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -66,8 +66,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:29:00.166239+00:00",
-      "elapsed_ms": 1203.1,
+      "recorded_at": "2026-10-08T16:49:47.022882+00:00",
+      "elapsed_ms": 1055.3,
       "steps": [
         {
           "tool_call": {
@@ -77,7 +77,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "debfcc685bdd3ac6ce7b3780cc1b174dcec1fbfc4efdd147d3d9ab3d831196e4",
+          "selected_schema_fingerprint": "945ef065146c7e02b19bd2b95212045643f9caaeab864391e8f6c249e154523e",
           "decision_shape_fingerprint": "7f4f0ef6a0a1fb9f89e5d1f7ee309516f8c26bdd8c06d9a8b62072c8889e123a",
           "offered_tools": [
             "load_skill",
@@ -87,7 +87,7 @@
             "export_resume_artifact",
             "search_capabilities"
           ],
-          "elapsed_ms": 1094.7,
+          "elapsed_ms": 996.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -97,8 +97,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:29:01.071597+00:00",
-      "elapsed_ms": 1683.6,
+      "recorded_at": "2026-10-08T16:49:48.053926+00:00",
+      "elapsed_ms": 1677.8,
       "steps": [
         {
           "tool_call": {
@@ -108,7 +108,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "debfcc685bdd3ac6ce7b3780cc1b174dcec1fbfc4efdd147d3d9ab3d831196e4",
+          "selected_schema_fingerprint": "945ef065146c7e02b19bd2b95212045643f9caaeab864391e8f6c249e154523e",
           "decision_shape_fingerprint": "7f4f0ef6a0a1fb9f89e5d1f7ee309516f8c26bdd8c06d9a8b62072c8889e123a",
           "offered_tools": [
             "load_skill",
@@ -118,7 +118,7 @@
             "export_resume_artifact",
             "search_capabilities"
           ],
-          "elapsed_ms": 1591.0,
+          "elapsed_ms": 1590.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

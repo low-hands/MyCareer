@@ -2,9 +2,9 @@
   "scenario": "interview_completion_is_not_inferred_from_the_clock",
   "policy": "Use complete_interview only after the user explicitly confirms attendance; never infer completion from elapsed time.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "c0522b9022d4cec3d4db7fe565b04d8f655744cde3fd018705c01539832673f4",
+  "prompt_fingerprint": "baa579320a74cbcd30db63338cfef67c8d05f297dbc961dc21d4afd74b3b5353",
   "context_shape_fingerprint": "3985e1cdce22a81b9b85794d61632c752e81f3ba2b1045740b4198ff15bc3733",
-  "recorded_at": "2026-10-08T16:28:39.298348+00:00",
+  "recorded_at": "2026-10-08T16:49:26.923682+00:00",
   "steps": [
     {
       "tool_call": {
@@ -14,8 +14,8 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "ab658716b129766ef592186fde903ed011dd9973fb645d9bc945f711f0acd472",
-      "decision_shape_fingerprint": "5bf6826440743e8e68f1b9f53cb5e97dff3c4d9193136cc0d9e1913bcc7a10a4",
+      "selected_schema_fingerprint": "49bbacd0ff50fa8bb7c361b5bc48ddf8cbe77ef9c10c4f7e5f7274efd33f1b63",
+      "decision_shape_fingerprint": "e4aea689a93fc321282d52574405a0e404774741816a44fcef21704a9946f2dc",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -24,11 +24,11 @@
         "get_interview",
         "update_interview",
         "complete_interview",
-        "prepare_interview",
         "get_interview_preparation",
+        "get_mock_interview_result",
         "search_capabilities"
       ],
-      "elapsed_ms": 1255.0,
+      "elapsed_ms": 1787.0,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -39,8 +39,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:28:39.221852+00:00",
-      "elapsed_ms": 1401.8,
+      "recorded_at": "2026-10-08T16:49:26.263297+00:00",
+      "elapsed_ms": 1927.3,
       "steps": [
         {
           "tool_call": {
@@ -50,8 +50,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "ab658716b129766ef592186fde903ed011dd9973fb645d9bc945f711f0acd472",
-          "decision_shape_fingerprint": "5bf6826440743e8e68f1b9f53cb5e97dff3c4d9193136cc0d9e1913bcc7a10a4",
+          "selected_schema_fingerprint": "49bbacd0ff50fa8bb7c361b5bc48ddf8cbe77ef9c10c4f7e5f7274efd33f1b63",
+          "decision_shape_fingerprint": "e4aea689a93fc321282d52574405a0e404774741816a44fcef21704a9946f2dc",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -60,11 +60,11 @@
             "get_interview",
             "update_interview",
             "complete_interview",
-            "prepare_interview",
             "get_interview_preparation",
+            "get_mock_interview_result",
             "search_capabilities"
           ],
-          "elapsed_ms": 1255.0,
+          "elapsed_ms": 1787.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -74,8 +74,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:39.382298+00:00",
-      "elapsed_ms": 1555.7,
+      "recorded_at": "2026-10-08T16:49:26.030810+00:00",
+      "elapsed_ms": 1445.3,
       "steps": [
         {
           "tool_call": {
@@ -85,8 +85,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "ab658716b129766ef592186fde903ed011dd9973fb645d9bc945f711f0acd472",
-          "decision_shape_fingerprint": "5bf6826440743e8e68f1b9f53cb5e97dff3c4d9193136cc0d9e1913bcc7a10a4",
+          "selected_schema_fingerprint": "49bbacd0ff50fa8bb7c361b5bc48ddf8cbe77ef9c10c4f7e5f7274efd33f1b63",
+          "decision_shape_fingerprint": "e4aea689a93fc321282d52574405a0e404774741816a44fcef21704a9946f2dc",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -95,11 +95,11 @@
             "get_interview",
             "update_interview",
             "complete_interview",
-            "prepare_interview",
             "get_interview_preparation",
+            "get_mock_interview_result",
             "search_capabilities"
           ],
-          "elapsed_ms": 1455.6,
+          "elapsed_ms": 1379.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -109,8 +109,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:39.298348+00:00",
-      "elapsed_ms": 1317.6,
+      "recorded_at": "2026-10-08T16:49:26.923682+00:00",
+      "elapsed_ms": 2237.4,
       "steps": [
         {
           "tool_call": {
@@ -120,8 +120,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "ab658716b129766ef592186fde903ed011dd9973fb645d9bc945f711f0acd472",
-          "decision_shape_fingerprint": "5bf6826440743e8e68f1b9f53cb5e97dff3c4d9193136cc0d9e1913bcc7a10a4",
+          "selected_schema_fingerprint": "49bbacd0ff50fa8bb7c361b5bc48ddf8cbe77ef9c10c4f7e5f7274efd33f1b63",
+          "decision_shape_fingerprint": "e4aea689a93fc321282d52574405a0e404774741816a44fcef21704a9946f2dc",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -130,11 +130,11 @@
             "get_interview",
             "update_interview",
             "complete_interview",
-            "prepare_interview",
             "get_interview_preparation",
+            "get_mock_interview_result",
             "search_capabilities"
           ],
-          "elapsed_ms": 1181.6,
+          "elapsed_ms": 2088.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

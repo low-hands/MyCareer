@@ -2,9 +2,9 @@
   "scenario": "planning_to_apply_does_not_create_an_application",
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "9d43067ed3c2c1f5f88e9070f2e049f15bc129966aaea0d61e93e6705b1734e6",
+  "prompt_fingerprint": "da31282fa90291b4f0c8e5b6f3ab693f23277471f87df0741c941656c55d42b2",
   "context_shape_fingerprint": "19863eb67cb394d3676b27e179a7258cc12b11bdc829c26f953d9c95f1736fec",
-  "recorded_at": "2026-10-08T16:28:36.299737+00:00",
+  "recorded_at": "2026-10-08T16:49:22.487731+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,8 +12,8 @@
         "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
-      "decision_shape_fingerprint": "2ad94564c9b7889c119a411ae8400f27875a297eb55d8d78b5d01b045f1f1d63",
+      "selected_schema_fingerprint": "8e43efa5f19f11ff0ca9438f3920c1b92dddbb5fd30128a2f8166720b941eed4",
+      "decision_shape_fingerprint": "5931183d57e495c634a166ef85bd8c0500f5b7db2b3f571059b24d140e66aa47",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -21,11 +21,11 @@
         "search_career_memory",
         "get_saved_job",
         "analyze_job",
-        "correct_job_requirement_tier",
         "compare_saved_jobs",
+        "propose_job_intent",
         "search_capabilities"
       ],
-      "elapsed_ms": 1429.2,
+      "elapsed_ms": 953.8,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -36,8 +36,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:28:36.458468+00:00",
-      "elapsed_ms": 1627.2,
+      "recorded_at": "2026-10-08T16:49:21.337784+00:00",
+      "elapsed_ms": 1051.5,
       "steps": [
         {
           "tool_call": {
@@ -45,8 +45,8 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
-          "decision_shape_fingerprint": "2ad94564c9b7889c119a411ae8400f27875a297eb55d8d78b5d01b045f1f1d63",
+          "selected_schema_fingerprint": "8e43efa5f19f11ff0ca9438f3920c1b92dddbb5fd30128a2f8166720b941eed4",
+          "decision_shape_fingerprint": "5931183d57e495c634a166ef85bd8c0500f5b7db2b3f571059b24d140e66aa47",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -54,11 +54,11 @@
             "search_career_memory",
             "get_saved_job",
             "analyze_job",
-            "correct_job_requirement_tier",
             "compare_saved_jobs",
+            "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 1429.2,
+          "elapsed_ms": 953.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -68,8 +68,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:36.458468+00:00",
-      "elapsed_ms": 1424.4,
+      "recorded_at": "2026-10-08T16:49:22.775788+00:00",
+      "elapsed_ms": 2382.2,
       "steps": [
         {
           "tool_call": {
@@ -79,8 +79,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
-          "decision_shape_fingerprint": "2ad94564c9b7889c119a411ae8400f27875a297eb55d8d78b5d01b045f1f1d63",
+          "selected_schema_fingerprint": "8e43efa5f19f11ff0ca9438f3920c1b92dddbb5fd30128a2f8166720b941eed4",
+          "decision_shape_fingerprint": "5931183d57e495c634a166ef85bd8c0500f5b7db2b3f571059b24d140e66aa47",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -88,22 +88,41 @@
             "search_career_memory",
             "get_saved_job",
             "analyze_job",
-            "correct_job_requirement_tier",
             "compare_saved_jobs",
+            "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 1342.2,
-          "model_request_count": 1,
+          "elapsed_ms": 2321.2,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "multiple_tool_calls",
+              "retried": true,
+              "raw_output": {
+                "content": "I'll pull up the job you're about to apply to and analyze it against its JD.",
+                "tool_calls": [
+                  {
+                    "name": "get_saved_job",
+                    "arguments": "{}"
+                  },
+                  {
+                    "name": "analyze_job",
+                    "arguments": "{}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:36.299737+00:00",
-      "elapsed_ms": 1168.0,
+      "recorded_at": "2026-10-08T16:49:22.487731+00:00",
+      "elapsed_ms": 1444.3,
       "steps": [
         {
           "tool_call": {
@@ -113,8 +132,8 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2a1b798ed8eeb3c1fa2befa5eb95884e14f8bfc63b4f9e537d9f24a684a1d00c",
-          "decision_shape_fingerprint": "2ad94564c9b7889c119a411ae8400f27875a297eb55d8d78b5d01b045f1f1d63",
+          "selected_schema_fingerprint": "8e43efa5f19f11ff0ca9438f3920c1b92dddbb5fd30128a2f8166720b941eed4",
+          "decision_shape_fingerprint": "5931183d57e495c634a166ef85bd8c0500f5b7db2b3f571059b24d140e66aa47",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -122,11 +141,11 @@
             "search_career_memory",
             "get_saved_job",
             "analyze_job",
-            "correct_job_requirement_tier",
             "compare_saved_jobs",
+            "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 1081.5,
+          "elapsed_ms": 1383.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

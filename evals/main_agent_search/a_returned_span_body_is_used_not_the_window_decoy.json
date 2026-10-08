@@ -2,15 +2,15 @@
   "scenario": "a_returned_span_body_is_used_not_the_window_decoy",
   "policy": "A read result whose receipt condenses a larger presenter output may also include body: the bounded text rendered from the same source shown to the user. You may reason from body when it is present. Ground the reply only in message, facts and body.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "abe8c8474ec95bfdda912434db024888cd0d0cee012e44f7b88caad22f665307",
-  "context_shape_fingerprint": "9f2033f08271abb98348502b99f1222d2928a64771819d3d29cd28166bb1002f",
-  "recorded_at": "2026-10-08T16:25:04.400310+00:00",
+  "prompt_fingerprint": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+  "context_shape_fingerprint": "4235b6b7d98c26deaff8bc3972fdf661880a247129528496869ac5705396be50",
+  "recorded_at": "2026-10-08T16:50:01.942632+00:00",
   "steps": [
     {
       "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "92a968bcd1ff1aafcf59d456c1bb45563f2ea22b4773cee531fa84301da4e541",
-      "decision_shape_fingerprint": "1ce13600564ab689d483f6d4822b13bb6799ba610581ee13c367ff78835b8ec2",
+      "selected_schema_fingerprint": "48de561ddab7da15af691dd18e83f89706911779aa289f800a142b3c629b6d09",
+      "decision_shape_fingerprint": "776ffafca8aa41b59c7bbfea18cd9cd06ec0be8adfdca2d9b2a3de3ebc1607a3",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -21,7 +21,7 @@
         "list_target_roles",
         "search_capabilities"
       ],
-      "elapsed_ms": 5952.2,
+      "elapsed_ms": 7623.0,
       "model_request_count": 3,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [
@@ -53,14 +53,14 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:25:02.130813+00:00",
-      "elapsed_ms": 6064.8,
+      "recorded_at": "2026-10-08T16:49:59.731874+00:00",
+      "elapsed_ms": 7710.7,
       "steps": [
         {
           "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "92a968bcd1ff1aafcf59d456c1bb45563f2ea22b4773cee531fa84301da4e541",
-          "decision_shape_fingerprint": "1ce13600564ab689d483f6d4822b13bb6799ba610581ee13c367ff78835b8ec2",
+          "selected_schema_fingerprint": "48de561ddab7da15af691dd18e83f89706911779aa289f800a142b3c629b6d09",
+          "decision_shape_fingerprint": "776ffafca8aa41b59c7bbfea18cd9cd06ec0be8adfdca2d9b2a3de3ebc1607a3",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -71,7 +71,7 @@
             "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 5952.2,
+          "elapsed_ms": 7623.0,
           "model_request_count": 3,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -102,14 +102,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:25:04.664885+00:00",
-      "elapsed_ms": 7118.6,
+      "recorded_at": "2026-10-08T16:49:59.397457+00:00",
+      "elapsed_ms": 7253.8,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 Pinnacle Robotics。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "92a968bcd1ff1aafcf59d456c1bb45563f2ea22b4773cee531fa84301da4e541",
-          "decision_shape_fingerprint": "1ce13600564ab689d483f6d4822b13bb6799ba610581ee13c367ff78835b8ec2",
+          "selected_schema_fingerprint": "48de561ddab7da15af691dd18e83f89706911779aa289f800a142b3c629b6d09",
+          "decision_shape_fingerprint": "776ffafca8aa41b59c7bbfea18cd9cd06ec0be8adfdca2d9b2a3de3ebc1607a3",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -120,7 +120,7 @@
             "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 7056.7,
+          "elapsed_ms": 7158.3,
           "model_request_count": 3,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -151,14 +151,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:25:04.400310+00:00",
-      "elapsed_ms": 6465.7,
+      "recorded_at": "2026-10-08T16:50:01.942632+00:00",
+      "elapsed_ms": 8142.0,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 Pinnacle Robotics。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "92a968bcd1ff1aafcf59d456c1bb45563f2ea22b4773cee531fa84301da4e541",
-          "decision_shape_fingerprint": "1ce13600564ab689d483f6d4822b13bb6799ba610581ee13c367ff78835b8ec2",
+          "selected_schema_fingerprint": "48de561ddab7da15af691dd18e83f89706911779aa289f800a142b3c629b6d09",
+          "decision_shape_fingerprint": "776ffafca8aa41b59c7bbfea18cd9cd06ec0be8adfdca2d9b2a3de3ebc1607a3",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -169,7 +169,7 @@
             "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 6370.8,
+          "elapsed_ms": 8086.0,
           "model_request_count": 3,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [

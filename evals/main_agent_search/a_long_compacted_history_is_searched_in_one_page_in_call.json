@@ -2,15 +2,20 @@
   "scenario": "a_long_compacted_history_is_searched_in_one_page_in_call",
   "policy": "When omitted history is longer than the bounded read-call budget can scan, call read_conversation_span with focused query terms inside sequence 1 through through_sequence instead of walking positional chunks or guessing.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "8c8f36b08ae272d703ad78e99cbd7ff0ab0db530209a983741ad153415dabdf3",
-  "context_shape_fingerprint": "17ba7e72f82f8e4a24083d32631f92fa14ba2349c4cd3f3a25dfbe6ebcd90925",
-  "recorded_at": "2026-10-08T16:25:06.712005+00:00",
+  "prompt_fingerprint": "714162ca6a862bf5374845b2ffb3deb12359ab3c0b82f1b66851bd5c95694121",
+  "context_shape_fingerprint": "720c64c0e111845ac36282255287dc00fe96a9769230eb0da4bebf0e4e5c4f31",
+  "recorded_at": "2026-10-08T16:50:04.088358+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"当前记录里没有已确认的目标公司。你之前提到想找算法工程师岗位，但具体目标公司尚未明确。\\n\\n请问你想把哪些公司作为目标？可以告诉我公司名称，我会帮你记录下来。\",\"questions\":[]}",
+      "tool_call": {
+        "name": "read_conversation_span",
+        "arguments": {
+          "query": "目标公司 公司名"
+        }
+      },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "8d5c2d22f9d2177a90d72df605591b05bf0dc066db3774d060e7f6e611f0abd2",
-      "decision_shape_fingerprint": "5843c598bc0b8ab61db248e43befa076810768a6673b5925f8f3a0cb0304a272",
+      "selected_schema_fingerprint": "6aa2eacbbc8e5d47b02053f42b5a322cd41b2880d40558605008adbb4fdbbcab",
+      "decision_shape_fingerprint": "f3b7199f5f81dd953202d99dd93a8daddff2d783b299f231fff6871f98edd3f7",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -21,31 +26,10 @@
         "search_career_episodes",
         "search_capabilities"
       ],
-      "elapsed_ms": 9779.0,
-      "model_request_count": 3,
+      "elapsed_ms": 3658.1,
+      "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [
-        {
-          "reason": "text_rejected",
-          "retried": true,
-          "forced_interaction": false,
-          "raw_output": {
-            "content": "目前我没有看到你明确记录的目标公司。\n\n从当前状态来看：\n- 你的用户目标是\"找算法工程师岗位\"\n- 已确认的决策是\"先从已保存岗位里挑，不全国盲搜\"\n- 但 saved_jobs 列表是空的，target_roles 也是空的\n\n你之前提到过目标公司吗？如果有，我可以通过搜索历史对话或职业记忆来查找。或者你可以直接告诉我你想关注哪些公司。",
-            "tool_calls": []
-          },
-          "decision_invocation": 1
-        },
-        {
-          "reason": "text_rejected",
-          "retried": true,
-          "forced_interaction": true,
-          "raw_output": {
-            "content": "当前记录里没有已确认的目标公司，只有“找算法工程师岗位”这个目标方向。",
-            "tool_calls": []
-          },
-          "decision_invocation": 1
-        }
-      ],
+      "decision_retry_events": [],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -53,119 +37,19 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:25:09.317547+00:00",
-      "elapsed_ms": 9840.5,
-      "steps": [
-        {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前记录里没有已确认的目标公司。你之前提到想找算法工程师岗位，但具体目标公司尚未明确。\\n\\n请问你想把哪些公司作为目标？可以告诉我公司名称，我会帮你记录下来。\",\"questions\":[]}",
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "8d5c2d22f9d2177a90d72df605591b05bf0dc066db3774d060e7f6e611f0abd2",
-          "decision_shape_fingerprint": "5843c598bc0b8ab61db248e43befa076810768a6673b5925f8f3a0cb0304a272",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_job_research",
-            "list_target_roles",
-            "search_career_episodes",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 9779.0,
-          "model_request_count": 3,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": false,
-              "raw_output": {
-                "content": "目前我没有看到你明确记录的目标公司。\n\n从当前状态来看：\n- 你的用户目标是\"找算法工程师岗位\"\n- 已确认的决策是\"先从已保存岗位里挑，不全国盲搜\"\n- 但 saved_jobs 列表是空的，target_roles 也是空的\n\n你之前提到过目标公司吗？如果有，我可以通过搜索历史对话或职业记忆来查找。或者你可以直接告诉我你想关注哪些公司。",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            },
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": true,
-              "raw_output": {
-                "content": "当前记录里没有已确认的目标公司，只有“找算法工程师岗位”这个目标方向。",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            }
-          ],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T16:25:15.384911+00:00",
-      "elapsed_ms": 14597.1,
-      "steps": [
-        {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前记录里没有已确认的目标公司。你之前提到过美团，但那是窗口里的对照岗位，并非正式设定的目标。需要我帮你把某家公司设为目标吗？\",\"questions\":[]}",
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "8d5c2d22f9d2177a90d72df605591b05bf0dc066db3774d060e7f6e611f0abd2",
-          "decision_shape_fingerprint": "5843c598bc0b8ab61db248e43befa076810768a6673b5925f8f3a0cb0304a272",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_job_research",
-            "list_target_roles",
-            "search_career_episodes",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 14507.2,
-          "model_request_count": 3,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": false,
-              "raw_output": {
-                "content": "你之前没有明确说过具体的目标公司名称。\n\n根据当前记录：\n- 你的用户目标是\"找算法工程师岗位\"\n- 已确认的决策是\"先从已保存岗位里挑，不全国盲搜\"\n- 但**没有确认的目标公司列表**\n\n不过刚才对话中提到了美团（sequence 120 附近），那可能是在讨论某个具体岗位时提到的公司。如果你想知道更早之前是否提到过其他目标公司，我可以帮你查找一下历史记录。\n\n需要我搜索一下你之前提到过的公司名称吗？",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            },
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": true,
-              "raw_output": {
-                "content": "当前记录里没有已确认的目标公司，也没有保存的岗位。你之前提到过哪些公司？",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            }
-          ],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T16:25:06.712005+00:00",
-      "elapsed_ms": 4574.3,
+      "recorded_at": "2026-10-08T16:49:59.397457+00:00",
+      "elapsed_ms": 3717.0,
       "steps": [
         {
           "tool_call": {
             "name": "read_conversation_span",
             "arguments": {
-              "from_sequence": 1,
-              "through_sequence": 120,
               "query": "目标公司 公司名"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "8d5c2d22f9d2177a90d72df605591b05bf0dc066db3774d060e7f6e611f0abd2",
-          "decision_shape_fingerprint": "5843c598bc0b8ab61db248e43befa076810768a6673b5925f8f3a0cb0304a272",
+          "selected_schema_fingerprint": "6aa2eacbbc8e5d47b02053f42b5a322cd41b2880d40558605008adbb4fdbbcab",
+          "decision_shape_fingerprint": "f3b7199f5f81dd953202d99dd93a8daddff2d783b299f231fff6871f98edd3f7",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -176,7 +60,73 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 4517.2,
+          "elapsed_ms": 3658.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:49:59.798832+00:00",
+      "elapsed_ms": 2907.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "read_conversation_span",
+            "arguments": {
+              "query": "目标公司"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "6aa2eacbbc8e5d47b02053f42b5a322cd41b2880d40558605008adbb4fdbbcab",
+          "decision_shape_fingerprint": "f3b7199f5f81dd953202d99dd93a8daddff2d783b299f231fff6871f98edd3f7",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2845.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:50:04.088358+00:00",
+      "elapsed_ms": 5232.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "read_conversation_span",
+            "arguments": {
+              "query": "目标公司 公司名称"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "6aa2eacbbc8e5d47b02053f42b5a322cd41b2880d40558605008adbb4fdbbcab",
+          "decision_shape_fingerprint": "f3b7199f5f81dd953202d99dd93a8daddff2d783b299f231fff6871f98edd3f7",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "list_target_roles",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 5140.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

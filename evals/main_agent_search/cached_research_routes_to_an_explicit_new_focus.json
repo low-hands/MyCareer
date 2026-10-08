@@ -2,9 +2,9 @@
   "scenario": "cached_research_routes_to_an_explicit_new_focus",
   "policy": "Use the approved cached fact to distinguish a reused report from new research. Run another research operation only when the user explicitly requests a distinct focus.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "9c58a8406fbfb889e915cec9702ada6501d7a09ae962445ae1c309bb11773dbb",
+  "prompt_fingerprint": "794fee4ad3281301f3bda99142586d76ea9c5afa3e0ecfdbc8c119ff63416ba6",
   "context_shape_fingerprint": "79745c4eefd48957d79891ae9379b18dd58a0000009376284292de1d03b6d148",
-  "recorded_at": "2026-10-08T16:24:39.434039+00:00",
+  "recorded_at": "2026-10-08T16:49:34.384358+00:00",
   "steps": [
     {
       "tool_call": {
@@ -14,7 +14,7 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "f2ce24afa2f433d8e940f7594c751898ca53c134d2770a3da7a18f1cd8e35960",
+      "selected_schema_fingerprint": "ea331bc8e35f3896c9d021e4ed18e69cd00435dfc834cf3cfdc9d8a96d852e9e",
       "decision_shape_fingerprint": "6c5392768eb7eb6ea999441c409d293e2ab8f0dc909f19b932b1a4563b089a7f",
       "offered_tools": [
         "load_skill",
@@ -28,7 +28,7 @@
         "get_mock_interview_result",
         "search_capabilities"
       ],
-      "elapsed_ms": 2682.7,
+      "elapsed_ms": 4050.6,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -39,8 +39,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:24:36.663081+00:00",
-      "elapsed_ms": 2846.6,
+      "recorded_at": "2026-10-08T16:49:33.701859+00:00",
+      "elapsed_ms": 4138.3,
       "steps": [
         {
           "tool_call": {
@@ -50,7 +50,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "f2ce24afa2f433d8e940f7594c751898ca53c134d2770a3da7a18f1cd8e35960",
+          "selected_schema_fingerprint": "ea331bc8e35f3896c9d021e4ed18e69cd00435dfc834cf3cfdc9d8a96d852e9e",
           "decision_shape_fingerprint": "6c5392768eb7eb6ea999441c409d293e2ab8f0dc909f19b932b1a4563b089a7f",
           "offered_tools": [
             "load_skill",
@@ -64,7 +64,7 @@
             "get_mock_interview_result",
             "search_capabilities"
           ],
-          "elapsed_ms": 2682.7,
+          "elapsed_ms": 4050.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -74,8 +74,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:24:39.332895+00:00",
-      "elapsed_ms": 4328.9,
+      "recorded_at": "2026-10-08T16:49:34.032148+00:00",
+      "elapsed_ms": 3700.7,
       "steps": [
         {
           "tool_call": {
@@ -85,7 +85,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "f2ce24afa2f433d8e940f7594c751898ca53c134d2770a3da7a18f1cd8e35960",
+          "selected_schema_fingerprint": "ea331bc8e35f3896c9d021e4ed18e69cd00435dfc834cf3cfdc9d8a96d852e9e",
           "decision_shape_fingerprint": "6c5392768eb7eb6ea999441c409d293e2ab8f0dc909f19b932b1a4563b089a7f",
           "offered_tools": [
             "load_skill",
@@ -99,7 +99,7 @@
             "get_mock_interview_result",
             "search_capabilities"
           ],
-          "elapsed_ms": 4231.0,
+          "elapsed_ms": 3640.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -109,18 +109,18 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:24:39.434039+00:00",
-      "elapsed_ms": 3684.3,
+      "recorded_at": "2026-10-08T16:49:34.384358+00:00",
+      "elapsed_ms": 3034.4,
       "steps": [
         {
           "tool_call": {
             "name": "research_job",
             "arguments": {
-              "focus": "竞争对手"
+              "focus": "竞争对手分析"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "f2ce24afa2f433d8e940f7594c751898ca53c134d2770a3da7a18f1cd8e35960",
+          "selected_schema_fingerprint": "ea331bc8e35f3896c9d021e4ed18e69cd00435dfc834cf3cfdc9d8a96d852e9e",
           "decision_shape_fingerprint": "6c5392768eb7eb6ea999441c409d293e2ab8f0dc909f19b932b1a4563b089a7f",
           "offered_tools": [
             "load_skill",
@@ -134,7 +134,7 @@
             "get_mock_interview_result",
             "search_capabilities"
           ],
-          "elapsed_ms": 3600.5,
+          "elapsed_ms": 2976.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

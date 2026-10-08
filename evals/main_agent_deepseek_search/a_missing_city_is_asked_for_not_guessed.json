@@ -2,132 +2,27 @@
   "scenario": "a_missing_city_is_asked_for_not_guessed",
   "policy": "If the profile has no city or target role and the user did not give one this turn, ask for it instead of guessing or searching nationwide.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "14da4cf3cbd107b1a10db8c7ddb53ecf9145f01d2adb79c9ce3dd82697a95804",
+  "prompt_fingerprint": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
   "context_shape_fingerprint": "f0666a3515e7bd1dc205832ab30e27ed2d83207f6fd328740d4131d0ba8572ac",
-  "recorded_at": "2026-10-08T16:28:29.329761+00:00",
+  "recorded_at": "2026-10-08T16:49:12.828041+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "search_capabilities",
-        "arguments": {
-          "query": "打开招聘网站搜索职位找工作"
-        }
-      },
+      "content": "{\"action\":\"ask_user\",\"message\":\"好的，我来帮你打开招聘搜索页。不过现在还缺两个关键条件：\\n\\n1. **城市**：你希望在哪个城市找工作？（你的档案里默认城市还未确认，所以我不能替你猜）\\n2. **关键词/岗位方向**：想搜什么岗位？比如「产品经理」「前端开发」「数据运营」等。\\n\\n另外，如果你需要筛选类型（实习 / 全职 / 兼职），也告诉我一声。\\n\\n把这几点发我，我就直接帮你打开 BOSS 的搜索页面；之后浏览和保存岗位都由你自己来操作，我不会替你判断哪些岗位「找到了」。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
-      "decision_shape_fingerprint": "d60e633d970de77cb36e5976fdeca1c9d39460aee5a39397de64625186b32c50",
-      "offered_tools": [
-        "load_skill",
-        "read_conversation_span",
-        "fetch_archived_constraints",
-        "search_career_memory",
-        "search_capabilities"
-      ],
-      "elapsed_ms": 1579.4,
-      "model_request_count": 1,
-      "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [],
-      "recording_retry_events": [],
-      "decision_invocations": 1
-    },
-    {
-      "tool_call": {
-        "name": "search_capabilities",
-        "arguments": {
-          "names": [
-            "open_job_search",
-            "list_target_roles"
-          ]
-        }
-      },
-      "scenario_step": 0,
-      "selected_schema_fingerprint": "0784be36831c4593535347b950c43ad12a999e665e091cb2ad623240d7d81d1a",
-      "decision_shape_fingerprint": "24396de0a1f4953ee8324e48c3c54c65b4d2d255fe12489a3459201873f53297",
+      "selected_schema_fingerprint": "39c20b1816ed611647dc3be9259e5936ec6738fa4163ad7f6a1d6bbe587a504a",
+      "decision_shape_fingerprint": "e763f1fa396203b903c24fd314999244ead94f631b8af3762b2a91fdbfb35f03",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
         "open_job_search",
-        "search_career_history",
         "search_capabilities"
       ],
-      "elapsed_ms": 822.4,
+      "elapsed_ms": 2268.1,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
-      "recording_retry_events": [],
-      "decision_invocations": 1
-    },
-    {
-      "tool_call": {
-        "name": "search_capabilities",
-        "arguments": {
-          "query": "保存的收藏岗位 已选岗位 列表"
-        }
-      },
-      "scenario_step": 0,
-      "selected_schema_fingerprint": "11b7e48246408b7e73f2351b9769136b6f64ad53f2feebd7bcd3aecd4993c32a",
-      "decision_shape_fingerprint": "43c33045d3035e7c1aac1213b7a7b7b50bece609d0bc3075bd85c6054ad88751",
-      "offered_tools": [
-        "load_skill",
-        "read_conversation_span",
-        "fetch_archived_constraints",
-        "search_career_memory",
-        "open_job_search",
-        "list_target_roles",
-        "search_career_history",
-        "search_capabilities"
-      ],
-      "elapsed_ms": 1536.4,
-      "model_request_count": 1,
-      "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [],
-      "recording_retry_events": [],
-      "decision_invocations": 1
-    },
-    {
-      "tool_call": {
-        "name": "list_target_roles",
-        "arguments": {}
-      },
-      "scenario_step": 0,
-      "selected_schema_fingerprint": "392690d00405a1f917f6dbfbacf3d306358ae1184f00ebc57b97b2bf25683991",
-      "decision_shape_fingerprint": "2acae02d3d321e79e0484ac1267115a8b0e2c69086d7c3859e34b1aae667baf5",
-      "offered_tools": [
-        "load_skill",
-        "read_conversation_span",
-        "fetch_archived_constraints",
-        "search_career_memory",
-        "open_job_search",
-        "find_saved_jobs",
-        "list_target_roles",
-        "search_career_history",
-        "search_capabilities"
-      ],
-      "elapsed_ms": 1931.5,
-      "model_request_count": 2,
-      "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [
-        {
-          "reason": "multiple_tool_calls",
-          "retried": true,
-          "raw_output": {
-            "content": "",
-            "tool_calls": [
-              {
-                "name": "list_target_roles",
-                "arguments": "{}"
-              },
-              {
-                "name": "find_saved_jobs",
-                "arguments": "{}"
-              }
-            ]
-          },
-          "decision_invocation": 1
-        }
-      ],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -135,187 +30,23 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:28:31.698899+00:00",
-      "elapsed_ms": 6327.7,
+      "recorded_at": "2026-10-08T16:49:13.441136+00:00",
+      "elapsed_ms": 2335.6,
       "steps": [
         {
-          "tool_call": {
-            "name": "search_capabilities",
-            "arguments": {
-              "query": "打开招聘网站搜索职位找工作"
-            }
-          },
+          "content": "{\"action\":\"ask_user\",\"message\":\"好的，我来帮你打开招聘搜索页。不过现在还缺两个关键条件：\\n\\n1. **城市**：你希望在哪个城市找工作？（你的档案里默认城市还未确认，所以我不能替你猜）\\n2. **关键词/岗位方向**：想搜什么岗位？比如「产品经理」「前端开发」「数据运营」等。\\n\\n另外，如果你需要筛选类型（实习 / 全职 / 兼职），也告诉我一声。\\n\\n把这几点发我，我就直接帮你打开 BOSS 的搜索页面；之后浏览和保存岗位都由你自己来操作，我不会替你判断哪些岗位「找到了」。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
-          "decision_shape_fingerprint": "d60e633d970de77cb36e5976fdeca1c9d39460aee5a39397de64625186b32c50",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1579.4,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        },
-        {
-          "tool_call": {
-            "name": "search_capabilities",
-            "arguments": {
-              "names": [
-                "open_job_search",
-                "list_target_roles"
-              ]
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "0784be36831c4593535347b950c43ad12a999e665e091cb2ad623240d7d81d1a",
-          "decision_shape_fingerprint": "24396de0a1f4953ee8324e48c3c54c65b4d2d255fe12489a3459201873f53297",
+          "selected_schema_fingerprint": "39c20b1816ed611647dc3be9259e5936ec6738fa4163ad7f6a1d6bbe587a504a",
+          "decision_shape_fingerprint": "e763f1fa396203b903c24fd314999244ead94f631b8af3762b2a91fdbfb35f03",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "open_job_search",
-            "search_career_history",
             "search_capabilities"
           ],
-          "elapsed_ms": 822.4,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        },
-        {
-          "tool_call": {
-            "name": "search_capabilities",
-            "arguments": {
-              "query": "保存的收藏岗位 已选岗位 列表"
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "11b7e48246408b7e73f2351b9769136b6f64ad53f2feebd7bcd3aecd4993c32a",
-          "decision_shape_fingerprint": "43c33045d3035e7c1aac1213b7a7b7b50bece609d0bc3075bd85c6054ad88751",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "open_job_search",
-            "list_target_roles",
-            "search_career_history",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1536.4,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        },
-        {
-          "tool_call": {
-            "name": "list_target_roles",
-            "arguments": {}
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "392690d00405a1f917f6dbfbacf3d306358ae1184f00ebc57b97b2bf25683991",
-          "decision_shape_fingerprint": "2acae02d3d321e79e0484ac1267115a8b0e2c69086d7c3859e34b1aae667baf5",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "open_job_search",
-            "find_saved_jobs",
-            "list_target_roles",
-            "search_career_history",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1931.5,
-          "model_request_count": 2,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "multiple_tool_calls",
-              "retried": true,
-              "raw_output": {
-                "content": "",
-                "tool_calls": [
-                  {
-                    "name": "list_target_roles",
-                    "arguments": "{}"
-                  },
-                  {
-                    "name": "find_saved_jobs",
-                    "arguments": "{}"
-                  }
-                ]
-              },
-              "decision_invocation": 1
-            }
-          ],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T16:28:28.233831+00:00",
-      "elapsed_ms": 2726.9,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "search_capabilities",
-            "arguments": {
-              "names": [
-                "open_job_search",
-                "list_target_roles",
-                "find_saved_jobs"
-              ]
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
-          "decision_shape_fingerprint": "d60e633d970de77cb36e5976fdeca1c9d39460aee5a39397de64625186b32c50",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1808.4,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        },
-        {
-          "tool_call": {
-            "name": "list_target_roles",
-            "arguments": {}
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "4fb4738dc28fac6706db8452ef9552ef7eefcadd3ab86b598add20139681e963",
-          "decision_shape_fingerprint": "4ddefd5a745822f32cc2d89ffd643afeaaad7f62f829dbd1fe1c7af1bf0463fa",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "open_job_search",
-            "find_saved_jobs",
-            "list_target_roles",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 799.2,
+          "elapsed_ms": 2268.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -325,31 +56,30 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:29.329761+00:00",
-      "elapsed_ms": 3932.1,
+      "recorded_at": "2026-10-08T16:49:13.952228+00:00",
+      "elapsed_ms": 2779.4,
       "steps": [
         {
           "tool_call": {
             "name": "search_capabilities",
             "arguments": {
               "names": [
-                "open_job_search",
-                "find_saved_jobs",
-                "list_target_roles"
+                "open_job_search"
               ]
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "271ef5256bbad29bd91e9b191b4f79ac2fbf22bf97b0aebc337eda298e062343",
-          "decision_shape_fingerprint": "d60e633d970de77cb36e5976fdeca1c9d39460aee5a39397de64625186b32c50",
+          "selected_schema_fingerprint": "39c20b1816ed611647dc3be9259e5936ec6738fa4163ad7f6a1d6bbe587a504a",
+          "decision_shape_fingerprint": "e763f1fa396203b903c24fd314999244ead94f631b8af3762b2a91fdbfb35f03",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
+            "open_job_search",
             "search_capabilities"
           ],
-          "elapsed_ms": 1691.6,
+          "elapsed_ms": 1468.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -357,21 +87,50 @@
           "decision_invocations": 1
         },
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"我可以帮你在 BOSS 上打开搜索页（浏览和收藏由你自己操作）。请先补充几个搜索条件：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"想找什么岗位/关键词？（例如：前端开发、产品经理、数据分析）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q3\",\"prompt\":\"求职类型？\",\"kind\":\"single\",\"options\":[{\"value\":\"full_time\",\"label\":\"全职\",\"meaning\":\"choice\"},{\"value\":\"internship\",\"label\":\"实习\",\"meaning\":\"choice\"},{\"value\":\"part_time\",\"label\":\"兼职\",\"meaning\":\"choice\"}],\"allow_free_text\":false,\"allow_skip\":true}],\"continuation_capability\":\"open_job_search\"}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"好的，我来帮你找。开始搜索前需要确认两件事：\\n\\n1）**城市**：你希望在哪个城市找工作？（可以先给我城市名）\\n2）**想找的岗位关键词**：例如“数据分析”“前端开发”“产品运营”等，可以给一个或多个方向。\\n\\n另外如果方便，也可以告诉我是否限定实习/全职/兼职。收到后我就直接打开 BOSS 搜索页，之后由你自己浏览并挑选合适的岗位保存。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "4fb4738dc28fac6706db8452ef9552ef7eefcadd3ab86b598add20139681e963",
-          "decision_shape_fingerprint": "f08b9c442c39e693084317b197dda0b4fd08f9c0a1d71c8f2464b0ead5c646f6",
+          "selected_schema_fingerprint": "39c20b1816ed611647dc3be9259e5936ec6738fa4163ad7f6a1d6bbe587a504a",
+          "decision_shape_fingerprint": "a9adffb04919699d50b66bde268e09ffc99f3662368f6f81b9adf7168c30d533",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "open_job_search",
-            "find_saved_jobs",
-            "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 1999.9,
+          "elapsed_ms": 1240.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:49:12.828041+00:00",
+      "elapsed_ms": 2004.4,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "open_job_search",
+            "arguments": {
+              "keyword": "不限"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "39c20b1816ed611647dc3be9259e5936ec6738fa4163ad7f6a1d6bbe587a504a",
+          "decision_shape_fingerprint": "e763f1fa396203b903c24fd314999244ead94f631b8af3762b2a91fdbfb35f03",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1858.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

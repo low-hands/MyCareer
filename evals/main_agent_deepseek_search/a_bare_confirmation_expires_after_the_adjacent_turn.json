@@ -2,14 +2,14 @@
   "scenario": "a_bare_confirmation_expires_after_the_adjacent_turn",
   "policy": "A bare confirmation authorizes a pending career fact, job intent, or free-text preference only on the immediately adjacent user turn and only when task.bare_confirmation_target names that type.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "5a0aea32754e4c07f64f168b1ef0aa5317a765b2e7e6251003245f73c46f6a37",
+  "prompt_fingerprint": "05c4b66d5a4152d90df20a0f0bf64f2040eeb94d234f86eb3dccdff1f7b2f2bd",
   "context_shape_fingerprint": "689602ed95dd0a57a9d5a4844f3b033e6663bb6d60aa9b43c2792b1dcefefd89",
-  "recorded_at": "2026-10-08T16:28:38.454011+00:00",
+  "recorded_at": "2026-10-08T16:49:24.533793+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"好的，请告诉我你想看的岗位条件——比如城市、岗位方向（或关键词）。另外说明一下：我这边不会主动打开招聘网站搜索，需要你明确要求我才会执行；你也可以直接说“帮我打开 Boss 搜索”。\",\"questions\":[]}",
+      "content": "{\"action\":\"ask_user\",\"message\":\"想按什么条件看新岗位？请告诉我：1）城市/地区（例如上海、北京、远程）；2）岗位方向或关键词（例如后端开发、产品经理）；3）如有限制再加上经验级别、薪资范围、全职/实习等。给我这几个条件后，我就按它们打开招聘搜索。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "c2bde49092ac5dfaa865e9ec9784ea13d4973245a62fe56a388c393ae84f01a3",
+      "selected_schema_fingerprint": "6990ca182cdeabae933e5d2432c0a20c0ed53f3034897100598e185e152f2bd3",
       "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
       "offered_tools": [
         "load_skill",
@@ -19,7 +19,7 @@
         "confirm_job_intent",
         "search_capabilities"
       ],
-      "elapsed_ms": 1521.3,
+      "elapsed_ms": 1893.1,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -30,13 +30,13 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:28:35.117683+00:00",
-      "elapsed_ms": 1614.9,
+      "recorded_at": "2026-10-08T16:49:20.387255+00:00",
+      "elapsed_ms": 1948.7,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"好的，请告诉我你想看的岗位条件——比如城市、岗位方向（或关键词）。另外说明一下：我这边不会主动打开招聘网站搜索，需要你明确要求我才会执行；你也可以直接说“帮我打开 Boss 搜索”。\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"想按什么条件看新岗位？请告诉我：1）城市/地区（例如上海、北京、远程）；2）岗位方向或关键词（例如后端开发、产品经理）；3）如有限制再加上经验级别、薪资范围、全职/实习等。给我这几个条件后，我就按它们打开招聘搜索。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "c2bde49092ac5dfaa865e9ec9784ea13d4973245a62fe56a388c393ae84f01a3",
+          "selected_schema_fingerprint": "6990ca182cdeabae933e5d2432c0a20c0ed53f3034897100598e185e152f2bd3",
           "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
           "offered_tools": [
             "load_skill",
@@ -46,7 +46,7 @@
             "confirm_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 1521.3,
+          "elapsed_ms": 1893.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -56,45 +56,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:36.056372+00:00",
-      "elapsed_ms": 2420.0,
-      "steps": [
-        {
-          "content": "{\"action\":\"ask_user\",\"message\":\"你想按什么条件看新岗位？请给出城市（或「不限」）和岗位方向/关键词，例如「上海 · 数据分析」。另外，要我打开招聘网站的搜索页面让你自己浏览吗？\",\"questions\":[]}",
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "c2bde49092ac5dfaa865e9ec9784ea13d4973245a62fe56a388c393ae84f01a3",
-          "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "confirm_job_intent",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 2356.2,
-          "model_request_count": 2,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": false,
-              "raw_output": {
-                "content": "你想看哪个方向或城市的岗位呢？目前我这边没有任何已保存的岗位、目标方向或搜索条件。你可以告诉我：\n\n- 岗位关键词（例如：后端开发、产品经理）\n- 城市\n- 其他条件（经验年限、薪资范围等）\n\n告诉我之后，我可以帮你打开招聘网站搜索页，或者看看有没有已收藏的岗位。",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            }
-          ],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T16:28:38.454011+00:00",
-      "elapsed_ms": 3711.6,
+      "recorded_at": "2026-10-08T16:49:23.403865+00:00",
+      "elapsed_ms": 4289.8,
       "steps": [
         {
           "tool_call": {
@@ -103,12 +66,13 @@
               "names": [
                 "open_job_search",
                 "find_saved_jobs",
-                "list_target_roles"
+                "list_target_roles",
+                "get_daily_brief"
               ]
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "c2bde49092ac5dfaa865e9ec9784ea13d4973245a62fe56a388c393ae84f01a3",
+          "selected_schema_fingerprint": "6990ca182cdeabae933e5d2432c0a20c0ed53f3034897100598e185e152f2bd3",
           "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
           "offered_tools": [
             "load_skill",
@@ -118,7 +82,7 @@
             "confirm_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 2759.1,
+          "elapsed_ms": 2424.4,
           "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -127,7 +91,77 @@
               "retried": true,
               "forced_interaction": false,
               "raw_output": {
-                "content": "我需要先确认方向：在招聘网站上搜索需要有具体条件，否则打开的是空白页面。\n\n请告诉我你想搜的岗位方向和城市范围（可多选城市或写「不限」）。另外，如果你直接用一句自然语言描述（例如「上海的 Python 后端，3 年经验」），我也可以据此打开对应搜索页。",
+                "content": "你说\"可以\"，但我还没得到具体的方向信息——目前我没有你的城市、岗位方向或其他条件，也不知道你想看哪一类新岗位。\n\n补充一下：我的招聘网站搜索是\"仅在你明确要求时才打开搜索页\"的设置，所以需要你给出明确指令我才会打开搜索。\n\n请告诉我你想按什么条件找，例如：\n- 城市/地区（如上海、远程）\n- 岗位名称或方向（如后端工程师、数据分析）\n- 其他条件（薪资、经验年限、行业等）\n\n你也可以直接说\"用某某关键词搜一下\"，我就为你打开对应的搜索页。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"final\",\"message\":\"我还没法开始搜岗位——缺一个关键信息：**城市**和**岗位方向/关键词**。\\n\\n顺带说明一下当前情况：\\n- 你的档案里默认城市是「未确认」，目标岗位方向也还没有记录（当前无生效目标）。\\n- 「可以」这句我没有可确认的对象——它不是一个待确认的提案（我能查到你有搜岗位的能力，且偏好设置是「仅在明确要求时才开 BOSS 搜索」，所以我需要你明确说要搜）。\\n\\n请告诉我这两点，我就直接打开 BOSS 搜索页给你：\\n1. 城市（例如：上海 / 北京 / 杭州）\\n2. 关键词方向（例如：后端开发 / 产品经理 / 数据分析）\\n\\n另外可选补充：求职类型（实习 / 全职 / 兼职）、经验或薪资要求。搜到之后浏览和收藏都归你自己操作，我不会替你自动保存岗位。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "8fa380a5bfd100e33e88c45c325b81eed3f805ae0ceec75bd01282ea8a957efb",
+          "decision_shape_fingerprint": "e971aed4fb4ccc2742b495244b4d90d5bcd7ee615471e254078fc096c60b9b68",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "open_job_search",
+            "find_saved_jobs",
+            "list_target_roles",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1811.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-08T16:49:24.533793+00:00",
+      "elapsed_ms": 4455.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "find_saved_jobs",
+                "open_job_search",
+                "list_target_roles"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "6990ca182cdeabae933e5d2432c0a20c0ed53f3034897100598e185e152f2bd3",
+          "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2120.4,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "你想看哪个方向或城市的岗位呢？另外说明一下：招聘网站的搜索需要你明确要求才会打开，所以我需要你先给出具体的搜索条件。\n\n请告诉我：\n1. 岗位方向／关键词（例如“前端开发”“数据分析”）\n2. 目标城市（或不限）\n\n有了这两项我就可以帮你打开对应的岗位搜索。",
                 "tool_calls": []
               },
               "decision_invocation": 1
@@ -142,8 +176,8 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "c42a79382f808158086b4a6c5a33117b27e228f9769f76715212b279da99fcf5",
-          "decision_shape_fingerprint": "271dcd9c15c430f966cd27be098e9649b3f89be4bdd399f03551883cfe4b9f64",
+          "selected_schema_fingerprint": "82f4559e72c3b90e8ab6da550271b80929514ec71b806e4e259e37489de91da3",
+          "decision_shape_fingerprint": "8533444ff8d5bdb279ef304263750d9fab16661abc6b6e9bf9c70850295630f3",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -155,10 +189,21 @@
             "confirm_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 881.8,
-          "model_request_count": 1,
+          "elapsed_ms": 2281.4,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "这些能力已在当前状态可用。但你还没告诉我想找什么方向、哪个城市——这两个是搜索条件，我无法替你猜。\n\n请回答：\n\n1. 岗位方向/关键词（如「产品经理」「数据分析」「前端开发」等）\n2. 城市（默认城市在你的档案里尚未确认）\n3. 求职类型：实习 / 全职 / 兼职\n\n给我这三项后，我就打开 BOSS 搜索页，剩下的浏览和收藏由你自己操作。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }

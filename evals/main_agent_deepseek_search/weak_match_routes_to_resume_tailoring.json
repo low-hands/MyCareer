@@ -2,20 +2,18 @@
   "scenario": "weak_match_routes_to_resume_tailoring",
   "policy": "The bounded observation message may carry an explicitly stated overall fit. Follow the user's conditional instruction from that value without inventing unseen match details.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "aca2b780376d14262303e5744801238ff1b3b7feac2cd56baf950b43a1c93384",
+  "prompt_fingerprint": "8eace026cbb8afd566a982815c85b087db97e74806be3f940dc0ebfe32f6a11f",
   "context_shape_fingerprint": "2f70d47ec1d54c1b45974be462857d0f524a5fcb59ba35c3785886c086684fce",
-  "recorded_at": "2026-10-08T16:28:45.266974+00:00",
+  "recorded_at": "2026-10-08T16:49:33.390565+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "draft_resume_tailoring",
-        "arguments": {
-          "tailoring_goal": "针对当前岗位提升匹配度：围绕整体匹配度为 weak 的缺口补强，突出与 JD 最相关且已有证据的经历"
-        }
+        "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "d7498642e4e3394d34db2f847f3f537c3f3607bb755ba7335a43cf92e3341845",
-      "decision_shape_fingerprint": "7914854c906c21811a2c7ada96e10814740474382c7274f369d4cf0434ebd1c0",
+      "selected_schema_fingerprint": "bcaf3ad75fac51763543543d330f0d1fded14779fed7f0a020bd725a51f90fa2",
+      "decision_shape_fingerprint": "2de1a83a9707a114a817b435078eb44c1f8d8a9e1f7fb6455511fc55c9cc31cd",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -26,7 +24,7 @@
         "draft_resume_tailoring",
         "search_capabilities"
       ],
-      "elapsed_ms": 1134.5,
+      "elapsed_ms": 1032.4,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -37,19 +35,17 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:28:44.792349+00:00",
-      "elapsed_ms": 1285.1,
+      "recorded_at": "2026-10-08T16:49:33.078632+00:00",
+      "elapsed_ms": 1091.2,
       "steps": [
         {
           "tool_call": {
             "name": "draft_resume_tailoring",
-            "arguments": {
-              "tailoring_goal": "针对当前岗位提升匹配度：围绕整体匹配度为 weak 的缺口补强，突出与 JD 最相关且已有证据的经历"
-            }
+            "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "d7498642e4e3394d34db2f847f3f537c3f3607bb755ba7335a43cf92e3341845",
-          "decision_shape_fingerprint": "7914854c906c21811a2c7ada96e10814740474382c7274f369d4cf0434ebd1c0",
+          "selected_schema_fingerprint": "bcaf3ad75fac51763543543d330f0d1fded14779fed7f0a020bd725a51f90fa2",
+          "decision_shape_fingerprint": "2de1a83a9707a114a817b435078eb44c1f8d8a9e1f7fb6455511fc55c9cc31cd",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -60,7 +56,7 @@
             "draft_resume_tailoring",
             "search_capabilities"
           ],
-          "elapsed_ms": 1134.5,
+          "elapsed_ms": 1032.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -70,8 +66,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:44.981043+00:00",
-      "elapsed_ms": 1149.2,
+      "recorded_at": "2026-10-08T16:49:33.586424+00:00",
+      "elapsed_ms": 1461.1,
       "steps": [
         {
           "tool_call": {
@@ -79,8 +75,8 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "d7498642e4e3394d34db2f847f3f537c3f3607bb755ba7335a43cf92e3341845",
-          "decision_shape_fingerprint": "7914854c906c21811a2c7ada96e10814740474382c7274f369d4cf0434ebd1c0",
+          "selected_schema_fingerprint": "bcaf3ad75fac51763543543d330f0d1fded14779fed7f0a020bd725a51f90fa2",
+          "decision_shape_fingerprint": "2de1a83a9707a114a817b435078eb44c1f8d8a9e1f7fb6455511fc55c9cc31cd",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -91,7 +87,7 @@
             "draft_resume_tailoring",
             "search_capabilities"
           ],
-          "elapsed_ms": 1027.7,
+          "elapsed_ms": 1379.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -101,8 +97,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:28:45.266974+00:00",
-      "elapsed_ms": 1146.6,
+      "recorded_at": "2026-10-08T16:49:33.390565+00:00",
+      "elapsed_ms": 1171.3,
       "steps": [
         {
           "tool_call": {
@@ -110,8 +106,8 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "d7498642e4e3394d34db2f847f3f537c3f3607bb755ba7335a43cf92e3341845",
-          "decision_shape_fingerprint": "7914854c906c21811a2c7ada96e10814740474382c7274f369d4cf0434ebd1c0",
+          "selected_schema_fingerprint": "bcaf3ad75fac51763543543d330f0d1fded14779fed7f0a020bd725a51f90fa2",
+          "decision_shape_fingerprint": "2de1a83a9707a114a817b435078eb44c1f8d8a9e1f7fb6455511fc55c9cc31cd",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -122,7 +118,7 @@
             "draft_resume_tailoring",
             "search_capabilities"
           ],
-          "elapsed_ms": 900.5,
+          "elapsed_ms": 1112.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
