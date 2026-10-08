@@ -28,9 +28,11 @@ from career_agent.agent.providers.openai_client import (
 from career_agent.agent.workflows.resume_tailoring.reviewer import (
     OpenAIResumeTailoringReviewer,
 )
+from career_agent.agent.workflows.resume_tailoring.finalizer import (
+    OpenAIResumeFinalizationWorker,
+)
 from career_agent.agent.workflows.resume_tailoring.worker import (
-    DeepAgentResumeFinalizationWorker,
-    DeepAgentResumeTailoringWorker,
+    OpenAIResumeTailoringWorker,
 )
 from career_agent.agent.contracts.resume_job_match import (
     ConfirmedResumeFact,
@@ -208,17 +210,6 @@ def _match_requirement(
     )
 
 
-class FakeDeepAgent:
-    def __init__(self, output=COMPACT_DRAFT) -> None:
-        self.output = output
-        self.state = None
-
-    def invoke(self, state, *, config=None):
-        self.state = state
-        self.config = config
-        return {"structured_response": self.output}
-
-
 class FakeResponsesClient:
     def __init__(self, output: dict) -> None:
         self.output = output
@@ -248,22 +239,24 @@ def skill_root(tmp_path: Path) -> Path:
     return root
 
 
-def deep_worker(tmp_path: Path, agent: FakeDeepAgent) -> DeepAgentResumeTailoringWorker:
-    return DeepAgentResumeTailoringWorker(
+def tailoring_worker(
+    tmp_path: Path, client: FakeResponsesClient
+) -> OpenAIResumeTailoringWorker:
+    return OpenAIResumeTailoringWorker(
         OpenAICompatibleAgentConfig(
             endpoint="https://example.test/v1/chat/completions",
             api_key="secret",
             model="multimodal-model",
         ),
         skills_root=skill_root(tmp_path),
-        agent=agent,
+        client=client,
     )
 
 
 def test_tailoring_worker_sends_grounded_text_inputs_and_user_goal(tmp_path) -> None:
-    agent = FakeDeepAgent()
+    client = FakeResponsesClient(COMPACT_DRAFT)
 
-    result = deep_worker(tmp_path, agent).tailor(
+    result = tailoring_worker(tmp_path, client).tailor(
         document=StoredResumeDocument(
             resume_version_id="v1",
             document_format="markdown",
@@ -275,7 +268,8 @@ def test_tailoring_worker_sends_grounded_text_inputs_and_user_goal(tmp_path) -> 
     )
 
     assert result.changes[0].proposed_text.startswith("Built production")
-    text = agent.state["messages"][0]["content"][0]["text"]
+    assert len(client.calls) == 1
+    text = client.calls[0]["input"][0]["content"][0]["text"]
     assert "<resume_document>" in text
     assert "<job_description>" in text
     assert "<grounded_match_result>" in text
@@ -284,9 +278,9 @@ def test_tailoring_worker_sends_grounded_text_inputs_and_user_goal(tmp_path) -> 
 
 def test_tailoring_worker_sends_pdf_as_input_file(tmp_path) -> None:
     raw_pdf = b"%PDF-1.7\x00\xffbinary"
-    agent = FakeDeepAgent()
+    client = FakeResponsesClient(COMPACT_DRAFT)
 
-    deep_worker(tmp_path, agent).tailor(
+    tailoring_worker(tmp_path, client).tailor(
         document=StoredResumeDocument(
             resume_version_id="pdf-v1",
             document_format="pdf",
@@ -296,10 +290,11 @@ def test_tailoring_worker_sends_pdf_as_input_file(tmp_path) -> None:
         match_result=VALID_MATCH,
     )
 
-    content = agent.state["messages"][0]["content"]
-    assert content[0]["type"] == "file"
-    assert content[0]["base64"] == base64.b64encode(raw_pdf).decode("ascii")
-    assert content[0]["mime_type"] == "application/pdf"
+    content = client.calls[0]["input"][0]["content"]
+    assert content[0]["type"] == "input_file"
+    assert content[0]["file_data"] == (
+        "data:application/pdf;base64," + base64.b64encode(raw_pdf).decode("ascii")
+    )
     assert content[0]["filename"] == "pdf-v1.pdf"
     assert "detail" not in content[0]
 
@@ -318,7 +313,7 @@ def test_tailoring_contract_rejects_change_without_resume_evidence(tmp_path) -> 
     ]
 
     with pytest.raises(AgentWorkerError) as error:
-        deep_worker(tmp_path, FakeDeepAgent(invalid)).tailor(
+        tailoring_worker(tmp_path, FakeResponsesClient(invalid)).tailor(
             document=StoredResumeDocument(
                 resume_version_id="v1",
                 document_format="text",
@@ -881,65 +876,56 @@ def test_ocr_unverified_evidence_is_not_accepted_for_a_resume_change() -> None:
 
 def test_tailoring_worker_requires_local_skill_source(tmp_path) -> None:
     with pytest.raises(ValueError, match="Resume tailoring skill is missing"):
-        DeepAgentResumeTailoringWorker(
+        OpenAIResumeTailoringWorker(
             OpenAICompatibleAgentConfig(
                 endpoint="https://example.test/v1/chat/completions",
                 api_key="secret",
                 model="multimodal-model",
             ),
             skills_root=tmp_path / "missing",
-            agent=FakeDeepAgent(),
+            client=FakeResponsesClient(COMPACT_DRAFT),
         )
 
 
-def test_tailoring_worker_configures_isolated_deep_agent_with_skill(tmp_path) -> None:
-    captured = {}
-
-    def factory(**kwargs):
-        captured.update(kwargs)
-        return FakeDeepAgent()
-
-    root = skill_root(tmp_path)
-    worker = DeepAgentResumeTailoringWorker(
-        OpenAICompatibleAgentConfig(
-            endpoint="https://example.test/v1/chat/completions",
-            api_key="secret",
-            model="multimodal-model",
+def test_tailoring_worker_is_one_structured_call_under_the_skill_rules(tmp_path) -> None:
+    client = FakeResponsesClient(COMPACT_DRAFT)
+    tailoring_worker(tmp_path, client).tailor(
+        document=StoredResumeDocument(
+            resume_version_id="v1",
+            document_format="text",
+            raw_bytes=b"Built RAG systems",
         ),
-        skills_root=root,
-        agent_factory=factory,
+        jd_text="Build RAG systems",
+        match_result=VALID_MATCH,
     )
 
-    assert isinstance(worker._agent, FakeDeepAgent)
-    assert captured["skills"] == []
-    assert "Use only grounded resume evidence." in captured["system_prompt"]
-    assert captured["response_format"] is ResumeTailoringGenerationResult
-    generation_schema = captured["response_format"].model_json_schema()
+    assert len(client.calls) == 1
+    request = client.calls[0]
+    assert "Use only grounded resume evidence." in request["instructions"]
+    # The frontmatter chooses a skill; the writer only needs the rules.
+    assert "description: Tailor a grounded resume." not in request["instructions"]
+    generation_schema = request["text"]["format"]["schema"]
+    assert generation_schema == ResumeTailoringGenerationResult.model_json_schema()
     assert "GapMitigation" not in generation_schema["$defs"]
     assert "LearnMitigation" in generation_schema["$defs"]
-    assert captured["subagents"] == []
-    assert captured["backend"].cwd == root.resolve()
-    assert captured["backend"].virtual_mode is True
-    assert captured["permissions"][0].operations == ["write"]
-    assert captured["permissions"][0].mode == "deny"
 
 
 def test_finalization_worker_applies_only_supplied_accepted_changes(tmp_path) -> None:
-    agent = FakeDeepAgent(
+    client = FakeResponsesClient(
         {
             "markdown": "# Candidate\n\n- Built production RAG systems.",
             "applied_change_indices": [1],
             "warnings": [],
         }
     )
-    worker = DeepAgentResumeFinalizationWorker(
+    worker = OpenAIResumeFinalizationWorker(
         OpenAICompatibleAgentConfig(
             endpoint="https://example.test/v1/chat/completions",
             api_key="secret",
             model="multimodal-model",
         ),
         skills_root=skill_root(tmp_path),
-        agent=agent,
+        client=client,
     )
     accepted = AcceptedTailoringChange(
         change_index=1,
@@ -956,28 +942,30 @@ def test_finalization_worker_applies_only_supplied_accepted_changes(tmp_path) ->
     )
 
     assert result.applied_change_indices == (1,)
-    text = agent.state["messages"][0]["content"][0]["text"]
+    assert len(client.calls) == 1
+    assert "Use only grounded resume evidence." in client.calls[0]["instructions"]
+    text = client.calls[0]["input"][0]["content"][0]["text"]
     assert "<resume_document>" in text
     assert "<accepted_changes>" in text
     assert '"change_index": 1' in text
 
 
 def test_finalization_worker_sends_pdf_as_input_file(tmp_path) -> None:
-    agent = FakeDeepAgent(
+    client = FakeResponsesClient(
         {
             "markdown": "# Candidate\n\n- Built production RAG systems.",
             "applied_change_indices": [1],
             "warnings": [],
         }
     )
-    worker = DeepAgentResumeFinalizationWorker(
+    worker = OpenAIResumeFinalizationWorker(
         OpenAICompatibleAgentConfig(
             endpoint="https://example.test/v1/chat/completions",
             api_key="secret",
             model="multimodal-model",
         ),
         skills_root=skill_root(tmp_path),
-        agent=agent,
+        client=client,
     )
     accepted = AcceptedTailoringChange(
         change_index=1,
@@ -994,10 +982,11 @@ def test_finalization_worker_sends_pdf_as_input_file(tmp_path) -> None:
         accepted_changes=(accepted,),
     )
 
-    content = agent.state["messages"][0]["content"]
-    assert content[0]["type"] == "file"
-    assert content[0]["base64"] == base64.b64encode(raw_pdf).decode("ascii")
-    assert content[0]["mime_type"] == "application/pdf"
+    content = client.calls[0]["input"][0]["content"]
+    assert content[0]["type"] == "input_file"
+    assert content[0]["file_data"] == (
+        "data:application/pdf;base64," + base64.b64encode(raw_pdf).decode("ascii")
+    )
     assert '"change_index": 1' in content[1]["text"]
 
 
@@ -2462,7 +2451,7 @@ def test_writer_and_reviewer_receive_the_same_authoritative_mitigation_rules(
     assert policy[0]['gap_type'] == expected_type
     assert policy[0]['priorities'] == expected_priorities
     encoded = json.dumps(policy, ensure_ascii=False)
-    context = DeepAgentResumeTailoringWorker._context_text(
+    context = OpenAIResumeTailoringWorker._context_text(
         jd_text='Go', match_result=match, confirmed_facts=(), tailoring_goal=None,
         user_feedback=None, review_feedback=(), previous_draft=None,
     )

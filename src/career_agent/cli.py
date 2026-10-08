@@ -50,9 +50,11 @@ from career_agent.agent.workflows.resume_tailoring.reviewer import (
 from career_agent.agent.providers.interview_preparation import OpenAIInterviewPreparationWorker
 from career_agent.agent.workflows.mock_interview.worker import OpenAIMockInterviewWorker
 from career_agent.agent.providers.email_tracking import OpenAIEmailTrackingWorker
+from career_agent.agent.workflows.resume_tailoring.finalizer import (
+    OpenAIResumeFinalizationWorker,
+)
 from career_agent.agent.workflows.resume_tailoring.worker import (
-    DeepAgentResumeFinalizationWorker,
-    DeepAgentResumeTailoringWorker,
+    OpenAIResumeTailoringWorker,
 )
 from career_agent.agent.workflows.job_research.worker import (
     DeepAgentJobResearchWorker,
@@ -395,11 +397,11 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 career_history_store,
                 match_store,
                 SQLiteResumeTailoringDraftStore(Path(args.resume_store).expanduser()),
-                DeepAgentResumeTailoringWorker(
+                OpenAIResumeTailoringWorker(
                     resume_tailoring_config,
                     skills_root=Path(args.resume_tailoring_skills_dir),
                 ),
-                DeepAgentResumeFinalizationWorker(
+                OpenAIResumeFinalizationWorker(
                     resume_tailoring_config,
                     skills_root=Path(args.resume_tailoring_skills_dir),
                 ),

@@ -343,6 +343,8 @@ _MIGRATED_WORKERS = {
     "providers/email_tracking": "EMAIL_TRACKING",
     "providers/interview_preparation": "INTERVIEW_PREPARATION",
     "workflows/resume_tailoring/reviewer": "RESUME_REVIEW",
+    "workflows/resume_tailoring/worker": "RESUME_TAILORING",
+    "workflows/resume_tailoring/finalizer": "RESUME_FINALIZATION",
     "workflows/mock_interview/worker": "MOCK_INTERVIEW",
     "providers/resume_transcription": "RESUME_TRANSCRIPTION",
 }
