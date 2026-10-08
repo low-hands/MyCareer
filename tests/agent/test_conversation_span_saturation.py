@@ -25,6 +25,7 @@ from career_agent.agent.capabilities.selection_strategy import SearchStrategy
 from career_agent.agent.contracts.decisions import AgentDecision
 from career_agent.agent.middleware.argument_projection import project_atomic_arguments
 from career_agent.agent.presentation.result_presenter import ResultPresenter
+from career_agent.agent.providers.main_agent import OpenAICompatibleMainAgentDecisionMaker
 from career_agent.evaluation.main_agent_scenarios import (
     SCENARIOS,
     SPAN_COLD_QUESTION,
@@ -167,6 +168,15 @@ def test_uncompacted_span_is_absent_from_control_availability_and_soft_rejected(
             message=observation.message,
             facts=observation.facts,
         ))
+
+
+def test_span_prompt_states_the_gap_and_summary_loss_explicitly() -> None:
+    prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt(
+        SearchStrategy().tool_policy()
+    )
+    assert "through_sequence > 0 and recent_from_sequence > 1" in prompt
+    assert "summary is a lossy digest" in prompt
+    assert "zero omitted_*_count values" in prompt
 
 
 def test_old_qwen_not_invented_sample_one_now_fails_decoy_assertion() -> None:
