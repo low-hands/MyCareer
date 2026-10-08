@@ -32,13 +32,11 @@ class ToolOffer:
 
 
 class RuntimeSearchSelector:
-    """Exact zero-round-trip search-mode offer, with optional user-turn intent."""
+    """Exact zero-round-trip offer from the runtime SearchStrategy."""
 
-    def __init__(
-        self, tool_specs: tuple[dict[str, Any], ...], *, intent_enabled: bool,
-    ) -> None:
+    def __init__(self, tool_specs: tuple[dict[str, Any], ...]) -> None:
         self._tool_specs = tool_specs
-        self._strategy = SearchStrategy(intent_enabled=intent_enabled)
+        self._strategy = SearchStrategy()
 
     def select(
         self, context: MainAgentContext, prior: object | None,

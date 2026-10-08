@@ -42,10 +42,10 @@ SCHEMAS = tuple(
 )
 
 
-def _context(task=None, observations=()):
+def _context(task=None, observations=(), *, user_message="看看这个岗位和简历是否匹配"):
     return MainAgentContext(
         conversation_id="c1", profile=CareerProfileContext(user_id="u1"),
-        user_message="看看这个岗位和简历是否匹配",
+        user_message=user_message,
         task=task or ConversationTaskState(), tool_observations=observations,
     )
 
@@ -116,20 +116,22 @@ def test_newly_satisfied_state_gate_is_offered_without_search() -> None:
 
 
 def test_submitted_questionnaire_offers_its_bound_target_for_this_turn() -> None:
-    strategy = SearchStrategy(intent_enabled=False)
+    strategy = SearchStrategy()
     task = ConversationTaskState(
         active_job_posting_id="job-1",
         active_resume_version_id="resume-version-1",
         active_resume_job_match_id="match-1",
         resume_job_match_status="ready",
     )
-    resumed = _context(task).model_copy(update={
+    resumed = _context(task, user_message=" ").model_copy(update={
         "turn_continuation_capability": "draft_resume_tailoring",
     })
     selection = strategy.select(resumed, SCHEMAS)
     assert "draft_resume_tailoring" in selection.offered_names
     assert dict(selection.sources)["draft_resume_tailoring"] == "state"
-    assert "draft_resume_tailoring" not in strategy.select(_context(task), SCHEMAS).offered_names
+    assert "draft_resume_tailoring" not in strategy.select(
+        _context(task, user_message=" "), SCHEMAS,
+    ).offered_names
     assert "turn_continuation_capability" not in resumed.model_context()
 
 
@@ -164,7 +166,7 @@ def test_w_does_not_follow_a_failed_or_waiting_observation() -> None:
 
 
 def test_w_keeps_successors_after_intervening_search_within_turn() -> None:
-    strategy = SearchStrategy(intent_enabled=False)
+    strategy = SearchStrategy()
     task = ConversationTaskState(
         active_job_posting_id="job-1", active_jd_snapshot_id="jd-1",
         active_job_analysis_id="analysis-1",
@@ -178,11 +180,13 @@ def test_w_keeps_successors_after_intervening_search_within_turn() -> None:
         tool_name="search_capabilities", state="capabilities_found",
         message="已搜索。",
     )
-    before_search = strategy.select(_context(task, (analysis,)), SCHEMAS)
-    after_search = strategy.select(_context(task, (analysis, searched)), SCHEMAS)
+    before_search = strategy.select(_context(task, (analysis,), user_message=" "), SCHEMAS)
+    after_search = strategy.select(_context(task, (analysis, searched), user_message=" "), SCHEMAS)
     assert "match_resume_to_job" in before_search.offered_names
     assert "match_resume_to_job" in after_search.offered_names
-    assert "match_resume_to_job" not in strategy.select(_context(task), SCHEMAS).offered_names
+    assert "match_resume_to_job" not in strategy.select(
+        _context(task, user_message=" "), SCHEMAS,
+    ).offered_names
     assert task.loaded_capabilities == ()
 
     stale = task.model_copy(update={
@@ -191,7 +195,7 @@ def test_w_keeps_successors_after_intervening_search_within_turn() -> None:
         })
     })
     assert "match_resume_to_job" not in strategy.select(
-        _context(stale, (analysis, searched)), SCHEMAS,
+        _context(stale, (analysis, searched), user_message=" "), SCHEMAS,
     ).offered_names
 
 
@@ -210,7 +214,9 @@ def test_w_unions_successors_from_two_business_results() -> None:
             tool_name="analyze_job", state="job_analysis_ready", message="已分析岗位。",
         ),
     )
-    offered = SearchStrategy(intent_enabled=False).select(_context(task, observations), SCHEMAS).offered_names
+    offered = SearchStrategy().select(
+        _context(task, observations, user_message=" "), SCHEMAS,
+    ).offered_names
     assert {"list_email_events", "match_resume_to_job"} <= set(offered)
 
 
@@ -231,8 +237,8 @@ def test_w_skips_failed_and_waiting_observations_among_multiple_results() -> Non
             tool_name="search_capabilities", state="capabilities_found", message="已搜索。",
         ),
     )
-    offered = SearchStrategy(intent_enabled=False).select(
-        _context(task, observations), SCHEMAS,
+    offered = SearchStrategy().select(
+        _context(task, observations, user_message=" "), SCHEMAS,
     ).offered_names
     assert "list_email_events" not in offered
     assert "match_resume_to_job" not in offered

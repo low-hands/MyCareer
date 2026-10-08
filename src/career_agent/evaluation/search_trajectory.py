@@ -307,7 +307,6 @@ def record_search_catalogue(scenarios: Sequence[TrajectoryScenario],
             path.write_text(json.dumps({
                 "scenario": scenario.name,
                 "policy": scenario.policy,
-                "selection_mode": "search",
                 "model": config.model,
                 "prompt_fingerprint": trajectory_prompt_fingerprint(
                     scenario, tool_specs),

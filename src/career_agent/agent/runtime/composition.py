@@ -188,7 +188,6 @@ def build_main_runtime_components(
         update_atomic_task=ports.update_atomic_task,
         tool_call_fingerprint=DecisionEngine.tool_call_fingerprint,
         tool_observation=tool_observation,
-        retain_successful_tools=True,
     )
     decision_engine = DecisionEngine(
         emit=RuntimeObservability.emit,

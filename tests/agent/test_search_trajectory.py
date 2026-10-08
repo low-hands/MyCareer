@@ -62,9 +62,10 @@ def test_cached_research_remains_offered_after_successful_prior_call() -> None:
     search = next(item for item in SEARCH_SCENARIOS if item.name == name)
     assert "research_job" not in legacy.context.task.loaded_capabilities
     assert "research_job" in search.context.task.loaded_capabilities
-    selection = SearchStrategy(
-        proactive_enabled=False, intent_enabled=False,
-    ).select(search.context, trajectory_tool_specs())
+    selection = SearchStrategy().select(
+        search.context.model_copy(update={"user_message": " "}),
+        trajectory_tool_specs(),
+    )
     assert "research_job" in selection.offered_names
     assert dict(selection.sources)["research_job"] == "loaded"
     search_cases = {item.name: item for item in SEARCH_SCENARIOS}

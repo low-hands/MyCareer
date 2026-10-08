@@ -28,14 +28,9 @@ class CapabilitySelection:
     offered_names: tuple[str, ...]
     blocked_requirements: tuple[tuple[str, str], ...]
     schemas: tuple[dict[str, Any], ...]
-    mode: str = "search"
     sources: tuple[tuple[str, str], ...] = ()
     waiting_suppressed: tuple[str, ...] = ()
     tool_projection: dict[str, object] | None = None
-
-    @property
-    def available_now(self) -> tuple[str, ...]:
-        return self.offered_names
 
 
 def prepare_capability_selection(

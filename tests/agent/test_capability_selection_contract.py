@@ -39,7 +39,7 @@ def test_cross_domain_selection_uses_one_offer_and_reports_blocked_step() -> Non
     )
 
     assert selection.selected_names == ("analyze_job", "match_resume_to_job")
-    assert selection.offered_names == selection.available_now == ("analyze_job",)
+    assert selection.offered_names == ("analyze_job",)
     assert tuple(schema["function"]["name"] for schema in selection.schemas) == (
         "analyze_job",
     )

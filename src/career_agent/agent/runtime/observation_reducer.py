@@ -113,7 +113,6 @@ class ObservationReducer:
             [str, MainAgentToolOutput, dict[str, Any] | None],
             DecisionObservation,
         ],
-        retain_successful_tools: bool = False,
     ) -> None:
         self._context_manager = context_manager
         self._emit_trace = emit_trace
@@ -121,7 +120,6 @@ class ObservationReducer:
         self._update_atomic_task = update_atomic_task
         self._tool_call_fingerprint = tool_call_fingerprint
         self._tool_observation = tool_observation
-        self._retain_successful_tools = retain_successful_tools
 
     def reduce(self, state: MainAgentState) -> MainAgentState:
         context = state["context"]
@@ -174,12 +172,9 @@ class ObservationReducer:
                         "turn_continuation_capability": context.turn_continuation_capability,
                     }
                 )
-            if (
-                self._retain_successful_tools
-                and retainable_tool_result(
-                    capability_name, result.state, result.disposition,
-                    result.execution_outcome,
-                )
+            if retainable_tool_result(
+                capability_name, result.state, result.disposition,
+                result.execution_outcome,
             ):
                 updated = updated.model_copy(update={
                     "task": updated.task.add_loaded_capabilities((capability_name,)),

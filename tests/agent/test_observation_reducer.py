@@ -19,16 +19,15 @@ from career_agent.agent.runtime.observation_reducer import ObservationReducer
 
 
 @pytest.mark.parametrize(
-    ("state", "disposition", "retain", "expected_loaded"),
+    ("state", "disposition", "expected_loaded"),
     (
-        ("resumes_listed", "completed", True, True),
-        ("resumes_listed", "completed", False, False),
-        ("invalid_input", "failed", True, False),
-        ("working_notes_derived_argument", "completed", True, False),
+        ("resumes_listed", "completed", True),
+        ("invalid_input", "failed", False),
+        ("working_notes_derived_argument", "completed", False),
     ),
 )
-def test_successful_tool_stays_loaded_only_in_search_mode(
-    state, disposition, retain, expected_loaded,
+def test_successful_tool_stays_loaded_for_later_selection(
+    state, disposition, expected_loaded,
 ) -> None:
     class Clock:
         def now(self):
@@ -47,7 +46,6 @@ def test_successful_tool_stays_loaded_only_in_search_mode(
         tool_observation=lambda name, result, arguments: DecisionObservation(
             tool_name=name, state=result.state, message=result.message,
         ),
-        retain_successful_tools=retain,
     )
     update = reducer.reduce({
         "context": context,
@@ -70,9 +68,9 @@ def test_successful_tool_stays_loaded_only_in_search_mode(
             update={"tool_observations": (), "user_message": "再看一次"},
         )
         schemas = tuple(item.tool_schema() for item in CAPABILITIES.values() if item.model_callable)
-        assert "list_resumes" in SearchStrategy(
-            proactive_enabled=False, intent_enabled=False,
-        ).select(next_turn, schemas).offered_names
+        selection = SearchStrategy().select(next_turn, schemas)
+        assert "list_resumes" in selection.offered_names
+        assert dict(selection.sources)["list_resumes"] == "loaded"
 
 
 def test_synthetic_refusal_reduces_without_runtime_host_or_task_mutation() -> None:
@@ -183,4 +181,8 @@ def test_w_successor_survives_observation_window_trimming() -> None:
     assert restored.turn_proactive_capabilities == context.turn_proactive_capabilities
     assert "turn_proactive_capabilities" not in context.model_context()
     schemas = tuple(item.tool_schema() for item in CAPABILITIES.values() if item.model_callable)
-    assert "match_resume_to_job" in SearchStrategy().select(context, schemas).offered_names
+    selection = SearchStrategy().select(
+        context.model_copy(update={"user_message": " "}), schemas,
+    )
+    assert "match_resume_to_job" in selection.offered_names
+    assert dict(selection.sources)["match_resume_to_job"] == "proactive"

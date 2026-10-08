@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import json
-from typing import Any, Protocol
+from typing import Any
 
 from career_agent.agent.capabilities.catalog import CAPABILITIES
 from career_agent.agent.capabilities.proactive import proactive_tool_names
@@ -22,23 +22,6 @@ from career_agent.agent.providers.token_budget import count_tokens
 MAX_SEARCH_CALLS_PER_TURN = 5
 
 
-class ToolSelectionStrategy(Protocol):
-    mode: str
-
-    def select(
-        self, context: MainAgentContext,
-        registered: tuple[dict[str, Any], ...],
-    ) -> CapabilitySelection: ...
-
-    def tool_context(
-        self, task: ConversationTaskState, selection: CapabilitySelection,
-    ) -> dict[str, object]: ...
-
-    def offers_tool(self, context: MainAgentContext, name: str) -> bool: ...
-
-    def tool_policy(self) -> str: ...
-
-
 def capability_directory() -> str:
     groups: dict[str, list[str]] = {}
     for item in searchable_capabilities():
@@ -52,19 +35,13 @@ def capability_directory() -> str:
 
 
 class SearchStrategy:
-    mode = "search"
-
-    def __init__(
-        self, *, proactive_enabled: bool = True, intent_enabled: bool = True,
-    ) -> None:
+    def __init__(self) -> None:
         self._schema_cache: dict[tuple[str, ...], tuple[dict[str, Any], ...]] = {}
         self._intent_cache: dict[tuple[str, object, str], tuple[str, ...]] = {}
         self._directory = capability_directory()
-        self._proactive_enabled = proactive_enabled
-        self._intent_enabled = intent_enabled
 
     def _intent_names(self, context: MainAgentContext) -> tuple[str, ...]:
-        if not self._intent_enabled or not context.user_message.strip():
+        if not context.user_message.strip():
             return ()
         key = (context.conversation_id, context.received_at, context.user_message)
         if key not in self._intent_cache:
@@ -103,7 +80,7 @@ class SearchStrategy:
                 name for name in self._intent_names(context)
                 if name in registered_names
             )),
-            ("proactive", proactive_tool_names(context) if self._proactive_enabled else ()),
+            ("proactive", proactive_tool_names(context)),
         )
         sources: dict[str, str] = {}
         for source, names in source_names:
@@ -122,7 +99,7 @@ class SearchStrategy:
             selected_names=selection.selected_names,
             offered_names=selection.offered_names,
             blocked_requirements=selection.blocked_requirements,
-            schemas=cached, mode=self.mode,
+            schemas=cached,
             sources=tuple((name, sources[name]) for name in selection.selected_names),
             waiting_suppressed=tuple(name for name in CAPABILITIES if name in waiting and name in sources),
         )
@@ -136,7 +113,7 @@ class SearchStrategy:
             key=lambda item: (sources.get(item[0]) not in {"always", "loaded"}, item[0]),
         )[:5]
         return {
-            "available_now": list(selection.available_now),
+            "available_now": list(selection.offered_names),
             "loaded_capabilities": list(task.loaded_capabilities),
             "blocked": [f"{name}: {requirement}" for name, requirement in blocked],
         }
@@ -168,7 +145,6 @@ def selection_trace(selection: CapabilitySelection) -> dict[str, object]:
     counts = {source: sum(kind == source for _, kind in selection.sources)
               for source in ("always", "loaded", "state", "intent", "proactive")}
     return {
-        "selection_mode": selection.mode,
         "selection_sources": counts,
         "blocked_requirements": dict(selection.blocked_requirements),
         "waiting_suppressed": selection.waiting_suppressed,

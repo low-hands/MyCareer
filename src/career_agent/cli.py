@@ -2024,7 +2024,6 @@ def _run_trajectory_evaluation(args, stdout) -> int:
                 "failures": failures,
             })
         payload = {
-            "selection_mode": "search",
             "scenarios": len(results),
             "contract_failed": sum(item["contract"] == "failed" for item in results),
             "behaviour_failed": sum(item["behaviour"] == "failed" for item in results),
