@@ -122,7 +122,13 @@ class SearchStrategy:
             sources=tuple((name, sources[name]) for name in selection.selected_names),
             waiting_suppressed=tuple(name for name in CAPABILITIES if name in waiting and name in sources),
         )
-        return replace(result, tool_projection=self.tool_context(task, result))
+        projection = self.tool_context(task, result)
+        if context.through_sequence == 0 and context.recent_from_sequence in (None, 1):
+            projection["available_now"] = [
+                name for name in projection["available_now"]
+                if name != "read_conversation_span"
+            ]
+        return replace(result, tool_projection=projection)
 
     @staticmethod
     def tool_context(task: ConversationTaskState, selection: CapabilitySelection) -> dict[str, object]:

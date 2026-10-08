@@ -25,7 +25,7 @@ from career_agent.evaluation.trajectory import TrajectoryStep, trajectory_tool_s
 
 
 def test_search_scenarios_preserve_business_assertions() -> None:
-    assert len(SEARCH_SCENARIOS) == len(SCENARIOS) == 46
+    assert len(SEARCH_SCENARIOS) == len(SCENARIOS) == 47
     base = {scenario.name: scenario for scenario in SCENARIOS}
     search = {scenario.name: scenario for scenario in SEARCH_SCENARIOS}
     assert base["a_core_request_routes_before_job_analysis"].steps[0].expect_tool == "analyze_job"

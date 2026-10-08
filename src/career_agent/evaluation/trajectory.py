@@ -85,6 +85,13 @@ class TrajectoryStep:
     names only what must be absent.
     """
 
+    forbid_message_regexes: tuple[str, ...] = ()
+    """Heuristic assertion for an answer phrased as a sentence, not a mere mention.
+
+    Keep patterns narrow: a decoy may be mentioned while explicitly rejected.
+    This cannot prove semantic correctness for every possible paraphrase.
+    """
+
     forbid_final_message_contains: frozenset[str] = frozenset()
     """Substrings that may be asked about but must not be asserted as an answer."""
 
@@ -322,6 +329,12 @@ def summarize_decision_retries(cassettes: Sequence[TrajectoryCassette]) -> dict[
             return False
 
     interactions = [step for step in covered if is_interaction(step)]
+    forced_interactions = [
+        step for step in interactions
+        if any(event.get("reason") == "text_rejected" and event.get("retried")
+               and event.get("forced_interaction", True)
+               for event in step.get("decision_retry_events", ()))
+    ]
     def with_retries(items: Sequence[dict[str, Any]]) -> int:
         return sum(
             any(event["retried"] for event in step.get("decision_retry_events", ()))
@@ -335,6 +348,7 @@ def summarize_decision_retries(cassettes: Sequence[TrajectoryCassette]) -> dict[
         "interaction_decisions": sum(is_interaction(step) for step in steps),
         "covered_interaction_decisions": len(interactions),
         "interaction_decisions_with_retries": with_retries(interactions),
+        "forced_interaction_decisions_after_text_rejected": len(forced_interactions),
         "interaction_retry_rate": with_retries(interactions) / len(interactions) if interactions else None,
         "retry_reason_counts": reason_counts,
         "terminal_rejection_reason_counts": terminal_counts,
@@ -612,6 +626,9 @@ def check_step(step: TrajectoryStep, decision: AgentDecision, *, scenario: str, 
             failures.append(
                 f"{label}: reply restated runtime-owned delivery {fragment!r}"
             )
+    for pattern in step.forbid_message_regexes:
+        if re.search(pattern, decision.message or ""):
+            failures.append(f"{label}: reply asserted forbidden answer matching {pattern!r}")
     if decision.action == "final":
         for fragment in sorted(step.forbid_final_message_contains):
             if fragment in (decision.message or ""):

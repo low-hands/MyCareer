@@ -5835,13 +5835,23 @@ class MainAgentToolRegistry:
     ) -> ToolObservation:
         if self._conversation_store is None:
             raise ValueError("Conversation store is not configured")
+        # These watermark keys are runtime-projected internal fields, never
+        # model schema arguments. They prevent a cold-session read by any caller.
+        if (arguments.get("_through_sequence") == 0
+                and arguments.get("_recent_from_sequence") in (None, 1)):
+            return ToolObservation(
+                tool_name="read_conversation_span",
+                state="conversation_span_unavailable",
+                message="本会话还没有被压缩的历史。",
+                facts={"through_sequence": 0},
+            )
         user_id = str(arguments["user_id"])
         conversation_id = str(arguments["conversation_id"])
         model_arguments = ReadConversationSpanToolArguments.model_validate(
             {
                 key: value
                 for key, value in arguments.items()
-                if key not in {"user_id", "conversation_id"}
+                if key not in {"user_id", "conversation_id", "_through_sequence", "_recent_from_sequence"}
             }
         )
         span_arguments = {

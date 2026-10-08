@@ -137,10 +137,10 @@ def test_search_mode_schema_and_prompt_fingerprints_are_stable() -> None:
         "0a3b2b4315119903559d934b942bd12e903b7499d7a42616c200c7eabe73bf9b"
     )
     assert prompt_fingerprint(schemas) == (
-        "dfa1fce74ae2ddac1642ec2ce4013b11d9f0841d79e4fc15992be9cf67dd8fe6"
+        "a928c3add269856a6241e69d58fabb1b6ff2e120a44dea4e1042601f1cb9bb12"
     )
     assert trajectory_prompt_fingerprint(SCENARIOS[0], schemas) == (
-        "b2c2a9e370eaca8271690c105a919399b54898d6e617c06fe975b95d39b3b33d"
+        "4e65bc7aa6df8e23ff00c5f1c21769bf50458f5714d5a45a985cb17c276402cc"
     )
 
 

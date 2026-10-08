@@ -490,9 +490,14 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             return {}
         return {"decision_retry_telemetry_version": 1, "decision_retry_events": list(events)}
 
-    def _record_decision_rejection(self, reason: str, *, retried: bool) -> None:
+    def _record_decision_rejection(
+        self, reason: str, *, retried: bool,
+        forced_interaction: bool | None = None,
+    ) -> None:
         events = self._decision_retry_events.get() or ()
         event: dict[str, Any] = {"reason": reason, "retried": retried}
+        if forced_interaction is not None:
+            event["forced_interaction"] = forced_interaction
         if self._capture_rejected_output:
             event["raw_output"] = self._rejected_output.get()
         self._decision_retry_events.set((*events, event))
@@ -784,6 +789,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
                     "ttl": "30m",
                 }
         reprompts = 0
+        text_reprompts = 0
         proposal_reprompts = 0
         corrupted_response_retries = 0
         if self._model_extra_body:
@@ -906,20 +912,38 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             if len(tool_calls) <= 1:
                 if not tool_calls:
                     self._record_decision_rejection(
-                        "text_rejected", retried=reprompts < MAX_SINGLE_CALL_REPROMPTS
+                        "text_rejected", retried=text_reprompts < 2,
+                        forced_interaction=text_reprompts == 1,
                     )
-                    if reprompts >= MAX_SINGLE_CALL_REPROMPTS:
+                    if text_reprompts >= 2:
                         raise AgentWorkerError(
                             "MAIN_AGENT_NATIVE_DECISION_REQUIRED",
                             "Main Agent did not return a native decision output.",
                         )
-                    reprompts += 1
-                    request_options["tool_choice"] = {
-                        "type": "function", "function": {"name": "respond_to_user"},
-                    }
+                    text_reprompts += 1
+                    if text_reprompts == 1:
+                        request_options["tool_choice"] = (
+                            "required" if self._vendor.supports_required_tool_choice else "auto"
+                        )
+                        reason = (
+                            "Return exactly one native function call. If an offered "
+                            "read-only tool can supply the missing fact, call it; "
+                            "otherwise choose an interaction."
+                        )
+                    else:
+                        request_options["tool_choice"] = {
+                            "type": "function", "function": {"name": "respond_to_user"},
+                        }
+                        reason = (
+                            "The text output was not accepted. Return a native "
+                            "respond_to_user call. Explicitly decide whether the "
+                            "current goal needs the user's answer or confirmation "
+                            "before proceeding; that is requires_user_input=true, "
+                            "not a final answer."
+                        )
                     _add_control_state(messages, {"rejected_text_decision": {
                         "executed": False,
-                        "reason": "The text output was not accepted. Return a native respond_to_user call. Explicitly decide whether the current goal needs the user's answer or confirmation before proceeding; that is requires_user_input=true, not a final answer.",
+                        "reason": reason,
                     }})
                     continue
                 if tool_calls and tool_calls[0].function.name in INTERACTION_NAMES:
@@ -1258,8 +1282,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             "read_conversation_span if offered, with nonempty focused query "
             "terms for long gaps, inside sequence 1 "
             "through through_sequence. Use an exact span only when the user "
-            "explicitly names one. Never call read_conversation_span when either "
-            "watermark is absent or zero, and never invent a sequence range. "
+            "explicitly names one. Never invent a sequence range. "
             "Never substitute a nearby fact from the recent window. "
             "A tool result body is bounded presenter text and may end with an "
             "ellipsis; body_clipped states whether it is incomplete. Ground "

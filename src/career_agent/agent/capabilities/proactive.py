@@ -27,6 +27,7 @@ BOUND_RESOURCE_READS = (
 _NON_SUCCESS_RESULT_STATES = frozenset({
     "authorization_refused",
     "invalid_input",
+    "conversation_span_unavailable",
     "working_notes_stale",
 })
 

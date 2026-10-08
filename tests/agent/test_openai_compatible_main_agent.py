@@ -132,14 +132,16 @@ def test_deepseek_rejects_explicit_prompt_cache_breakpoints():
 def test_text_outputs_are_never_coerced_into_decisions(text):
     maker, completions = _scripted_maker(
         _response(content=text, raw_text=True), _response(content=text, raw_text=True),
+        _response(content=text, raw_text=True),
     )
     with pytest.raises(AgentWorkerError) as raised:
         maker.decide(_context(), ())
     assert raised.value.code == "MAIN_AGENT_NATIVE_DECISION_REQUIRED"
-    assert len(completions.requests) == 2
+    assert len(completions.requests) == 3
     assert maker.consume_decision_retry_metrics()["decision_retry_events"] == [
-        {"reason": "text_rejected", "retried": True},
-        {"reason": "text_rejected", "retried": False},
+        {"reason": "text_rejected", "retried": True, "forced_interaction": False},
+        {"reason": "text_rejected", "retried": True, "forced_interaction": True},
+        {"reason": "text_rejected", "retried": False, "forced_interaction": False},
     ]
 
 
@@ -167,7 +169,10 @@ def test_retry_measurement_identifies_the_cause_without_changing_the_decision(re
     assert len(completions.requests) == 2
     assert maker.consume_decision_retry_metrics() == {
         "decision_retry_telemetry_version": 1,
-        "decision_retry_events": [{"reason": reason, "retried": True}],
+        "decision_retry_events": [{
+            "reason": reason, "retried": True,
+            **({"forced_interaction": False} if reason == "text_rejected" else {}),
+        }],
     }
     assert maker.consume_decision_retry_metrics() == {}
     assert maker.decide(_context(), ()).action == "final"
@@ -1952,7 +1957,61 @@ def test_production_text_fallback_is_reasked_as_a_typed_interaction():
     assert decision.action == "ask_user"
     assert decision.tool_call is None
     assert len(completions.requests) == 2
-    assert completions.requests[1]["tool_choice"] == {
+    assert completions.requests[1]["tool_choice"] == "auto"
+
+
+def test_deepseek_text_retry_can_choose_an_offered_read_tool():
+    completions = ScriptedCompletions([
+        _response(content="先查原文", raw_text=True),
+        _response(tool_calls=[_tool_call(
+            "read_conversation_span", '{"from_sequence":1,"through_sequence":8}'
+        )]),
+    ])
+    client = type("Client", (), {"chat": type("Chat", (), {"completions": completions})()})()
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        _config(), client=client,
+        **main_model_options({"MAIN_AGENT_VENDOR": "deepseek"}),
+    )
+    decision = maker.decide(_context(), ("read_conversation_span",))
+    assert decision.tool_call.name == "read_conversation_span"
+    assert completions.requests[1]["tool_choice"] == "required"
+    assert "read-only tool" in str(completions.requests[1]["messages"])
+
+
+def test_deepseek_required_retry_is_limited_to_non_thinking_mode():
+    with pytest.raises(AgentConfigurationError, match="thinking mode"):
+        main_model_options({
+            "MAIN_AGENT_VENDOR": "deepseek",
+            "MAIN_AGENT_ENABLE_THINKING": "true",
+        })
+    completions = ScriptedCompletions([
+        _response(content="先查原文", raw_text=True),
+        _response(tool_calls=[_tool_call("ask_user", '{"message":"请补充公司名"}')]),
+    ])
+    client = type("Client", (), {"chat": type("Chat", (), {"completions": completions})()})()
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        _config(), client=client,
+        **main_model_options({
+            "MAIN_AGENT_VENDOR": "deepseek",
+            "MAIN_AGENT_ENABLE_THINKING": "false",
+        }),
+    )
+    maker.decide(_context(), ())
+    assert completions.requests[0]["extra_body"]["thinking"] == {"type": "disabled"}
+    assert completions.requests[1]["tool_choice"] == "required"
+
+
+def test_second_text_rejection_forces_interaction_on_third_request():
+    maker, completions = _scripted_maker(
+        _response(content="first", raw_text=True),
+        _response(content="second", raw_text=True),
+        _response(tool_calls=[_tool_call(
+            "respond_to_user", '{"requires_user_input":true,"message":"请补充公司名"}'
+        )]),
+    )
+    assert maker.decide(_context(), ()).action == "ask_user"
+    assert completions.requests[1]["tool_choice"] == "auto"
+    assert completions.requests[2]["tool_choice"] == {
         "type": "function", "function": {"name": "respond_to_user"},
     }
 
@@ -1961,11 +2020,15 @@ def test_persistent_text_fallback_fails_closed_in_production():
     maker, completions = _scripted_maker(
         _response(content='{"action":"final","message":"城市？"}', raw_text=True),
         _response(content='{"action":"final","message":"城市？"}', raw_text=True),
+        _response(content='{"action":"final","message":"城市？"}', raw_text=True),
     )
     with pytest.raises(AgentWorkerError) as raised:
         maker.decide(_context(), ())
     assert raised.value.code == "MAIN_AGENT_NATIVE_DECISION_REQUIRED"
-    assert len(completions.requests) == 2
+    assert len(completions.requests) == 3
+    assert completions.requests[2]["tool_choice"] == {
+        "type": "function", "function": {"name": "respond_to_user"},
+    }
 
 
 def test_a_long_final_answer_within_the_budget_is_delivered_whole() -> None:

@@ -23,6 +23,8 @@ class QwenMainAgentVendor:
     name: VendorName = "qwen"
     # Qwen accepts the OpenAI-style prompt_cache_key in extra_body.
     sends_prompt_cache_key: bool = True
+    # Chat Completions documents required as unreliable in non-thinking mode.
+    supports_required_tool_choice: bool = False
 
     def request_extra_body(self, *, thinking: bool | None) -> dict[str, Any]:
         # Unset keeps the endpoint's default, which is what Qwen recordings use.
@@ -42,6 +44,8 @@ class DeepSeekMainAgentVendor:
     # DeepSeek caches context automatically and does not document
     # prompt_cache_key; do not send an unknown extension.
     sends_prompt_cache_key: bool = False
+    # Main Agent disables DeepSeek thinking, where required would be rejected.
+    supports_required_tool_choice: bool = True
 
     def request_extra_body(self, *, thinking: bool | None) -> dict[str, Any]:
         # DeepSeek enables thinking by default, so unset must send "disabled".

@@ -153,7 +153,12 @@ _OTHER_SAVED_JOB = SavedJobCandidateContextItem(
 # the originals back is visibly more expensive than paging in.
 SPAN_PAGE_IN_FACT = "Pinnacle Robotics"
 SPAN_WINDOW_DECOY = "美团"
+_SPAN_DECOY_AS_ANSWER = (
+    r"(目标公司|全名)[^。]{0,10}(?<!不)(是|叫)\s*[“\"]?美团"
+    r"(?![^。]{0,6}[吗？?])"
+)
 SPAN_HIDDEN_QUESTION = "我一开始指定的目标公司全名叫什么？"
+SPAN_COLD_QUESTION = "我的目标公司全名叫什么？"
 SPAN_OUT_OF_RANGE_QUESTION = "把序号 100 到 110 的对话读回来。"
 _SPAN_FILLER = "这一段只占压缩前原文的预算，不包含公司名。" * 8
 
@@ -206,6 +211,10 @@ _SPAN_POST_WATERMARK = (
         f"{SPAN_WINDOW_DECOY} 这份只是窗口里的对照，不是你一开始指定的目标。",
     ),
 )
+_SPAN_COLD_WINDOW = (
+    _span_message("user", f"刚才窗口里这份 {SPAN_WINDOW_DECOY} 的 JD 看起来怎么样？"),
+    _span_message("assistant", f"这份 {SPAN_WINDOW_DECOY} JD 只是对照，你还没告诉我目标公司。"),
+)
 _SPAN_SUMMARY = ConversationSummaryContent(
     user_goals=("找算法工程师岗位",),
     confirmed_decisions=("先从已保存岗位里挑，不全国盲搜",),
@@ -219,10 +228,9 @@ def compacted_span_context(
 ) -> MainAgentContext:
     """Compacted window: summary plus the post-watermark decoy.
 
-    ``page_in=True`` is production CE-1 (watermark projected, so the always-
-    offered span tool has a valid range). ``page_in=False`` is the pre-CE-1
-    ablation: the same summary and decoy, but no pointer, so the model cannot
-    validly page the hidden fact back.
+    ``page_in=True`` projects the watermark and permits a span read.
+    ``page_in=False`` retains an older synthetic fixture for the context-size
+    comparison; decision scenarios use a reachable short-session fixture.
     """
     if page_in:
         return _context(
@@ -309,6 +317,16 @@ def _span_empty_observation() -> DecisionObservation:
             "content_clipped": False,
         },
         arguments={"from_sequence": 100, "through_sequence": 110},
+    )
+
+
+def _span_unavailable_observation() -> DecisionObservation:
+    return DecisionObservation(
+        tool_name="read_conversation_span",
+        state="conversation_span_unavailable",
+        message="本会话还没有被压缩的历史。",
+        facts={"through_sequence": 0},
+        arguments={"from_sequence": 1, "through_sequence": 2},
     )
 
 
@@ -1818,6 +1836,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         steps=(
             TrajectoryStep(
                 expect_tool="read_conversation_span",
+                forbid_message_regexes=(_SPAN_DECOY_AS_ANSWER,),
                 expect_arguments={
                     "from_sequence": 1,
                     "through_sequence": 8,
@@ -1881,6 +1900,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         steps=(
             TrajectoryStep(
                 expect_tool="read_conversation_span",
+                forbid_message_regexes=(_SPAN_DECOY_AS_ANSWER,),
                 expect_arguments={
                     "from_sequence": 1,
                     "through_sequence": 120,
@@ -1893,46 +1913,58 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
     ),
     TrajectoryScenario(
-        name="a_compacted_fact_without_page_in_is_not_invented",
+        name="an_unmentioned_company_without_compaction_is_not_invented",
         policy=(
             "Decide exactly one next action using only the supplied context. "
             "Never invent a proper name that was not shown to you."
         ),
-        # Pre-CE-1 ablation of the same question: summary and decoy are
-        # present, but the watermark is not. The fixed schema universe still
-        # offers the span tool, so calling it would require inventing a range.
-        # Mentioning the decoy to reject it is allowed; emitting the hidden
-        # name would be invention.
-        context=compacted_span_context(
-            user_message=SPAN_HIDDEN_QUESTION, page_in=False
+        # A short conversation has no summary or compressed history. Its entire
+        # history is in the recent window, which mentions only the decoy.
+        # The requested company was never named, so paging in or naming one
+        # would invent evidence. Rejecting the decoy by name remains allowed.
+        context=_context(
+            user_message=SPAN_COLD_QUESTION,
+            recent_messages=_SPAN_COLD_WINDOW,
+            through_sequence=0,
+            recent_from_sequence=1,
         ),
         decisive_facts=("conversation_summary", "recent_messages", "user_message"),
         steps=(
             TrajectoryStep(
                 forbid_tools=frozenset(
-                    {"read_conversation_span", "research_job", "open_job_search"}
+                    {"research_job", "open_job_search"}
                 ),
                 forbid_message_contains=frozenset({SPAN_PAGE_IN_FACT}),
-                quality_message_contains_any=(
-                    frozenset(
-                        {
-                            "不确定",
-                            "没有",
-                            "看不到",
-                            "无法",
-                            "不在",
-                            "记不清",
-                            "摘要",
-                            "再问",
-                            "哪家",
-                            "请问",
-                        }
-                    ),
-                ),
+                forbid_message_regexes=(_SPAN_DECOY_AS_ANSWER,),
             ),
         ),
         recording_samples=3,
-        quality_min_pass_rate=0.6,
+    ),
+    TrajectoryScenario(
+        name="an_unavailable_span_does_not_supply_an_unmentioned_company",
+        policy=(
+            "A failed read supplies no missing company name. Decide from the "
+            "visible history and observation without guessing."
+        ),
+        context=_context(
+            user_message=SPAN_COLD_QUESTION,
+            recent_messages=_SPAN_COLD_WINDOW,
+            through_sequence=0,
+            recent_from_sequence=1,
+            tool_observations=(_span_unavailable_observation(),),
+        ),
+        decisive_facts=(
+            "conversation_summary", "recent_messages", "user_message",
+            "tool_observations.0.state",
+        ),
+        steps=(
+            TrajectoryStep(
+                forbid_tools=frozenset({"read_conversation_span", "research_job", "open_job_search"}),
+                forbid_message_contains=frozenset({SPAN_PAGE_IN_FACT}),
+                forbid_message_regexes=(_SPAN_DECOY_AS_ANSWER,),
+            ),
+        ),
+        recording_samples=3,
     ),
     TrajectoryScenario(
         name="a_fact_still_in_the_window_is_answered_without_page_in",

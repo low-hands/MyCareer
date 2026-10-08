@@ -245,6 +245,9 @@ def project_atomic_arguments(
         return {
             "user_id": context.profile.user_id,
             "conversation_id": context.conversation_id,
+            # Runtime-only watermark fields for the handler's availability guard.
+            "_through_sequence": context.through_sequence,
+            "_recent_from_sequence": context.recent_from_sequence,
             **model_arguments.model_dump(exclude_none=True),
         }
     if name == "resolve_claim_source":

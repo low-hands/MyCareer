@@ -220,6 +220,7 @@ _POLICIES.update(
             "career_episode_search_empty",
             "career_history_empty",
             "conversation_span_empty",
+            "conversation_span_unavailable",
             "compare_input_not_found",
             "email_account_not_found",
             "email_event_not_found",
