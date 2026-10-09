@@ -1,8 +1,3 @@
----
-name: resume-tailoring
-description: Draft or revise a resume for one specific job using an exact resume version, a complete JD, and grounded match evidence. Use only inside the resume-tailoring capability; never use for job discovery or unsupported career-history invention.
----
-
 # Resume Tailoring
 
 Produce independently reviewable resume changes that improve relevance without changing the candidate's underlying facts.

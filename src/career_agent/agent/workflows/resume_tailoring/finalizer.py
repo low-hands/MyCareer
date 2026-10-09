@@ -22,7 +22,7 @@ from career_agent.agent.workflows.resume_tailoring.contracts import (
 from career_agent.agent.workflows.resume_tailoring.worker import (
     OpenAIResumeTailoringWorker,
     _base_url,
-    _skill_instructions,
+    _tailoring_rules,
 )
 from career_agent.storage.resumes import StoredResumeDocument
 from career_agent.harness.observability import traced_model_call
@@ -35,17 +35,17 @@ class OpenAIResumeFinalizationWorker(ResumeFinalizationWorker):
         self,
         config: OpenAICompatibleAgentConfig,
         *,
-        skills_root: Path,
+        prompts_root: Path,
         client: Any | None = None,
     ) -> None:
         self._config = config
-        self._skills_root = skills_root.expanduser().resolve()
-        OpenAIResumeTailoringWorker._validate_skill_source(self._skills_root)
+        self._prompts_root = prompts_root.expanduser().resolve()
+        OpenAIResumeTailoringWorker._validate_prompt_source(self._prompts_root)
         self._instructions = (
             "You are the resume finalization writer. Follow the resume-tailoring rules "
             "below. Reproduce the complete source resume as Markdown, applying only the "
             "explicitly accepted changes. Preserve all other factual content. Return only "
-            "schema-valid JSON.\n\n" + _skill_instructions(self._skills_root)
+            "schema-valid JSON.\n\n" + _tailoring_rules(self._prompts_root)
         )
         self._client = client or OpenAI(
             api_key=config.api_key,

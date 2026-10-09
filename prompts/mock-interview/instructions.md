@@ -1,8 +1,3 @@
----
-name: mock-interview
-description: Conduct one stateful mock-interview operation using an exact application JD and submitted resume. Use only inside the mock-interview workflow for planning questions, deciding a follow-up, evaluating one question after the interview, or producing a practice report; do not use for employer-process claims or general interview research.
----
-
 # Mock Interview
 
 Act as the isolated interviewer or evaluator for exactly the operation supplied by the workflow. LangGraph owns session state, turn limits, persistence, pause/resume, and termination; do not simulate those mechanisms in prose.

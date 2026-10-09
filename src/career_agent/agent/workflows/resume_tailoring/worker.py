@@ -33,14 +33,9 @@ def _base_url(endpoint: str) -> str:
     return endpoint[: -len(suffix)] if endpoint.endswith(suffix) else endpoint
 
 
-def _skill_instructions(skills_root: Path) -> str:
-    """The resume-tailoring rules, without the frontmatter used to choose a skill."""
-    text = (skills_root / "resume-tailoring" / "SKILL.md").read_text(encoding="utf-8")
-    if text.startswith("---\n"):
-        closing = text.find("\n---", 3)
-        if closing != -1:
-            text = text[closing + len("\n---"):]
-    return text.strip()
+def _tailoring_rules(prompts_root: Path) -> str:
+    """The resume-tailoring rules shared by the writer and the finalizer."""
+    return (prompts_root / "resume-tailoring" / "instructions.md").read_text(encoding="utf-8").strip()
 
 
 class OpenAIResumeTailoringWorker(ResumeTailoringWorker):
@@ -54,16 +49,16 @@ class OpenAIResumeTailoringWorker(ResumeTailoringWorker):
         self,
         config: OpenAICompatibleAgentConfig,
         *,
-        skills_root: Path,
+        prompts_root: Path,
         client: Any | None = None,
     ) -> None:
         self._config = config
-        self._skills_root = skills_root.expanduser().resolve()
-        self._validate_skill_source(self._skills_root)
+        self._prompts_root = prompts_root.expanduser().resolve()
+        self._validate_prompt_source(self._prompts_root)
         self._instructions = (
             "You are the resume-tailoring writer. Follow the resume-tailoring rules "
             "below. Return only schema-valid JSON. Do not claim that proposed changes "
-            "have been applied.\n\n" + _skill_instructions(self._skills_root)
+            "have been applied.\n\n" + _tailoring_rules(self._prompts_root)
         )
         self._client = client or OpenAI(
             api_key=config.api_key,
@@ -245,12 +240,12 @@ class OpenAIResumeTailoringWorker(ResumeTailoringWorker):
         )
 
     @staticmethod
-    def _validate_skill_source(skills_root: Path) -> None:
-        skill_file = skills_root / "resume-tailoring" / "SKILL.md"
-        if not skills_root.is_dir() or not skill_file.is_file():
+    def _validate_prompt_source(prompts_root: Path) -> None:
+        prompt_file = prompts_root / "resume-tailoring" / "instructions.md"
+        if not prompts_root.is_dir() or not prompt_file.is_file():
             raise ValueError(
-                "Resume tailoring skill is missing; expected "
-                f"{skill_file}"
+                "Resume tailoring prompt is missing; expected "
+                f"{prompt_file}"
             )
 
     @staticmethod

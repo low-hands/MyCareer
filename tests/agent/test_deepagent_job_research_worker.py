@@ -150,7 +150,7 @@ def test_worker_mounts_only_its_own_skill_directory() -> None:
     assert list(backend.routes) == ["/job-research/"]
     skill_backend = backend.routes["/job-research/"]
     assert skill_backend.download_files(["/SKILL.md"])[0].content
-    assert skill_backend.download_files(["/../mock-interview/SKILL.md"])[0].content is None
+    assert skill_backend.download_files(["/../resume-critique/SKILL.md"])[0].content is None
 
 
 def test_worker_request_does_not_treat_generic_jd_as_business_evidence() -> None:

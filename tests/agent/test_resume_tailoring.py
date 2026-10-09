@@ -227,14 +227,12 @@ class FakeResponsesClient:
         return response
 
 
-def skill_root(tmp_path: Path) -> Path:
-    root = tmp_path / "skills"
-    skill = root / "resume-tailoring"
-    skill.mkdir(parents=True)
-    (skill / "SKILL.md").write_text(
-        "---\nname: resume-tailoring\ndescription: Tailor a grounded resume.\n---\n\n"
-        "Use only grounded resume evidence.\n",
-        encoding="utf-8",
+def prompt_root(tmp_path: Path) -> Path:
+    root = tmp_path / "prompts"
+    prompt = root / "resume-tailoring"
+    prompt.mkdir(parents=True)
+    (prompt / "instructions.md").write_text(
+        "Use only grounded resume evidence.\n", encoding="utf-8",
     )
     return root
 
@@ -248,7 +246,7 @@ def tailoring_worker(
             api_key="secret",
             model="multimodal-model",
         ),
-        skills_root=skill_root(tmp_path),
+        prompts_root=prompt_root(tmp_path),
         client=client,
     )
 
@@ -874,20 +872,20 @@ def test_ocr_unverified_evidence_is_not_accepted_for_a_resume_change() -> None:
     )
 
 
-def test_tailoring_worker_requires_local_skill_source(tmp_path) -> None:
-    with pytest.raises(ValueError, match="Resume tailoring skill is missing"):
+def test_tailoring_worker_requires_local_prompt_source(tmp_path) -> None:
+    with pytest.raises(ValueError, match="Resume tailoring prompt is missing"):
         OpenAIResumeTailoringWorker(
             OpenAICompatibleAgentConfig(
                 endpoint="https://example.test/v1/chat/completions",
                 api_key="secret",
                 model="multimodal-model",
             ),
-            skills_root=tmp_path / "missing",
+            prompts_root=tmp_path / "missing",
             client=FakeResponsesClient(COMPACT_DRAFT),
         )
 
 
-def test_tailoring_worker_is_one_structured_call_under_the_skill_rules(tmp_path) -> None:
+def test_tailoring_worker_is_one_structured_call_under_the_prompt_rules(tmp_path) -> None:
     client = FakeResponsesClient(COMPACT_DRAFT)
     tailoring_worker(tmp_path, client).tailor(
         document=StoredResumeDocument(
@@ -902,8 +900,6 @@ def test_tailoring_worker_is_one_structured_call_under_the_skill_rules(tmp_path)
     assert len(client.calls) == 1
     request = client.calls[0]
     assert "Use only grounded resume evidence." in request["instructions"]
-    # The frontmatter chooses a skill; the writer only needs the rules.
-    assert "description: Tailor a grounded resume." not in request["instructions"]
     generation_schema = request["text"]["format"]["schema"]
     assert generation_schema == ResumeTailoringGenerationResult.model_json_schema()
     assert "GapMitigation" not in generation_schema["$defs"]
@@ -924,7 +920,7 @@ def test_finalization_worker_applies_only_supplied_accepted_changes(tmp_path) ->
             api_key="secret",
             model="multimodal-model",
         ),
-        skills_root=skill_root(tmp_path),
+        prompts_root=prompt_root(tmp_path),
         client=client,
     )
     accepted = AcceptedTailoringChange(
@@ -964,7 +960,7 @@ def test_finalization_worker_sends_pdf_as_input_file(tmp_path) -> None:
             api_key="secret",
             model="multimodal-model",
         ),
-        skills_root=skill_root(tmp_path),
+        prompts_root=prompt_root(tmp_path),
         client=client,
     )
     accepted = AcceptedTailoringChange(
@@ -2291,7 +2287,7 @@ def test_main_agent_creates_and_recalls_active_tailoring_draft(tmp_path) -> None
 def test_a_weak_match_may_list_more_unresolved_gaps_than_short_list_fields() -> None:
     """Gaps scale with how weak the match is, so they are bounded like changes.
 
-    The skill requires every missing or unclear requirement to stay an
+    The prompt requires every missing or unclear requirement to stay an
     unresolved gap. A weak match with coarse questionnaire answers therefore
     produces more gaps than a strong one, and a real run was rejected for
     listing eleven — discarding a completed tailoring run because the model

@@ -32,7 +32,7 @@ from career_agent.agent.workflows.mock_interview.graph import (
     MockInterviewGraph,
     StoredMockInterviewSourceProvider,
 )
-from career_agent.agent.workflows.mock_interview.skill_loader import MockInterviewSkillLoader
+from career_agent.agent.workflows.mock_interview.prompt_loader import MockInterviewPromptLoader
 from career_agent.agent.providers.openai_client import AgentConfigurationError, AgentWorkerError, OpenAICompatibleAgentConfig
 from career_agent.agent.workflows.job_research.config import job_research_config_from_env
 from career_agent.agent.providers.main_agent import (
@@ -303,8 +303,8 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         store=mock_interview_store,
         worker=OpenAIMockInterviewWorker(
             mock_interview_config,
-            skill_loader=MockInterviewSkillLoader(
-                Path(args.mock_interview_skills_dir)
+            prompt_loader=MockInterviewPromptLoader(
+                Path(args.mock_interview_prompts_dir)
             ),
         ),
         sources=StoredMockInterviewSourceProvider(
@@ -357,7 +357,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             job_research_service=job_research_service,
             resume_store=resume_store,
             resume_text_service=resume_text_service,
-            skills_root=Path(args.resume_tailoring_skills_dir),
+            skills_root=Path(args.main_agent_skills_dir),
             career_history_store=career_history_store,
             episode_store=episode_store,
             resume_export_service=ResumeExportService(
@@ -399,11 +399,11 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 SQLiteResumeTailoringDraftStore(Path(args.resume_store).expanduser()),
                 OpenAIResumeTailoringWorker(
                     resume_tailoring_config,
-                    skills_root=Path(args.resume_tailoring_skills_dir),
+                    prompts_root=Path(args.resume_tailoring_prompts_dir),
                 ),
                 OpenAIResumeFinalizationWorker(
                     resume_tailoring_config,
-                    skills_root=Path(args.resume_tailoring_skills_dir),
+                    prompts_root=Path(args.resume_tailoring_prompts_dir),
                 ),
                 reviewer=OpenAIResumeTailoringReviewer(resume_tailoring_config),
             ),
@@ -470,14 +470,19 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
         help="Local durable LangGraph checkpoint store for mock interviews.",
     )
     parser.add_argument(
-        "--resume-tailoring-skills-dir",
-        default=os.environ.get("RESUME_TAILORING_SKILLS_DIR", "skills"),
-        help="Local skill source directory containing resume-tailoring/SKILL.md (default: RESUME_TAILORING_SKILLS_DIR or skills).",
+        "--main-agent-skills-dir",
+        default=os.environ.get("MAIN_AGENT_SKILLS_DIR", "skills"),
+        help="Local skill source directory for skills the main agent loads on demand (default: MAIN_AGENT_SKILLS_DIR or skills).",
     )
     parser.add_argument(
-        "--mock-interview-skills-dir",
-        default=os.environ.get("MOCK_INTERVIEW_SKILLS_DIR", "skills"),
-        help="Local skill source directory containing mock-interview/SKILL.md (default: MOCK_INTERVIEW_SKILLS_DIR or skills).",
+        "--resume-tailoring-prompts-dir",
+        default=os.environ.get("RESUME_TAILORING_PROMPTS_DIR", "prompts"),
+        help="Local prompt directory containing resume-tailoring/instructions.md (default: RESUME_TAILORING_PROMPTS_DIR or prompts).",
+    )
+    parser.add_argument(
+        "--mock-interview-prompts-dir",
+        default=os.environ.get("MOCK_INTERVIEW_PROMPTS_DIR", "prompts"),
+        help="Local prompt directory containing mock-interview/instructions.md (default: MOCK_INTERVIEW_PROMPTS_DIR or prompts).",
     )
     parser.add_argument(
         "--job-research-skills-dir",

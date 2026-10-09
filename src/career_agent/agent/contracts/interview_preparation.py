@@ -68,7 +68,7 @@ class CompanyResearchContext(BaseModel):
     """Public business context from the user's own company research report.
 
     It says what the company does and where it stands, never how it
-    interviews: interview style comes only from the mock-interview skill's
+    interviews: interview style comes only from the mock-interview prompt's
     company profiles.
     """
 

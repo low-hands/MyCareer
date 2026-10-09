@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-import re
 from typing import Literal
 
 from career_agent.domain.mock_interviews import (
@@ -23,16 +22,16 @@ MockInterviewReferenceName = Literal[
 
 
 @dataclass(frozen=True)
-class MockInterviewSkillReference:
+class MockInterviewPromptReference:
     name: MockInterviewReferenceName
     content: str
 
 
 @dataclass(frozen=True)
-class MockInterviewSkillBundle:
+class MockInterviewPromptBundle:
     operation: MockInterviewOperation
     instructions: str
-    references: tuple[MockInterviewSkillReference, ...]
+    references: tuple[MockInterviewPromptReference, ...]
 
     def render(self) -> str:
         sections = [self.instructions]
@@ -43,12 +42,13 @@ class MockInterviewSkillBundle:
         return "\n\n".join(sections)
 
 
-class MockInterviewSkillLoader:
-    """Loads the project-owned mock-interview Skill with bounded references.
+class MockInterviewPromptLoader:
+    """Loads the project-owned mock-interview prompt with bounded references.
 
-    Reference routing is code-owned rather than model-owned: untrusted JD,
-    resume, or answer text can never choose a filesystem path. The returned
-    bundle is intended for a worker's system instructions, not Main Agent state.
+    This is a prompt, not a Skill: code chooses which references each operation
+    receives, so untrusted JD, resume, or answer text can never choose a
+    filesystem path. The returned bundle is intended for a worker's system
+    instructions, not Main Agent state.
     """
 
     _CONTENT_REFERENCE_ORDER: tuple[MockInterviewReferenceName, ...] = (
@@ -71,18 +71,15 @@ class MockInterviewSkillLoader:
     }
     _MAX_FILE_BYTES = 128_000
 
-    def __init__(self, skills_root: Path) -> None:
-        self._skill_dir = (skills_root.expanduser().resolve() / "mock-interview")
-        self._skill_file = self._skill_dir / "SKILL.md"
-        if not self._skill_dir.is_dir() or not self._skill_file.is_file():
+    def __init__(self, prompts_root: Path) -> None:
+        self._prompt_dir = (prompts_root.expanduser().resolve() / "mock-interview")
+        self._instructions_file = self._prompt_dir / "instructions.md"
+        if not self._prompt_dir.is_dir() or not self._instructions_file.is_file():
             raise ValueError(
-                "Mock interview skill is missing; expected "
-                f"{self._skill_file}"
+                "Mock interview prompt is missing; expected "
+                f"{self._instructions_file}"
             )
-        instructions = self._read_confined(self._skill_file)
-        if not re.search(r"(?m)^name:\s*mock-interview\s*$", instructions):
-            raise ValueError("Mock interview SKILL.md has the wrong or missing name")
-        self._instructions = instructions
+        self._instructions = self._read_confined(self._instructions_file)
 
     def load(
         self,
@@ -91,7 +88,7 @@ class MockInterviewSkillLoader:
         interview_type: MockInterviewType | None = None,
         question_type: MockInterviewQuestionType | None = None,
         report_question_types: tuple[MockInterviewQuestionType, ...] = (),
-    ) -> MockInterviewSkillBundle:
+    ) -> MockInterviewPromptBundle:
         names = self._route(
             operation,
             interview_type=interview_type,
@@ -99,15 +96,15 @@ class MockInterviewSkillLoader:
             report_question_types=report_question_types,
         )
         references = tuple(
-            MockInterviewSkillReference(
+            MockInterviewPromptReference(
                 name=name,
                 content=self._read_confined(
-                    self._skill_dir / "references" / f"{name}.md"
+                    self._prompt_dir / "references" / f"{name}.md"
                 ),
             )
             for name in names
         )
-        return MockInterviewSkillBundle(
+        return MockInterviewPromptBundle(
             operation=operation,
             instructions=self._instructions,
             references=references,
@@ -123,7 +120,7 @@ class MockInterviewSkillLoader:
     ) -> tuple[MockInterviewReferenceName, ...]:
         if operation == "plan":
             if interview_type is None:
-                raise ValueError("plan skill loading requires interview_type")
+                raise ValueError("plan prompt loading requires interview_type")
             # Planning only needs coverage and sequencing rules. Company and
             # question-type references are loaded later by the exact `ask`
             # operation; including them here makes lightweight compatible
@@ -132,7 +129,7 @@ class MockInterviewSkillLoader:
         if operation in {"ask", "follow_up", "evaluate"}:
             if question_type is None:
                 raise ValueError(
-                    f"{operation} skill loading requires question_type"
+                    f"{operation} prompt loading requires question_type"
                 )
             references = self._QUESTION_REFERENCES[question_type]
             return ("company", *references) if operation == "ask" else references
@@ -155,22 +152,22 @@ class MockInterviewSkillLoader:
     def _read_confined(self, path: Path) -> str:
         resolved = path.resolve()
         try:
-            resolved.relative_to(self._skill_dir)
+            resolved.relative_to(self._prompt_dir)
         except ValueError as error:
-            raise ValueError("Mock interview skill reference escapes its root") from error
+            raise ValueError("Mock interview prompt reference escapes its root") from error
         if not resolved.is_file():
-            raise ValueError(f"Mock interview skill reference is missing: {resolved.name}")
+            raise ValueError(f"Mock interview prompt reference is missing: {resolved.name}")
         if resolved.stat().st_size > self._MAX_FILE_BYTES:
             raise ValueError(
-                f"Mock interview skill file exceeds {self._MAX_FILE_BYTES} bytes: "
+                f"Mock interview prompt file exceeds {self._MAX_FILE_BYTES} bytes: "
                 f"{resolved.name}"
             )
         try:
             content = resolved.read_text(encoding="utf-8")
         except UnicodeDecodeError as error:
             raise ValueError(
-                f"Mock interview skill file must be UTF-8: {resolved.name}"
+                f"Mock interview prompt file must be UTF-8: {resolved.name}"
             ) from error
         if not content.strip():
-            raise ValueError(f"Mock interview skill file is empty: {resolved.name}")
+            raise ValueError(f"Mock interview prompt file is empty: {resolved.name}")
         return content.strip()

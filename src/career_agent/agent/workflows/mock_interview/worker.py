@@ -19,10 +19,10 @@ from career_agent.agent.workflows.mock_interview.contracts import (
     MockInterviewReportSynthesisDraft,
 )
 from career_agent.agent.contracts.interview_preparation import InterviewPreparationContext
-from career_agent.agent.workflows.mock_interview.skill_loader import (
+from career_agent.agent.workflows.mock_interview.prompt_loader import (
     MockInterviewOperation,
-    MockInterviewSkillBundle,
-    MockInterviewSkillLoader,
+    MockInterviewPromptBundle,
+    MockInterviewPromptLoader,
 )
 from career_agent.agent.workflows.mock_interview.company_styles import (
     company_style_by_heading,
@@ -86,11 +86,11 @@ class OpenAIMockInterviewWorker:
         self,
         config: OpenAICompatibleAgentConfig,
         *,
-        skill_loader: MockInterviewSkillLoader,
+        prompt_loader: MockInterviewPromptLoader,
         client: Any | None = None,
     ) -> None:
         self._config = config
-        self._skill_loader = skill_loader
+        self._prompt_loader = prompt_loader
         self._client = client or OpenAI(
             api_key=config.api_key,
             base_url=_base_url(config.endpoint),
@@ -105,14 +105,14 @@ class OpenAIMockInterviewWorker:
     def from_env(
         cls,
         *,
-        skills_root: Path,
+        prompts_root: Path,
         environ: Mapping[str, str] | None = None,
         client: Any | None = None,
         prefix: str = "MOCK_INTERVIEW_AGENT",
     ) -> OpenAIMockInterviewWorker:
         return cls(
             OpenAICompatibleAgentConfig.from_env(environ=environ, prefix=prefix),
-            skill_loader=MockInterviewSkillLoader(skills_root),
+            prompt_loader=MockInterviewPromptLoader(prompts_root),
             client=client,
         )
 
@@ -123,7 +123,7 @@ class OpenAIMockInterviewWorker:
         document: StoredResumeDocument | None,
         context: InterviewPreparationContext,
     ) -> MockInterviewPlanDraft:
-        bundle = self._skill_loader.load(
+        bundle = self._prompt_loader.load(
             "plan", interview_type=session.interview_type
         )
         matched = match_company_style(context.company_name)
@@ -240,7 +240,7 @@ class OpenAIMockInterviewWorker:
         role_title: str = "",
         confirmed_facts: tuple[ConfirmedResumeFact, ...] = (),
     ) -> MockInterviewQuestionDraft:
-        bundle = self._skill_loader.load(
+        bundle = self._prompt_loader.load(
             "ask", question_type=plan_item.question_type
         )
         return self._invoke(
@@ -284,7 +284,7 @@ class OpenAIMockInterviewWorker:
                 "MOCK_INTERVIEW_ANSWER_MISSING",
                 "Mock interview follow-up decision requires a persisted answer.",
             )
-        bundle = self._skill_loader.load(
+        bundle = self._prompt_loader.load(
             "follow_up", question_type=plan_item.question_type
         )
         return self._invoke(
@@ -319,7 +319,7 @@ class OpenAIMockInterviewWorker:
                 "MOCK_INTERVIEW_ANSWER_MISSING",
                 "Mock interview evaluation requires an answered primary question.",
             )
-        bundle = self._skill_loader.load(
+        bundle = self._prompt_loader.load(
             "evaluate", question_type=plan_item.question_type
         )
         chain, chain_limitations = self._chain_with_limit(turns)
@@ -396,7 +396,7 @@ class OpenAIMockInterviewWorker:
             )
             for turn in primary
         )
-        bundle = self._skill_loader.load(
+        bundle = self._prompt_loader.load(
             "report",
             report_question_types=tuple(
                 dict.fromkeys(turn.question_type for turn in primary)
@@ -459,7 +459,7 @@ class OpenAIMockInterviewWorker:
         self,
         *,
         operation: MockInterviewOperation,
-        bundle: MockInterviewSkillBundle,
+        bundle: MockInterviewPromptBundle,
         output_type: type[T],
         document: StoredResumeDocument | None,
         jd_text: str,
@@ -621,7 +621,7 @@ class OpenAIMockInterviewWorker:
     @staticmethod
     def _system_prompt(
         operation: MockInterviewOperation,
-        bundle: MockInterviewSkillBundle,
+        bundle: MockInterviewPromptBundle,
     ) -> str:
         return (
             f"You are executing only the mock-interview `{operation}` operation. "
