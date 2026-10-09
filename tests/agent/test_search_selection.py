@@ -73,9 +73,9 @@ def test_turn_intent_is_temporary_and_reuses_one_lexical_search(monkeypatch) -> 
     calls = []
     real_search = selection_module.search_catalog
 
-    def counted_search(*, query, limit):
+    def counted_search(*, query, limit, drop_stop_words=False):
         calls.append(query)
-        return real_search(query=query, limit=limit)
+        return real_search(query=query, limit=limit, drop_stop_words=drop_stop_words)
 
     monkeypatch.setattr(selection_module, "search_catalog", counted_search)
     strategy = SearchStrategy()
@@ -111,7 +111,7 @@ def test_intent_combines_semantic_and_lexical_ranking_once_per_turn() -> None:
     context = _context(
         ConversationTaskState(active_job_posting_id="job-1"), user_message=message,
     )
-    assert "analyze_job" not in SearchStrategy().select(context, SCHEMAS).offered_names
+    lexical = SearchStrategy()._intent_names(context)
 
     class Scorer:
         calls = 0
@@ -124,6 +124,9 @@ def test_intent_combines_semantic_and_lexical_ranking_once_per_turn() -> None:
     scorer = Scorer()
     strategy = SearchStrategy(scorer)
     assert "analyze_job" in strategy.select(context, SCHEMAS).offered_names
+    # The semantic ranking can only lift the tool within the fused intent list.
+    hybrid = strategy._intent_names(context)
+    assert "analyze_job" not in lexical or hybrid.index("analyze_job") <= lexical.index("analyze_job")
     strategy.select(context, SCHEMAS)
     assert scorer.calls == 1
 

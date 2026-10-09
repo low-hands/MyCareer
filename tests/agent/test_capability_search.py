@@ -11,8 +11,6 @@ from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.capabilities.search import (
     MAX_SEMANTIC_CANDIDATES,
     SemanticCapabilityIndex,
-    _common_example_terms,
-    _effective_query_terms,
     _tokens,
     search_catalog,
     searchable_capabilities,
@@ -70,7 +68,7 @@ def test_exact_names_namespaces_and_exclusions() -> None:
 
 
 def test_chinese_reordering_aliases_and_tie_order_are_stable() -> None:
-    assert search_catalog(query="天气怎么样") == ()
+    assert search_catalog(query="天气怎么样", drop_stop_words=True) == ()
     assert search_catalog(query="的") == ()
     assert search_catalog(query="zzzxxyyunknownword") == ()
     assert "match_resume_to_job" in search_catalog(query="岗位跟简历匹配一下")
@@ -84,11 +82,49 @@ def test_chinese_reordering_aliases_and_tie_order_are_stable() -> None:
     assert search_catalog(query="岗位", limit=10) == search_catalog(query="岗位", limit=10)
 
 
-@pytest.mark.parametrize("query", [
-    "天气怎么样", "的", "这个怎么弄", "帮我看一下", "zzzxxyyunknownword",
-])
-def test_unrelated_queries_return_no_capabilities(query: str) -> None:
+@pytest.mark.parametrize("query", ["的", "zzzxxyyunknownword"])
+def test_queries_without_any_indexed_term_return_no_capabilities(query: str) -> None:
     assert search_catalog(query=query) == ()
+
+
+# Common conversational fillers. Intent ranking runs on every user turn without
+# being asked, so a filler must not offer tools; explicit model searches keep
+# every term and may still return weak candidates for such text.
+FILLERS = (
+    "好的", "可以", "谢谢", "继续", "嗯嗯", "行", "好的谢谢", "帮我看一下",
+    "这个怎么弄", "然后呢", "还有吗", "你好", "在吗", "明白了", "那就这样吧",
+    "你觉得呢", "帮我想想", "怎么办",
+)
+# These carry content words that are also tool metadata (问题, 收到).
+FILLERS_WITH_CONTENT_WORDS = ("没问题", "收到")
+
+
+@pytest.mark.parametrize("query", FILLERS)
+def test_intent_ranking_offers_nothing_for_fillers(query: str) -> None:
+    assert search_catalog(query=query, drop_stop_words=True) == ()
+
+
+@pytest.mark.parametrize("query", FILLERS_WITH_CONTENT_WORDS)
+@pytest.mark.xfail(strict=True, reason="content words in the filler match tool metadata")
+def test_intent_ranking_known_filler_exceptions(query: str) -> None:
+    assert search_catalog(query=query, drop_stop_words=True) == ()
+
+
+@pytest.mark.parametrize("query,dropped,kept", [
+    ("帮我看一下", {"帮我", "我看", "看一", "一下"}, set()),
+    ("查看我的简历", {"看我", "我的"}, {"查看", "的简", "简历"}),
+    ("下载简历文件", set(), {"下载", "简历", "文件"}),
+    ("list the resumes for this job", {"the", "for", "this"}, {"list", "resume", "job"}),
+])
+def test_stop_words_drop_function_tokens_and_keep_content(query, dropped, kept):
+    tokens = set(_tokens(query))
+    assert {token for token in tokens if catalog_search._is_stop_word(token)} >= dropped
+    assert kept <= {token for token in tokens if not catalog_search._is_stop_word(token)}
+
+
+def test_explicit_search_keeps_stop_words():
+    assert search_catalog(query="帮我看一下")
+    assert search_catalog(query="帮我看一下", drop_stop_words=True) == ()
 
 
 @pytest.mark.parametrize("query", [
@@ -113,26 +149,6 @@ def test_read_or_observational_queries_report_action_exposure(
 
 def test_explicit_application_creation_still_retrieves_create_tool() -> None:
     assert "create_application" in search_catalog(query="我想把这个岗位加入投递")
-
-
-def test_common_example_terms_derive_from_tool_and_namespace_frequency() -> None:
-    entries = searchable_capabilities()
-    one_per_namespace = {}
-    for item in entries:
-        one_per_namespace.setdefault(item.namespace, item.name)
-    selected = tuple(one_per_namespace.values())
-    assert len(selected) >= 11
-
-    def with_token(count: int):
-        names = set(selected[:count])
-        return tuple(
-            replace(item, example_queries=(*item.example_queries, "这是闲词测试"))
-            if item.name in names else item
-            for item in entries
-        )
-
-    assert "闲词" not in _common_example_terms(with_token(10))
-    assert "闲词" in _common_example_terms(with_token(11))
 
 
 def test_search_runs_on_both_frozen_holdouts_without_locking_scores() -> None:
@@ -164,8 +180,8 @@ def test_development_query_recall_and_control_write_exposure() -> None:
                 writes += sum(CAPABILITIES[name].effect == "WRITE" for name in offered)
         return demand_count, dict(hits), writes
 
-    assert counts(bare) == (43, {1: 14, 3: 21, 5: 26}, 5)
-    assert counts() == (43, {1: 17, 3: 27, 5: 34}, 8)
+    assert counts(bare) == (43, {1: 14, 3: 23, 5: 30}, 6)
+    assert counts() == (43, {1: 26, 3: 31, 5: 37}, 10)
 
 
 def test_registry_result_reducer_and_old_state_roundtrip() -> None:
@@ -250,7 +266,7 @@ def test_default_catalogue_queries_never_rebuild_metadata(monkeypatch):
     def unexpected_rebuild(*args, **kwargs):
         raise AssertionError("query rebuilt immutable catalogue metadata")
 
-    for helper in ("_build_index", "_document", "_parameter_names", "_common_example_terms", "_metadata_terms"):
+    for helper in ("_build_index", "_document", "_parameter_names"):
         monkeypatch.setattr(catalog_search, helper, unexpected_rebuild)
     for _ in range(2):
         for query in queries:
@@ -307,7 +323,7 @@ def test_semantic_model_change_requires_rewarming():
 
 def test_small_positive_semantic_scores_cannot_fill_zero_lexical_results() -> None:
     scores = {item.name: 0.01 for item in searchable_capabilities()}
-    assert search_catalog(query="天气怎么样", semantic_scores=scores) == ()
+    assert search_catalog(query="zzzxxyyunknownword", semantic_scores=scores) == ()
 
 
 def test_semantic_query_uses_injected_client_and_falls_back_to_lexical() -> None:
@@ -371,13 +387,12 @@ def test_empty_search_records_a_trace_event() -> None:
 @pytest.mark.parametrize("query,expected_target", [
     ("alpha", True),
     ("alpha zzzunknown", True),
-    ("alpha beta", True),
-    ("alpha beta gamma", False),
-    ("alpha beta gamma delta", True),
+    ("alpha beta gamma", True),
+    ("delta", True),
     ("zzzxxyyunknownword", False),
 ])
 @pytest.mark.parametrize("with_semantic", [False, True])
-def test_lexical_threshold_does_not_limit_semantic_candidates(query, expected_target, with_semantic):
+def test_any_lexical_overlap_or_semantic_score_admits_a_candidate(query, expected_target, with_semantic):
     target = replace(
         CAPABILITIES["list_resumes"], name="read_sample", aliases_zh=(),
         summary="alpha", example_queries=("delta epsilon",),
@@ -390,55 +405,26 @@ def test_lexical_threshold_does_not_limit_semantic_candidates(query, expected_ta
     assert (target.name in offered) == (expected_target or with_semantic)
 
 
-def test_effective_terms_exclude_common_unknown_and_duplicate_tokens():
+def test_example_queries_are_indexed_with_the_tool_document():
     entry = replace(
         CAPABILITIES["list_resumes"], name="read_sample", aliases_zh=(),
-        summary="alpha beta", example_queries=("gamma delta",),
+        summary="beta", example_queries=("查看我的简历",),
     )
-    assert _effective_query_terms(
-        set(_tokens("alpha alpha beta gamma zzzunknown")), (entry,), frozenset({"beta"}),
-    ) == frozenset({"alpha"})
-
-
-def test_sentence_examples_cannot_inflate_effective_query_length():
-    entry = replace(
-        CAPABILITIES["list_resumes"], name="read_sample", aliases_zh=(),
-        summary="简历", example_queries=("查看我的简历",),
-    )
-    assert _effective_query_terms(set(_tokens("查看我的简历")), (entry,), frozenset()) == frozenset({"简历"})
-    other = replace(entry, name="read_other", namespace="other", summary="beta", example_queries=())
-    assert "read_sample" in search_catalog(query="查看我的简历", descriptors=(entry, other))
-
-
-@pytest.mark.parametrize("query,expected", [
-    ("查看我的简历", {"的简", "简历"}),
-    ("帮我看看我的经历", {"经历"}),
-])
-def test_development_chinese_queries_count_only_metadata_vocabulary(query, expected):
-    entries = searchable_capabilities()
-    assert _effective_query_terms(set(_tokens(query)), entries, _common_example_terms(entries)) == expected
-
-
-@pytest.mark.xfail(strict=True, reason="Uniform threshold admits actions that push search_career_memory to rank 6")
-def test_experience_read_recall_is_separate_from_remaining_action_exposure():
-    assert "search_career_memory" in search_catalog(query="帮我看看我的经历")
+    other = replace(entry, name="read_other", namespace="other", example_queries=())
+    assert search_catalog(query="简历", descriptors=(entry, other)) == ("read_sample",)
 
 
 @pytest.mark.parametrize("effect,name", [
     ("WRITE", "write_sample"), ("READ", "propose_sample"), ("READ", "read_sample"),
 ])
-@pytest.mark.parametrize("semantic", [False, True])
-def test_all_tools_use_the_same_effective_query_threshold(effect, name, semantic):
+def test_reads_and_writes_share_one_lexical_rule(effect, name):
     entry = replace(
         CAPABILITIES["list_resumes"], name=name, effect=effect, aliases_zh=(),
         summary="alpha", example_queries=(),
     )
     other = replace(entry, name="other_sample", summary="beta gamma")
-    scores = {name: 1.0} if semantic else None
-    assert name in search_catalog(query="alpha", descriptors=(entry, other), semantic_scores=scores)
-    assert name in search_catalog(query="alpha beta", descriptors=(entry, other), semantic_scores=scores)
-    offered = search_catalog(query="alpha beta gamma", descriptors=(entry, other), semantic_scores=scores)
-    assert (name in offered) is semantic
+    for query in ("alpha", "alpha beta", "alpha beta gamma"):
+        assert name in search_catalog(query=query, descriptors=(entry, other))
 
 
 @pytest.mark.parametrize("plural,singular", [

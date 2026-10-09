@@ -229,20 +229,38 @@ def test_recorded_scores_reject_stale_or_incomplete_provenance(tmp_path, mismatc
         load_model_query_scores(path)
 
 
-def test_plural_normalization_preserves_prior_dev_recall():
+# Per-query rank changes accepted when the industry-standard baseline was
+# adopted (see simplified_dev_2026-10-08.json). Aggregate recall improved; any
+# regression not listed here fails the test.
+ACCEPTED_DEV_RANK_REGRESSIONS = {
+    1: {"投递", "我有哪几版简历？", "刚才给我看的那条经历没问题，存上吧。"},
+    3: {"我有哪几版简历？", "刚才给我看的那条经历没问题，存上吧。",
+        "找出我投甲公司的记录，看看它对应的邮件，把那封面试邀请对上。"},
+    5: {"我有哪几版简历？"},
+}
+
+
+def test_lexical_dev_recall_does_not_regress_from_the_uniform_gate_baseline():
     from career_agent.agent.capabilities.search import search_catalog
 
     baseline = json.loads(FIXTURE.with_name("uniform_gate_dev_2026-10-08.json").read_text())
     # Both saved suites are dev. Never execute a holdout query for this check.
-    for suite in (baseline["model_queries"], baseline["existing_dev"]["user_sentence_search_catalog"]):
-        for row in suite["rows"]:
-            if not row["expected_tools"]:
-                continue
-            offered = search_catalog(query=row["query"], limit=5)
+    rows = [row for suite in (baseline["model_queries"],
+                              baseline["existing_dev"]["user_sentence_search_catalog"])
+            for row in suite["rows"] if row["expected_tools"]]
+    for k in (1, 3, 5):
+        before = after = 0
+        regressions = set()
+        for row in rows:
             expected = set(row["expected_tools"])
-            for k in (1, 3, 5):
-                if expected <= set(row["offered"][:k]):
-                    assert expected <= set(offered[:k]), (row["query"], k, offered)
+            offered = search_catalog(query=row["query"], limit=5)
+            was, now = expected <= set(row["offered"][:k]), expected <= set(offered[:k])
+            before += was
+            after += now
+            if was and not now:
+                regressions.add(row["query"])
+        assert after >= before, (k, before, after)
+        assert regressions <= ACCEPTED_DEV_RANK_REGRESSIONS[k], (k, regressions)
 
 
 def test_score_recorder_covers_both_splits_without_search_or_evaluation(tmp_path, monkeypatch):

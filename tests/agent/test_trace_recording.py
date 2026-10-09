@@ -280,7 +280,7 @@ def test_a_refused_action_is_counted_by_gate_without_recording_its_prose(
     )
 
     result = runtime.run_turn(
-        user_id="u1", conversation_id="c1", user_message="查邮箱"
+        user_id="u1", conversation_id="c1", user_message="你好"
     )
 
     assert result.context.tool_observations[-1].state == "authorization_refused"
@@ -328,7 +328,7 @@ def test_a_refusal_past_the_cap_is_still_counted_and_marked_capped(
         max_authorization_refusals=1,
     )
 
-    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="查邮箱")
+    runtime.run_turn(user_id="u1", conversation_id="c1", user_message="你好")
 
     refused = [
         event

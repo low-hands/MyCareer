@@ -156,6 +156,11 @@ def test_search_replay_accepts_intermediate_discovery(monkeypatch) -> None:
     monkeypatch.setattr(search_trajectory, "evaluation_strategy", SearchStrategy)
     scenario = next(item for item in SEARCH_SCENARIOS
                     if item.name == "a_core_request_routes_before_job_analysis")
+    # Intent ranking now finds analyze_job from the original request. A filler
+    # message keeps it unoffered, so the replay must discover it by search.
+    scenario = replace(scenario, context=scenario.context.model_copy(
+        update={"user_message": "你好"},
+    ))
     specs = trajectory_tool_specs()
     strategy = SearchStrategy()
     first = strategy.select(scenario.context, specs)
@@ -216,6 +221,11 @@ def test_search_recorder_replaces_cassette_with_changed_later_context(
 def test_search_recording_captures_both_decisions_and_replays(monkeypatch) -> None:
     scenario = next(item for item in SEARCH_SCENARIOS
                     if item.name == "a_core_request_routes_before_job_analysis")
+    # Intent ranking now finds analyze_job from the original request. A filler
+    # message keeps it unoffered, so the replay must discover it by search.
+    scenario = replace(scenario, context=scenario.context.model_copy(
+        update={"user_message": "你好"},
+    ))
     specs = trajectory_tool_specs()
 
     class FakeMaker:

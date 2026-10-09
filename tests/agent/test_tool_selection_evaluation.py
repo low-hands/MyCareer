@@ -59,7 +59,6 @@ def _case(
     )
 
 
-@pytest.mark.xfail(strict=True, reason="Ungated hybrid candidates reduce runtime coverage to 53/62; see hybrid_runtime_changes_2026-10-08.json")
 def test_development_selection_baseline() -> None:
     specs = trajectory_tool_specs()
     report = evaluate_tool_selection(

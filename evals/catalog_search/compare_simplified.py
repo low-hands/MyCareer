@@ -9,7 +9,12 @@ the published patterns they were adapted from:
 - no evidence gate: every tool with a positive BM25 score is a lexical
   candidate (Anthropic's BM25 tool search returns top-k).
 
-Never touches the first holdout split; --holdout-v2 scores the second one once. Run from the repository root:
+Never touches the first holdout split; --holdout-v2 scores the second one once.
+
+The recorded results were produced at 7b94e7e, before adoption. Production
+search adopted this baseline afterwards, and its tool documents now include
+example queries, so the baseline below reuses them as they are; rerunning on a
+later revision compares production with itself. Run from the repository root:
 
     .venv/bin/python evals/catalog_search/compare_simplified.py --output <new-file>
 """
@@ -32,10 +37,8 @@ def _baseline_index():
     entries = search._DEFAULT_INDEX.entries
     documents = {}
     for item in entries:
-        document = Counter(search._document(item))
-        for example in item.example_queries:
-            document.update(search._tokens(example))
-        documents[item.name] = document
+        # Production documents already append example queries (doc2query).
+        documents[item.name] = Counter(search._document(item))
     lengths = {name: sum(tokens.values()) for name, tokens in documents.items()}
     average = sum(lengths.values()) / len(lengths)
     frequency = Counter(token for tokens in documents.values() for token in tokens)

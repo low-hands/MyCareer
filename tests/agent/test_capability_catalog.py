@@ -123,7 +123,9 @@ def test_excluded_and_runtime_capabilities_reject_examples(monkeypatch) -> None:
 def test_search_mode_schema_and_prompt_fingerprints_are_stable() -> None:
     # 23019e1 intentionally made span bounds optional and revised readback guidance.
     # The trajectory fingerprint also reflects cold-session schema suppression
-    # and plural normalization plus independent semantic admission.
+    # and plural normalization plus independent semantic admission, and the
+    # adopted baseline search (examples in documents, no evidence gate, stop
+    # words dropped for intent ranking). Tool schemas themselves are unchanged.
     registered = trajectory_tool_specs()
     assert registered[-1]["function"]["name"] == "search_capabilities"
     encoded_registered = json.dumps(
@@ -143,7 +145,7 @@ def test_search_mode_schema_and_prompt_fingerprints_are_stable() -> None:
         "05c2e750c8665eac45975a069093627c733d01c217a91be256ec9bc3b657a719"
     )
     assert trajectory_prompt_fingerprint(SCENARIOS[0], schemas) == (
-        "4e6e8011210fa93410e09387382ab21c420b57ff8fec8b1ebbc4b71c3a6b93f2"
+        "0b9dc021078bedbbb919b55bb0f874462b40470cd334b487dc249be992135c4f"
     )
 
 

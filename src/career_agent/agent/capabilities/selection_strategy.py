@@ -92,10 +92,13 @@ class SearchStrategy:
                     )
                     semantic_scores = None
             if semantic_scores is None:
-                self._intent_cache[key] = search_catalog(query=query, limit=5)
+                self._intent_cache[key] = search_catalog(
+                    query=query, limit=5, drop_stop_words=True,
+                )
             else:
                 self._intent_cache[key] = search_catalog(
                     query=query, limit=5, semantic_scores=semantic_scores,
+                    drop_stop_words=True,
                 )
         return self._intent_cache[key]
 

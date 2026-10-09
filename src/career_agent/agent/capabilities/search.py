@@ -18,9 +18,22 @@ from career_agent.agent.context.semantic_retrieval import EmbeddingClient, MAX_E
 EXCLUDED = frozenset({"search_capabilities"})
 MIN_SEMANTIC_SIMILARITY = 0.55
 MAX_SEMANTIC_CANDIDATES = 10
-COMMON_EXAMPLE_TERM_FRACTION = 0.15
-COMMON_EXAMPLE_NAMESPACE_FRACTION = 0.60
 _WORDS = re.compile(r"[a-zA-Z0-9]+|[\u3400-\u9fff]+")
+# Stop words for unsolicited intent ranking only; explicit model searches keep
+# every term. English is Lucene's default English stop set. Chinese text is
+# split into bigrams, so cross-word fragments such as \u6211\u770b cannot be listed;
+# instead a CJK token is dropped when every character is a function character
+# (pronouns, particles, demonstratives, interrogatives and light request verbs
+# from common Chinese stop-word lists). \u67e5\u770b, \u4e0b\u8f7d and \u8981\u6c42 keep a content
+# character and survive.
+ENGLISH_STOP_WORDS = frozenset((
+    "a an and are as at be but by for if in into is it no not of on or such "
+    "that the their then there these they this to was will with"
+).split())
+CJK_FUNCTION_CHARACTERS = frozenset(
+    "\u6211\u4f60\u60a8\u4ed6\u5979\u5b83\u4eec\u7684\u5730\u5f97\u4e86\u7740\u8fc7\u5417\u5462\u5427\u554a\u5440\u54e6\u561b\u4e48\u8fd9\u90a3\u54ea\u4e9b\u4e2a\u4e00\u4e0b\u5e2e\u8bf7\u7ed9\u8ba9\u628a\u88ab"
+    "\u662f\u6709\u5728\u548c\u4e0e\u53ca\u6216\u5c31\u90fd\u4e5f\u8fd8\u53c8\u518d\u5f88\u592a\u8981\u60f3\u80fd\u4f1a\u53ef\u4ee5\u770b\u600e\u6837\u4ec0\u5982\u4f55\u4e3a\u5565"
+)
 
 
 def searchable_capabilities() -> tuple[CapabilityDescriptor, ...]:
@@ -49,6 +62,12 @@ def _tokens(text: str) -> tuple[str, ...]:
     return tuple(result)
 
 
+def _is_stop_word(token: str) -> bool:
+    if "\u3400" <= token[0] <= "\u9fff":
+        return all(character in CJK_FUNCTION_CHARACTERS for character in token)
+    return token in ENGLISH_STOP_WORDS
+
+
 def _parameter_names(descriptor: CapabilityDescriptor) -> str:
     names: list[str] = []
 
@@ -68,70 +87,21 @@ def _parameter_names(descriptor: CapabilityDescriptor) -> str:
 
 
 def _document(descriptor: CapabilityDescriptor) -> Counter[str]:
+    """Field-weighted BM25 document.
+
+    Example queries are appended as ordinary text before indexing, as in
+    doc2query document expansion, rather than scored as separate documents.
+    """
     weighted: Counter[str] = Counter()
     for value, weight in (
         (descriptor.name, 5),
         (" ".join(descriptor.aliases_zh), 5),
         (descriptor.summary or "", 2),
         (_parameter_names(descriptor), 1),
+        (" ".join(descriptor.example_queries), 1),
     ):
         weighted.update({token: weight * count for token, count in Counter(_tokens(value)).items()})
     return weighted
-
-
-def _common_example_terms(entries: Sequence[CapabilityDescriptor]) -> frozenset[str]:
-    """Find frequent, widely dispersed CJK bigrams in query metadata."""
-    if not entries:
-        return frozenset()
-    tool_frequency: Counter[str] = Counter()
-    namespaces: dict[str, set[str]] = {}
-    for item in entries:
-        terms = {
-            token
-            for phrase in (*item.aliases_zh, *item.example_queries)
-            for token in _tokens(phrase)
-            if len(token) == 2 and "\u3400" <= token[0] <= "\u9fff"
-        }
-        tool_frequency.update(terms)
-        for token in terms:
-            namespaces.setdefault(token, set()).add(item.namespace or "")
-    namespace_count = len({item.namespace for item in entries})
-    return frozenset(
-        token for token, count in tool_frequency.items()
-        if count / len(entries) > COMMON_EXAMPLE_TERM_FRACTION
-        and len(namespaces[token]) / namespace_count > COMMON_EXAMPLE_NAMESPACE_FRACTION
-    )
-
-
-def _metadata_terms(descriptor: CapabilityDescriptor) -> set[str]:
-    return {
-        token for field in (descriptor.name, " ".join(descriptor.aliases_zh), descriptor.summary or "")
-        for token in _tokens(field)
-    }
-
-
-def _effective_query_terms(
-    query_terms: set[str], entries: Sequence[CapabilityDescriptor],
-    common_terms: frozenset[str],
-) -> frozenset[str]:
-    # Sentence examples contain cross-word CJK bigrams. They still contribute
-    # retrieval evidence and BM25 scores, but must not inflate query length.
-    vocabulary = set().union(*(_metadata_terms(item) for item in entries))
-    return frozenset(query_terms.intersection(vocabulary).difference(common_terms))
-
-
-def _has_retrieval_evidence(
-    query: str, query_terms: set[str],
-    common_terms: frozenset[str], effective_query_terms: frozenset[str],
-    indexed_terms: frozenset[str],
-    exact_queries: frozenset[str | None],
-) -> bool:
-    normalized = query.strip().lower()
-    if normalized in exact_queries:
-        return True
-    matches = query_terms.intersection(indexed_terms).difference(common_terms)
-    minimum = 1 if len(effective_query_terms) <= 2 else 2
-    return len(matches) >= minimum
 
 
 @dataclass(frozen=True)
@@ -143,12 +113,6 @@ class _CatalogIndex:
     lengths: Mapping[str, int]
     average: float
     idf: Mapping[str, float]
-    examples: Mapping[str, tuple[tuple[Counter[str], int], ...]]
-    example_average: float
-    example_idf: Mapping[str, float]
-    common_terms: frozenset[str]
-    vocabulary: frozenset[str]
-    indexed_terms: Mapping[str, frozenset[str]]
     exact_queries: Mapping[str, frozenset[str | None]]
     embedding_texts: tuple[str, ...]
 
@@ -157,36 +121,14 @@ def _build_index(entries: tuple[CapabilityDescriptor, ...]) -> _CatalogIndex:
     documents = {item.name: _document(item) for item in entries}
     lengths = {name: sum(tokens.values()) for name, tokens in documents.items()}
     frequency = Counter(token for tokens in documents.values() for token in tokens)
-    examples = {
-        item.name: tuple((tokens, sum(tokens.values())) for tokens in (
-            Counter(_tokens(phrase)) for phrase in item.example_queries
-        )) for item in entries
-    }
-    all_examples = [row for rows in examples.values() for row in rows]
-    example_frequency = Counter(
-        token for rows in examples.values()
-        for token in set().union(*(set(tokens) for tokens, _ in rows))
-    )
-
-    def inverse_frequency(counts: Counter[str]) -> dict[str, float]:
-        return {term: math.log(1 + (len(entries) - count + 0.5) / (count + 0.5))
-                for term, count in counts.items()}
-
     return _CatalogIndex(
         entries=entries,
         order={item.name: index for index, item in enumerate(entries)},
         namespaces=frozenset(item.namespace for item in entries),
         documents=documents, lengths=lengths,
         average=sum(lengths.values()) / len(lengths) if lengths else 0.0,
-        idf=inverse_frequency(frequency), examples=examples,
-        example_average=(sum(length for _, length in all_examples) / len(all_examples)
-                         if all_examples else 0.0),
-        example_idf=inverse_frequency(example_frequency),
-        common_terms=_common_example_terms(entries),
-        vocabulary=frozenset().union(*(_metadata_terms(item) for item in entries)),
-        indexed_terms={item.name: frozenset(documents[item.name]).union(
-            *(tokens for tokens, _ in examples[item.name])
-        ) for item in entries},
+        idf={term: math.log(1 + (len(entries) - count + 0.5) / (count + 0.5))
+             for term, count in frequency.items()},
         exact_queries={item.name: frozenset((
             item.name, item.namespace, *(alias.strip().lower() for alias in item.aliases_zh),
         )) for item in entries},
@@ -197,13 +139,22 @@ def _build_index(entries: tuple[CapabilityDescriptor, ...]) -> _CatalogIndex:
 def lexical_scores(
     query: str, descriptors: Sequence[CapabilityDescriptor] | None = None,
 ) -> dict[str, float]:
-    """BM25 over weighted catalogue fields; zero-overlap entries are omitted."""
+    """BM25 over weighted catalogue fields; zero-overlap entries are omitted.
+
+    Every tool with a positive score is a lexical candidate. There is no
+    separate evidence gate: ranking and the top-k cut decide, as in plain
+    BM25 tool search, and write safety belongs to execution approval.
+    """
     index = _DEFAULT_INDEX if descriptors is None else _build_index(tuple(descriptors))
     return _lexical_scores(query, index)
 
 
-def _lexical_scores(query: str, index: _CatalogIndex) -> dict[str, float]:
+def _lexical_scores(
+    query: str, index: _CatalogIndex, *, drop_stop_words: bool = False,
+) -> dict[str, float]:
     terms = set(_tokens(query))
+    if drop_stop_words:
+        terms = {term for term in terms if not _is_stop_word(term)}
     if not terms or not index.entries:
         return {}
     scores: dict[str, float] = {}
@@ -219,32 +170,7 @@ def _lexical_scores(query: str, index: _CatalogIndex) -> dict[str, float]:
             )
         if score:
             scores[item.name] = score
-    # Keep the strongest short-example match per tool, with unchanged BM25
-    # weights and evidence rules. Only query-dependent work happens here.
-    effective = frozenset(terms.intersection(index.vocabulary).difference(index.common_terms))
-    for item in index.entries:
-        best = 0.0
-        for tokens, length in index.examples[item.name]:
-            overlap = len(terms.intersection(tokens).difference(index.common_terms))
-            if overlap < 2 or overlap / len(tokens) < 0.25:
-                continue
-            example_score = 0.0
-            for term in terms:
-                tf = tokens.get(term, 0)
-                if not tf:
-                    continue
-                example_score += index.example_idf[term] * (tf * 2.2) / (
-                    tf + 1.2 * (0.25 + 0.75 * length / index.example_average)
-                )
-            best = max(best, example_score)
-        if best:
-            scores[item.name] = scores.get(item.name, 0.0) + 3 * best
-    return {
-        item.name: scores[item.name]
-        for item in index.entries if item.name in scores
-        and _has_retrieval_evidence(query, terms, index.common_terms, effective,
-                                    index.indexed_terms[item.name], index.exact_queries[item.name])
-    }
+    return scores
 
 
 def _rank(scores: Mapping[str, float], order: Mapping[str, int]) -> tuple[str, ...]:
@@ -255,8 +181,13 @@ def search_catalog(
     *, query: str | None = None, names: Sequence[str] | None = None,
     limit: int = 5, semantic_scores: Mapping[str, float] | None = None,
     descriptors: Sequence[CapabilityDescriptor] | None = None,
+    drop_stop_words: bool = False,
 ) -> tuple[str, ...]:
-    """Return catalogue names in stable order; exact names/namespaces lead."""
+    """Return catalogue names in stable order; exact names/namespaces lead.
+
+    ``drop_stop_words`` is for intent ranking that nobody requested: a filler
+    sentence must not offer tools. Model-written searches keep every term.
+    """
     if (query is None) == (names is None):
         raise ValueError("provide exactly one of query or names")
     if query is not None and not 1 <= limit <= 10:
@@ -282,7 +213,7 @@ def search_catalog(
         item.name for item in entries
         if normalized in index.exact_queries[item.name]
     )
-    lexical = _rank(_lexical_scores(query, index), order)
+    lexical = _rank(_lexical_scores(query, index, drop_stop_words=drop_stop_words), order)
     semantic = _rank(
         {
             name: score for name, score in (semantic_scores or {}).items()
