@@ -13,10 +13,12 @@ from career_agent.evaluation.capability_semantic_fixture import record_capabilit
 from career_agent.evaluation.catalog_search import FIXTURE
 
 
-def record_model_query_scores(client: EmbeddingClient, *, model: str, output: Path) -> Path:
+def record_model_query_scores(
+    client: EmbeddingClient, *, model: str, output: Path, fixture: Path = FIXTURE,
+) -> Path:
     if output.exists():
         raise FileExistsError("choose a new semantic-score output path")
-    raw = FIXTURE.read_bytes()
+    raw = fixture.read_bytes()
     queries = tuple(case["query"] for case in json.loads(raw)["cases"])
     record_capability_scores(client, model=model, queries=queries, path=output)
     payload = json.loads(output.read_text(encoding="utf-8"))
@@ -40,6 +42,7 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--fixture", type=Path, default=FIXTURE)
     args = parser.parse_args()
     load_dotenv(FIXTURE.parents[2] / ".env")
     config = CareerEmbeddingConfig.optional_from_env()
@@ -47,8 +50,10 @@ def main() -> int:
         parser.error("CAREER_EMBEDDING_BASE_URL, _API_KEY and _MODEL are required")
     path = record_model_query_scores(
         OpenAICompatibleEmbeddingClient(config), model=config.model, output=args.output,
+        fixture=args.fixture,
     )
-    print(f"recorded 26 query similarity maps to {path}; holdout not evaluated")
+    count = len(json.loads(args.fixture.read_text(encoding="utf-8"))["cases"])
+    print(f"recorded {count} query similarity maps to {path}; holdout not evaluated")
     return 0
 
 

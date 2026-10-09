@@ -1,0 +1,110 @@
+{
+  "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+  "model": "qwen3.7-text-embedding",
+  "scores": {
+    "check my inbox for recruiter replies": {},
+    "prepare for my interview": {
+      "get_interview_preparation": 0.738838,
+      "prepare_interview": 0.776016,
+      "prepare_interview_calendar_sync": 0.554111,
+      "record_interview_retro": 0.56142,
+      "start_mock_interview": 0.575948
+    },
+    "之前那份公司调研报告": {
+      "get_job_research": 0.650262,
+      "research_job": 0.616067
+    },
+    "今天有什么要做的": {
+      "get_daily_brief": 0.70522
+    },
+    "对比几个收藏的岗位": {
+      "compare_saved_jobs": 0.768661,
+      "find_saved_jobs": 0.641337,
+      "get_saved_job": 0.620405
+    },
+    "待办清单": {
+      "complete_action_item": 0.610145,
+      "dismiss_action_item": 0.608209,
+      "list_action_items": 0.654245,
+      "snooze_action_item": 0.60229
+    },
+    "我的求职方向有哪些": {
+      "confirm_job_intent": 0.570707,
+      "list_target_roles": 0.698441,
+      "propose_job_intent": 0.591164
+    },
+    "把投递状态改成已拒绝": {
+      "resolve_email_event": 0.551033,
+      "update_application_status": 0.626363
+    },
+    "把这条待办推迟到明天": {
+      "dismiss_action_item": 0.568247,
+      "snooze_action_item": 0.769124
+    },
+    "有哪些日历账户": {
+      "list_calendar_accounts": 0.81803,
+      "list_calendar_links": 0.596616,
+      "prepare_interview_calendar_sync": 0.581878
+    },
+    "来练一场模拟面试": {
+      "create_interview": 0.551678,
+      "get_interview_preparation": 0.56883,
+      "get_mock_interview_result": 0.735601,
+      "prepare_interview": 0.605815,
+      "prepare_interview_calendar_sync": 0.574496,
+      "record_interview_retro": 0.56496,
+      "restart_mock_interview": 0.725821,
+      "start_mock_interview": 0.861933,
+      "update_interview": 0.550563
+    },
+    "模拟面试的反馈": {
+      "get_mock_interview_result": 0.736059,
+      "record_interview_retro": 0.605562,
+      "restart_mock_interview": 0.641015,
+      "start_mock_interview": 0.719359
+    },
+    "看一下之前生成的面试准备": {
+      "create_interview": 0.581517,
+      "get_interview": 0.585108,
+      "get_interview_preparation": 0.809425,
+      "get_mock_interview_result": 0.601357,
+      "list_interviews": 0.584929,
+      "prepare_interview": 0.860193,
+      "prepare_interview_calendar_sync": 0.623782,
+      "record_interview_retro": 0.645108,
+      "search_career_episodes": 0.578964,
+      "start_mock_interview": 0.629261
+    },
+    "计算简历和岗位的匹配度": {
+      "analyze_job": 0.607224,
+      "compare_saved_jobs": 0.5515,
+      "draft_resume_tailoring": 0.658026,
+      "finalize_resume_tailoring": 0.550003,
+      "get_resume_job_match": 0.776417,
+      "match_resume_to_job": 0.897836,
+      "review_resume_tailoring": 0.559271
+    },
+    "这条经历的原始出处": {
+      "resolve_claim_source": 0.582504
+    },
+    "面试结束了，标记一下": {
+      "complete_interview": 0.822823,
+      "create_interview": 0.610886,
+      "get_interview": 0.557408,
+      "get_mock_interview_result": 0.560948,
+      "list_interviews": 0.573985,
+      "prepare_interview": 0.557195,
+      "record_interview_retro": 0.653269,
+      "search_career_episodes": 0.562101,
+      "update_interview": 0.613396
+    }
+  },
+  "recorded_at": "2026-10-09T01:24:35.925449+00:00",
+  "fixture_sha256": "3c3ad17a50753c9f68929091dcfbe1c0deed2a92417eb695ac16efcc4f709902",
+  "model_id": "openai-compatible:e112daba403c3f5265c29918e7eeeef1d7c3d31ce54efb618d2fc91ddc787494",
+  "query_count": 16,
+  "min_similarity": 0.55,
+  "max_candidates": 10,
+  "holdout_status": "embeddings_and_similarity_recorded_only; no search ranking or recall evaluation",
+  "score_scope": "runtime SemanticCapabilityIndex: similarity >= 0.55, top 10 candidates"
+}

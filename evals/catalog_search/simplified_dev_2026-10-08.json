@@ -1,0 +1,618 @@
+{
+  "revision": "820f746ec92abb8094f5f2b758d669b72574ff2e",
+  "git_status_porcelain": "?? (1).env\n?? evals/catalog_search/compare_simplified.py\n",
+  "worktree_clean": false,
+  "source_sha256": {
+    "src/career_agent/__init__.py": "debd603f4ddb464ac8c34097e49a68866935658a665b28005e37920d0a63acbb",
+    "src/career_agent/agent/__init__.py": "6007d199da7191799755f483b79f1ba18241fc0cb0a876027d3d04b8525e7cd6",
+    "src/career_agent/agent/capabilities/__init__.py": "055cf242925c8e2fbbbc4047fa26c536d1ba7cb918fb096b4965dca126668145",
+    "src/career_agent/agent/capabilities/catalog.py": "b248ef73e14fa34de12884df33e9a03bbd2fdef9446eddd1e114b68cfed14443",
+    "src/career_agent/agent/capabilities/effects.py": "41f631a159b4d3fd29df8b5387fc55c298d2e1a221d9f405fc38fdf7dd1d0a22",
+    "src/career_agent/agent/capabilities/example_queries.py": "cad4e98fd494edc43a7856acf44332500ac474f74bbdf127b1a59dae0126e5bf",
+    "src/career_agent/agent/capabilities/job_discovery_promotion.py": "6c15e256ec10c3a5624f8cf85a5e995ef6553a96d480f372d9e8cafb3ea40a34",
+    "src/career_agent/agent/capabilities/proactive.py": "134b6a4a4a4b1b3b9d3098c1d02eb40287d98bab3cb62d332f5fdaf971e4097f",
+    "src/career_agent/agent/capabilities/reachability.py": "2f504c0341e568b702bcc1cc2b7d4e049aee04bb1a7350755c2fc9455e0e6c39",
+    "src/career_agent/agent/capabilities/registry.py": "0cca97ac1f61977c3e5fd2ff345fdd3132a602f9fe7237aa31350d57cf3f98ec",
+    "src/career_agent/agent/capabilities/resume_job_fit.py": "7c5ebb1ddff9a25495ae134278532d7221f05dbb58a40233d8d3f038ad733cfa",
+    "src/career_agent/agent/capabilities/search.py": "27ca78ce209d1e5959e84ef9cec4a759628bcaf5809014c0a2394f792ca90f8c",
+    "src/career_agent/agent/capabilities/selection.py": "eb22e39096e3e6df657f9bb4956617b3bb113516c55c85173f0f80cbd7f8bba1",
+    "src/career_agent/agent/capabilities/selection_strategy.py": "3e2f6ff117d89459d784fa712b54990f9482621c01c24a75906011e06d7a92e3",
+    "src/career_agent/agent/capabilities/waiting.py": "328bdff35832b84edce14669a2ef8f170407182604409b9e9e327b50085e260f",
+    "src/career_agent/agent/context/__init__.py": "96a487fa03ef96f26f726d3a2d69e8229b66e69e679670d87d5cd9cd627668e7",
+    "src/career_agent/agent/context/career.py": "51b399640a194b5d73930c784657cbd60e517356d1f358b2b36fe2f7dcd16d1d",
+    "src/career_agent/agent/context/deployment.py": "ef60513a1ce53b52fc94b62bbf9dec878d72a19bfa1e0e7685274220895024bf",
+    "src/career_agent/agent/context/manager.py": "e903dd554c9db4c3847a0cd94f2b502562a81fc17c1a5d5013ca44d111f8a0f9",
+    "src/career_agent/agent/context/provider_smoke.py": "afcfdb18fb2148cdb130709ba23637e6501d891c77825f5f563775c0b0dea482",
+    "src/career_agent/agent/context/semantic_retrieval.py": "a674d09acc209092204a0c393108b92addcb20c87fdc8790ad035a7e1468fecc",
+    "src/career_agent/agent/context/session_manager.py": "0334ba04f76bebaa15f11e1e4f93753434c2a4dc4761bdd4afb9708497a6899d",
+    "src/career_agent/agent/context/turn_builder.py": "81e4cfb7f38c28af8749ed853fabafe42a387c437a6507bf17cca0cbfd4acf27",
+    "src/career_agent/agent/contracts/__init__.py": "2be27fbed7517cddae0f4ad4468eac21b34457d3b42609256ccf658a31b9b393",
+    "src/career_agent/agent/contracts/candidates.py": "4b5e0a150e41219aa2f85da2355e56ab1128d2f34321c55d5f1283fb57251b3d",
+    "src/career_agent/agent/contracts/context.py": "d502a27ec529cecb697f8b06bf41526c11f1b7c84992e3c1c5deabd8e52bf36b",
+    "src/career_agent/agent/contracts/decisions.py": "67f48ddc2c4debe0bf3187e048da38d4e0997e62d04b6907d0ab35e59b1f6d93",
+    "src/career_agent/agent/contracts/domain_context.py": "53b1808548a1a297328331d944ad599e26163697ddd197e4d05c551aae0f03cb",
+    "src/career_agent/agent/contracts/interactions.py": "c7da5cfefa3204fa336973a0125bcab3be27144d2686fa60ab65e4219057da62",
+    "src/career_agent/agent/contracts/interview_preparation.py": "75f19c738659d083c0f5f99c26f4467bace184cfc797231dab60fa4132f0af12",
+    "src/career_agent/agent/contracts/job_analysis.py": "abd2dfe50e81f13d7fa04b257514d0c2ff51cba85728675f8d6bb421c62e50f0",
+    "src/career_agent/agent/contracts/job_discovery.py": "0db3b296f7b2ce745b892d516c3d38d06dfd9fef4ac4f4c8cf46ac42ec99ddd4",
+    "src/career_agent/agent/contracts/main_agent.py": "e33445fd992b5b20a36ac3530f11c50119727ac166821d626f1dcf3328cb663e",
+    "src/career_agent/agent/contracts/memory.py": "36b5e96ca3fb58cbabd4b2bc118453cff3108821eded85cdcb74a5bd8e466898",
+    "src/career_agent/agent/contracts/observations.py": "a158e3ae25508dd001d9b3acaa8f1d129e58067317926c7226bd0ee25a0a8c43",
+    "src/career_agent/agent/contracts/profile.py": "d0e68fb94ec0b75fbef3be90b66d3b324ab093f9beadb44790fa699d75ac130b",
+    "src/career_agent/agent/contracts/projections/__init__.py": "03698a5fc8f8ece565ef8d1f8cea3518429dafd9c6d312334f54d9e5f80b6261",
+    "src/career_agent/agent/contracts/projections/action_center.py": "fed1992bf39a442c3bfd87574672741f51b06c8134b87fc5ec401a99be51a46e",
+    "src/career_agent/agent/contracts/projections/calendar.py": "9356c0218be1cb30654d1c9cbb090b50418876de613b69706a4f853c1d16b496",
+    "src/career_agent/agent/contracts/projections/common.py": "d1d45e51b2fecb6e6526ab6408a6d72e058a8e33b2b0319e9662b673e992a37d",
+    "src/career_agent/agent/contracts/projections/email.py": "1035e9d82728207560c393e3dec23d89c5c55014e6a8f7880e560cbfe085acc5",
+    "src/career_agent/agent/contracts/projections/interview.py": "985f21bbcd3a00f9d8ad19190b842a153582f80ae6afc1a8b6599b8f01bdc23d",
+    "src/career_agent/agent/contracts/projections/job.py": "0abba35a069586402f3e4507543a0217784c0f74056a785cc8bd2367206b35a3",
+    "src/career_agent/agent/contracts/projections/memory.py": "67c2311046db6a115417b66af7ca34190637038e1a3041acf897e5c2f0fe054b",
+    "src/career_agent/agent/contracts/projections/resume.py": "3d418ba9b80078ae63693ffb05c8263e0d4b53a3bde3ee6560a1b6ba693f865a",
+    "src/career_agent/agent/contracts/questionnaire.py": "d3a614a3d05af32154eb033a6d8cf61bcecc0f2d0ac8782af1a8b3760073f753",
+    "src/career_agent/agent/contracts/resources.py": "3d40e431a2fce888175c09f662dfbe8acb210d3054bd93d4b23d361394c86ad9",
+    "src/career_agent/agent/contracts/resume_job_match.py": "848f14a0ca51976e253eb1e6e5e0eafbbf4e06c7797f2d911b00bb7e9a550ab4",
+    "src/career_agent/agent/contracts/session.py": "e6d37de99f29c678904c2a7a24a002b6d424a669980b5082346612237f4abaac",
+    "src/career_agent/agent/contracts/task_state.py": "75906a986b7d6cebc965b06a7f2c55567e62d5c292942818d0fa4f2229ec3ccd",
+    "src/career_agent/agent/contracts/tools/__init__.py": "7d4f4956d709d099fa2df0d375e71213f1467999fb3eacd2bee49ef260f24ecb",
+    "src/career_agent/agent/contracts/tools/action_center.py": "eb56ecf09c67a3a8289fb43ec34630c3e2eb055befad77ce812c6c8b64b48ef5",
+    "src/career_agent/agent/contracts/tools/application.py": "0aa6d7a645a1d85a2c20de0c7b28f11af927ce7c640e225eb459b8de4afa27c0",
+    "src/career_agent/agent/contracts/tools/core_memory.py": "f7f5341885a131e0dcdf17d49158032dc6d2d74fbe0866e13386ae6234e6bf74",
+    "src/career_agent/agent/contracts/tools/interview.py": "c39a891fe1cb07ad9c99f1e758bcef10debb97285afd692de0d21ca063b58dfc",
+    "src/career_agent/agent/contracts/tools/job.py": "d8a333e083128353668596340b243b17b8e6eeb576c9322efd59658feed72a11",
+    "src/career_agent/agent/contracts/tools/resume.py": "19f812077bc860c0ef3bb3df7e65fc22b706f5d22666a076db836bd19396654d",
+    "src/career_agent/agent/contracts/tools/workflows.py": "23202dc4d65d99168ea0a07d8137f49c0cc360fab57a4416285c4b48d0cd31b4",
+    "src/career_agent/agent/contracts/turn.py": "ea5d38d04103c0ab680da57f7b8fcc782324a35318c1eb2cf4ca0e217abceb6f",
+    "src/career_agent/agent/execution/__init__.py": "9158c9896165e7a1a8c804d225f028adbfaea31abc028af3511024a4570c9585",
+    "src/career_agent/agent/execution/action_ledger.py": "c6910900fb9a7dd4430d81e18ceb4b37e97a719a1f0b86b5dea515f57b5887a7",
+    "src/career_agent/agent/execution/capability_executor.py": "44afddc8bc4078510ec88dcdcf7ce9c0753a079d19348b8afd0d33b304849d91",
+    "src/career_agent/agent/execution/operation_journal.py": "ea2157d3a1146ce79e58726ac065530ce04844f50a6583c28b3c267a15fbf4ef",
+    "src/career_agent/agent/execution/reconciliation.py": "180043296deeb6ab8996954dbfcabcae7f262c5db0840c5e8e612b4f3c8d8b81",
+    "src/career_agent/agent/execution/recovery.py": "5505bd3d3140cbbd271be36f946bd79e31148a99353aa4239245d3ad39ebe330",
+    "src/career_agent/agent/middleware/__init__.py": "db149f45d719da4eb9c3d65c23f978e619311328bfe9a0dafb4a708487bceffd",
+    "src/career_agent/agent/middleware/approval.py": "8feb8d3c552e8178c4d1794040edcf47642deed1938e3d85b9c118d766885446",
+    "src/career_agent/agent/middleware/argument_projection.py": "4b3a6ec918737f2514fa48b968c9ad9954bbe427fa015eb1a8272141f33352f1",
+    "src/career_agent/agent/middleware/authorization.py": "51ab0b03e5c67b4a972cc1093163808b9fd3323d58730c539585f58f1933c466",
+    "src/career_agent/agent/middleware/budget.py": "db032845066024893e0d260f51696592d608f4b27a4af4ac079516dbd0dca6ff",
+    "src/career_agent/agent/middleware/contracts.py": "94ac520d46b464b31293a5a1c54b9008808cfa6043690b6774f343d9a73755df",
+    "src/career_agent/agent/middleware/idempotency.py": "775bcbed4523ae367aad1629135ee019defa87931befcca5e7e5e1334cc5188e",
+    "src/career_agent/agent/middleware/proposal_validation.py": "8336c6d5fffb0006c34d78d3115872d8340d9b21cdda301510d816e8f6bb10bb",
+    "src/career_agent/agent/middleware/tool_availability.py": "38215c02c5031f7c8783563596615b2dc5b1517846f91d0220d7562d3e799a31",
+    "src/career_agent/agent/middleware/tracing.py": "cab137dddff6e00bf1d4c835c46ddff4225f0afd84a94d45be24f15c14368e9d",
+    "src/career_agent/agent/middleware/working_notes.py": "78411d4d38ceaf056475dbd7dfe16933e9c7c1b8fd097e7b14d0f9a9225a986c",
+    "src/career_agent/agent/middleware/working_notes_guard.py": "98fffb9860066ea95b38ee419aa14c706917aefee1095bb9945bc5876a2a11bc",
+    "src/career_agent/agent/presentation/__init__.py": "1bd6ab5cca64c779c401d0728219d0d823e5fe25cdae45d140f4336c3ed8f7d2",
+    "src/career_agent/agent/presentation/body_contracts.py": "78d68bf90e5e71e7652b66a77000f842c05b248597784ee667d2ee9cd062fda9",
+    "src/career_agent/agent/presentation/conversation_span.py": "8fa146788e668a52614e5e932bbf70d40851487c3aee6b3edf7f7f90163cd1b5",
+    "src/career_agent/agent/presentation/daily_brief.py": "e17d347ad34779fc46d22885207245ae1a723981d0ed12d09feb4954413104ce",
+    "src/career_agent/agent/presentation/delivery_policy.py": "d2e8a1e52073df1f91060381e9dabaa29b293d4e091474c0de31dfa090ecca9f",
+    "src/career_agent/agent/presentation/engine.py": "41446f54d175f9a6b5306ba5c520d90416ff7557a6f27284f90f9e54aec2a14c",
+    "src/career_agent/agent/presentation/factory.py": "13048ddb0ce3b5419b693a0f44125ae33a250e4540be87efeb93d37657ccadb2",
+    "src/career_agent/agent/presentation/interaction_renderer.py": "e33204193189cdbf2260612884865b0b18ca31d027d8d314abbef6bcb887e6d2",
+    "src/career_agent/agent/presentation/interview_preparation.py": "b263decb8fe0425811d71cd7c859a2a08db8705e7a2490c407c9432371a84537",
+    "src/career_agent/agent/presentation/interview_retro.py": "6aaf2b0d76a1f209b4cbc31ca08666891cd9bbd1653e22d6f846ab9d9f1cf7b9",
+    "src/career_agent/agent/presentation/job_analysis.py": "00e1517b434ed84b1a5d6c61689417418f78898fcdc2b5cd39a4234434108244",
+    "src/career_agent/agent/presentation/job_comparison.py": "0cdae3fc30a31d3ba309c0fdb8fadd966257f53da5edb9fcf0646e64aac47266",
+    "src/career_agent/agent/presentation/job_research.py": "3a7ed5381323cbb8f332cf933da0548e67b28f80b4608387cd4e25415d46bc8f",
+    "src/career_agent/agent/presentation/mock_interview.py": "4aa0e9e8dc128448bd4b7b15135b0d84c23a14add06e60b90163a5170d202e8d",
+    "src/career_agent/agent/presentation/presenter.py": "3b1b4a378e4610445ef73168e1a874fcfdd6b833d5bbbfd6cd918ed5a7d4ddc2",
+    "src/career_agent/agent/presentation/result_presenter.py": "2dca295d08f3da2627e08cb9f30d68f16a53ed54b624e87d470c669efda825f1",
+    "src/career_agent/agent/presentation/resume_job_match.py": "5d2208b8fa360da990c82d0cf55d558a93c7f45c40e511522d2817545d5c4511",
+    "src/career_agent/agent/presentation/resume_tailoring.py": "e83a66a3ed8c70df107672b594367d2e92f8d7d5c95ce006700a40452e6899ec",
+    "src/career_agent/agent/presentation/stream_adapter.py": "3eea5d66c1560437d224e34d1c1f39fe6d4b28d94dd8377b82218b164d339b8d",
+    "src/career_agent/agent/providers/__init__.py": "f0b36039c1cfdb77df465bf01eb27cb461ffa3e2b101ebc182b385f13841eb5c",
+    "src/career_agent/agent/providers/agent_worker.py": "a76f47220580204f01886fc48e8eefb2aa142983e0a302ea343f4805dc8c70c6",
+    "src/career_agent/agent/providers/conversation_summary.py": "eccf867c034445ce6bceed7900268df3bb69a30841c80e47d51829364c4cab9f",
+    "src/career_agent/agent/providers/email_tracking.py": "c566a59cdb05b894485cbaa64af682a27cc86f3d31e5e48d7e9a78ff39392a70",
+    "src/career_agent/agent/providers/interaction_output.py": "ed19295e1f7768786c58ffa828360461e75d22007a4545087cc7cf7f9f0fdbbb",
+    "src/career_agent/agent/providers/interview_preparation.py": "b1498f04e416be4a80ea4dc9d984aed504d364fdbeef4e0a7eb7e6cfdabaf373",
+    "src/career_agent/agent/providers/job_analysis.py": "9e12706b4bb0263761279aa16daa7ec5d60003ac98dc0aa1c29c1d78b4c6ecbc",
+    "src/career_agent/agent/providers/main_agent.py": "dc7c134bd1f59b7e106144b3c74e9bd07c56918cb9f6794973cebd79ca780e8f",
+    "src/career_agent/agent/providers/main_agent_vendors.py": "0f467038ba428e3d6b46acd36531fd6438c1765e6d4e6adf03309922449ff555",
+    "src/career_agent/agent/providers/openai_client.py": "e7cda225ed0fb9d32dc50708f5ce3ba11452dc5e48d4792b0d2da2bd2d474549",
+    "src/career_agent/agent/providers/resume_job_match.py": "328ae804630662eadc03f8517eabd158d767ca2639a6309d41ab47c7e44322e7",
+    "src/career_agent/agent/providers/resume_transcription.py": "365c6282e4e4dbd2e1bb7388128565a23ef6848854369a3e26d7c6d03949e1f7",
+    "src/career_agent/agent/providers/structured_response_retry.py": "16b0199abd578fc06c905b56e5a4e6d118354fb3385a5bef44e3ad4ee2dc9a9a",
+    "src/career_agent/agent/providers/structured_responses.py": "7fb17a8502f20e9b165fbbfc4a14d0d55bf7dfb06f5d05e5dddb1019514f233a",
+    "src/career_agent/agent/providers/tiktoken_assets.py": "fcf68858f7716ed17978a3828d9e32498f2ce3688833a305f7b8280bb4b02455",
+    "src/career_agent/agent/providers/token_budget.py": "2a5cb15192fc25e28598485cf5fe4f643c885a8d9f1ab28299c30282e0554eeb",
+    "src/career_agent/agent/resources/__init__.py": "36ac993aa0989c19c3df3cfe783214a18695dc07efa389f6ebe088865df4f93f",
+    "src/career_agent/agent/resources/conversation_span.py": "15cf0c441aaac063c39fff05f3c60e0b7cad89e294625789db15b4281f8f080f",
+    "src/career_agent/agent/resources/input.py": "a153520592cf5c269f2793b236d20fe20250821750172ebbe191ea08def453a1",
+    "src/career_agent/agent/resources/resume_document_prompt.py": "aaa46ea07af048dcb459ec405bbcf2619feaad8e0024e4e56a6f1b74ba59c510",
+    "src/career_agent/agent/resources/resume_extraction.py": "6f27cff0328ede97f8f994c40588b52f86874d4aec3b2aa4b17e8412b5e23f6b",
+    "src/career_agent/agent/runtime/__init__.py": "4c4471e6928bac43ee9a85fd557da7e6fbbd7cf1c0f47bf5fc5f0e69ea55ec6e",
+    "src/career_agent/agent/runtime/authorization_engine.py": "3c80551bf9590356a2ccde5d79f8f8bab4e43f26e333a025b28f838a0102b4dc",
+    "src/career_agent/agent/runtime/checkpoint_lifecycle.py": "a138e1f82cb5e7df8b32bc95fc7995a056ae48ee71e46910c58ae22537e287a9",
+    "src/career_agent/agent/runtime/composition.py": "4d518474decf7714614521ab0c3d77ff23a4351b6349ff09fcdcdce13297781f",
+    "src/career_agent/agent/runtime/decision_attempts.py": "9bc70f5e453202cf71b945e6b4dea351ea28eb034bafe4971914157d8868871b",
+    "src/career_agent/agent/runtime/decision_engine.py": "525f878c91a52bb60f1cffdce02c136596130ff3f30bb51a27a7ea535e96ac3b",
+    "src/career_agent/agent/runtime/decision_messages.py": "c82e6e12b46ff548edeb2b1e9c47ad971c302f488ecd104e4444db2ba2044612",
+    "src/career_agent/agent/runtime/graph.py": "468cea2671ea68c5cf48453b6da472a4e1b2324c46d41021c2270a9feab361fa",
+    "src/career_agent/agent/runtime/interaction_coordinator.py": "531c4acb2519931de7c3666dbfd03a4d120a6c41d6a145481dcd1b1f3cbf86c1",
+    "src/career_agent/agent/runtime/main_agent_runtime.py": "60527413e42058ab7090a128060d58f121f82a1d43911316ad2f2e151858e1cc",
+    "src/career_agent/agent/runtime/observability.py": "e12ecaaaf40550e380bb55a2ddb5a0556936af22e2ed62db4f38f816e6ebe675",
+    "src/career_agent/agent/runtime/observation_reducer.py": "760e24a17eac0ec7310f0b57a773219e18d987f35c58c2b6de26af44e99e709f",
+    "src/career_agent/agent/runtime/ports.py": "baf556717b8acc669019fcc82678b6c468377ccc586943a8e605d1f9f6763704",
+    "src/career_agent/agent/runtime/reducers.py": "2b4b6d558503dd91bf65cdd7d46e3ab36b20be0d38eedb112f384dacd45d6f20",
+    "src/career_agent/agent/runtime/state.py": "5b6c7f23f73077116b8ba9fe1665dc0ef0ff442107659b2629df162b98f3b546",
+    "src/career_agent/agent/runtime/suspension.py": "462a417f80d942cf4ddaa472e2b2a1cee4d171c76a859ef8c64e754e4d4dc693",
+    "src/career_agent/agent/runtime/turn_coordinator.py": "66717b4954ac7fd462aa10d2ac89d35e078f3195927af68da895ae86fa0ed358",
+    "src/career_agent/agent/support/__init__.py": "24b4648a46885888107f62b5c772d02f9127bfbff5a48538a406946bb74e9da4",
+    "src/career_agent/agent/support/summary_text.py": "3a97e5dcca3bb4d20683fcfc5b5e8b10697d0b88a06c0993c534bfe28b9067e2",
+    "src/career_agent/agent/workflows/__init__.py": "d717e74aa6b1d6cc33cfce53f7bfc11be1cc79126698c02f983652f65ec2d8ce",
+    "src/career_agent/agent/workflows/job_research/__init__.py": "3055bd61ca69df01430fa5eb141186470dcfd41aa1abff30f6e930edfa2ddf30",
+    "src/career_agent/agent/workflows/job_research/config.py": "46991188ab4b508e5f4a5cb45042de5877901251249d18d7dab468f0a3ac9138",
+    "src/career_agent/agent/workflows/job_research/contracts.py": "511edecac3fde028b67293d4a8201318a5ffcc88b92c2941244a7aa11f6e6272",
+    "src/career_agent/agent/workflows/job_research/provider_diagnostics.py": "68a6c0563ab3042588d3af8a9003bbc96def2e3463d193d630173f19d23afcec",
+    "src/career_agent/agent/workflows/job_research/provider_smoke.py": "242d0e28d8a4ee9099b2de3ec92894516198d40bd9afd764b9da9740c6b06d6d",
+    "src/career_agent/agent/workflows/job_research/worker.py": "a1408c70d74eeb6deb5fa8eb32c1791182875ea763851f48c7325ce533bd4db6",
+    "src/career_agent/agent/workflows/mock_interview/__init__.py": "ff38b817231dd5c2b2ded85dd5070a2757cb7450a6c7373e331c7d84fe88085a",
+    "src/career_agent/agent/workflows/mock_interview/company_styles.py": "fe508b202675b682700ba0ea60945c2ef7bd97107aa23695fdd4f50078361967",
+    "src/career_agent/agent/workflows/mock_interview/contracts.py": "248e2ddcabdde13d8249f7870a5f669aac331b28437ba667d5d77ede84b89850",
+    "src/career_agent/agent/workflows/mock_interview/graph.py": "b30118ee91dbe117eda4ca02e6705bffab579181bdb80bd9f0c4bb49e5531e84",
+    "src/career_agent/agent/workflows/mock_interview/prompt_loader.py": "d2971db9cb989c756fdca8a1a9a0e21027ff589d8f0b6df340026632f7035a0d",
+    "src/career_agent/agent/workflows/mock_interview/worker.py": "1bcc7b5a606cd8f0056224f5d4978a8a2a7fc319922f6a466983a6743c431639",
+    "src/career_agent/agent/workflows/resume_tailoring/__init__.py": "fdb4f2415c3749783323cf5fdd5ec5e6b0db881bb292b5ce81670892d1e8bb3b",
+    "src/career_agent/agent/workflows/resume_tailoring/contracts.py": "82233a5b117ff465ddeda9c2edb47a5367e4d43dae1a5fadf4f7ef318d8f895e",
+    "src/career_agent/agent/workflows/resume_tailoring/finalizer.py": "d5b81bea3a0779294cc60c699139b895f85b3060189d4c1af986227fb9b77418",
+    "src/career_agent/agent/workflows/resume_tailoring/review_graph.py": "564da1bef2438dd53d408682e14ad1edc5dd6686fcffeb68484ab6bd4fde75eb",
+    "src/career_agent/agent/workflows/resume_tailoring/reviewer.py": "ec23bcdc5a7d7906fe21c5b8714728d55ed6c73ae1d953adb74dcb16a94a424c",
+    "src/career_agent/agent/workflows/resume_tailoring/worker.py": "c1de1da7e307cbd88a742c5ed409a97883fe69ec7dbf5ba1d956cc307f0192ff",
+    "src/career_agent/api/__init__.py": "30a49a9aa8f4bcc8992def864897624282df17939b49f3a40460fa8ad399efb4",
+    "src/career_agent/api/app.py": "fa0ff25e0afa941127ad6afb832b8f3bcdb207ef7f9b823c03d468736cecafd6",
+    "src/career_agent/api/integrations.py": "2fa8a2d17b3c26dd43759414f7ed1fea78ff82bf3d4245d27339cdcbc5a0ae9e",
+    "src/career_agent/api/live_turns.py": "4f8f18fd85b65d185277f6f2ef9046fb9211a0e8eafd0c1be2e29659305f4e1d",
+    "src/career_agent/api/public_contract.py": "3be2be5cb638561524dc83252f7e74099b0d49de1f65df6ae9c51e3cfa5610e9",
+    "src/career_agent/api/reads.py": "cef8b98f8f2590839b54b5850d42f5f0f0f7a560bed79543ecb8ab24ba1f3f9c",
+    "src/career_agent/api/single_worker.py": "09d7247ecf9605c8c16c0b431e3f0000d8fab9542d158372f41879712f851741",
+    "src/career_agent/cli.py": "323d44287a9e410fa35c66dbd4b5a45cefa736ca3f095643f8ba98f4c23bace8",
+    "src/career_agent/connectors/__init__.py": "ec057ec04f4fb18c0c7a5a5640e0d02f43e2ff47f91e7bdadf66e6c664e17ac1",
+    "src/career_agent/connectors/calendar.py": "13f1600ec3dcb227cd30ce5f8fe107192fe70a5c5e7a2f5fc8f9107c9a97bfca",
+    "src/career_agent/connectors/email_accounts.py": "a56ff02d987beea72906abffa679eced4b38bd1247a8025d70b50cab1de364a2",
+    "src/career_agent/connectors/email_readonly.py": "13940b77c92fd93d70018c8336f0a208b271df7b47878b095f08dc3e144bab69",
+    "src/career_agent/connectors/gmail_readonly.py": "d97bd5abb1158c4ed98a8856b19a9337b83b53c46ee61c107e31a083855e9292",
+    "src/career_agent/connectors/qq_email_readonly.py": "262706d8106f7069d960b46e840fe08bd987c1a7f23e7140fd3974f8c2b8ea7b",
+    "src/career_agent/domain/__init__.py": "975015fbae9e490bd983fa3385376793ed5052e77f25d8faa61fd9d3cedcd57b",
+    "src/career_agent/domain/action_center/__init__.py": "89fc326f4f89a5e59913835f9ed316ec7afeb76b2b1003a75adaa06594e0c2b9",
+    "src/career_agent/domain/action_center/models.py": "7688749cb479cd16a1f88cc497aaa41842b948a3e7ba4960f206840ea35c00a7",
+    "src/career_agent/domain/applications/__init__.py": "031ebe60d785766be4b1f04c17a8d1f604ded1725e5c783f0e50918177f9e87a",
+    "src/career_agent/domain/applications/models.py": "07d70521ecaa32242ba6a93eab3b9305408630fdc50eb94a19692e1aa477a517",
+    "src/career_agent/domain/calendar/__init__.py": "b4734579e5f3124c0481a0c8dc1495e93189d2d581864196be5de96ec677f634",
+    "src/career_agent/domain/calendar/models.py": "99c1ec3314ab857bb4036976a713830122cb3ec6310603d0793e2031d6d728da",
+    "src/career_agent/domain/career_history/__init__.py": "c237940114926f4fd761cd3db26f6b362f1597ba5c7469243d1d4945a8c8bf71",
+    "src/career_agent/domain/career_history/models.py": "a0929b34ead4d515e0c9483fae043c6f6784c66068870cab882bdc9b4374b9cf",
+    "src/career_agent/domain/email_tracking/__init__.py": "e8859ef754335e2d9e92e9dd7003bc4f3a8701a3e9768a5a6c8016f75294bcd0",
+    "src/career_agent/domain/email_tracking/models.py": "d48c557d48f5c317be8052e9b98b86b889e90880dc391929bcba1544bc1d9178",
+    "src/career_agent/domain/episodes/__init__.py": "ef20f00200fc9927993470dae617f5cc6debdd674508b366084c82d263208883",
+    "src/career_agent/domain/episodes/models.py": "6e12e9ca45a00097e10c444773dbd7448907f7381f89034150c885e80eb6c674",
+    "src/career_agent/domain/intent_memory/__init__.py": "73e6e3893912d06afbf44c87424ccd97afce04b7e39dc1b45373a9294081435a",
+    "src/career_agent/domain/intent_memory/models.py": "35ae9e0013c5bd03a4976bccaffbcc6c9382bf4035e982fbf420f6be53f873ef",
+    "src/career_agent/domain/interview_preparation/__init__.py": "151684e4050c8a601642f1e2b586212c9ae3f9a99d1ad5134495c1edb701a3ba",
+    "src/career_agent/domain/interview_preparation/models.py": "d3d02d4680efa79458b7b8cecbc6557990c4ee96ad4f917981ae5d1a925ba489",
+    "src/career_agent/domain/interviews/__init__.py": "83f8733fbcaeb496f87cc765b11008aadac940ae5784f836c376630252c4e927",
+    "src/career_agent/domain/interviews/models.py": "c3b99bc8299dac132fef1e058ec57db0176c01a73ca8085b7052f8d50c530726",
+    "src/career_agent/domain/job_comparison/__init__.py": "5bf37532ee3383e9b6c9c4133262660ca5861155f55f32addc6c34235d59064d",
+    "src/career_agent/domain/job_comparison/models.py": "d2b91008d6e2405a5ee0a8e35c531cfc571425a5cec34439355272a629064c10",
+    "src/career_agent/domain/job_discovery/__init__.py": "d12a197947be5b6bec12df2f916732465831ee3e4c32c796e5473af15720ccf6",
+    "src/career_agent/domain/job_discovery/models.py": "930f17143c4714718f5c584c948812a8eb344924c0a1133cc89411c414befa18",
+    "src/career_agent/domain/job_research/__init__.py": "8928e8c91df5f351abcda98d5efb55fd6f240ff7c06258070c1d2af21ef31fb9",
+    "src/career_agent/domain/job_research/models.py": "5c97db76a55e41859e9d1181bedf301461f927165909084f673d4da3db455d57",
+    "src/career_agent/domain/memory_scope/__init__.py": "3807c08d6e01d7472637b64a7975fca00ac3ec4f0c7a55633ebf0de0588695f5",
+    "src/career_agent/domain/memory_scope/models.py": "67accee084025401d56a97b0ebc8fee05e31e3dfbdf1cd9b9e380e2f93583898",
+    "src/career_agent/domain/mock_interviews/__init__.py": "47f31cf1643124c1e6057151c7c3c6347a20e3471cdd846d409660d793b08947",
+    "src/career_agent/domain/mock_interviews/models.py": "7286c3aa0b5ad56c8d82db5a95afe2264b02beae340730f7cdd2efd92b9d0933",
+    "src/career_agent/domain/resume/__init__.py": "18eaaf0238755312b17e612b5944f0ad52efd6653359b83d8e22a7624388dba4",
+    "src/career_agent/domain/resume/artifacts.py": "b0a990309a6dbf671fa9b10d49a7ba48fa17849d5938ca84f9e11630d8a5dbd9",
+    "src/career_agent/domain/resume/models.py": "09d2b3db47f0e1df9240c850d9191c3223a8674239b6acd8558b1520ac4eb00a",
+    "src/career_agent/evaluation/__init__.py": "79c885d9e4844d9923d7fb82373178bcb60eb7e436697063685a3e8c0d435674",
+    "src/career_agent/evaluation/capability_semantic_fixture.py": "257367b1ee2fda1053fcdaa5a2364b3f39d2b870e0495bf92b35048d0ab758e3",
+    "src/career_agent/evaluation/catalog_search.py": "4574d1b32a8edb6ea6fa877c0a23c563389b7ee66ed35c4ded750ffea08fe9fe",
+    "src/career_agent/evaluation/catalog_search_embeddings.py": "fc73c51ef1c17cd20f2849545a1ffc4473d5eb0da8e2fb750484f8058801b6dd",
+    "src/career_agent/evaluation/independent_tool_selection_holdout.py": "74f63d2c4c6d160a06cc481b7930ba4be951476ead6f0aa4c6adc0c73875c587",
+    "src/career_agent/evaluation/main_agent_scenarios.py": "d1c84b97b8ed2615f1668f0bc7fa50b971bf9d03a24e6f9609b657e044964b8a",
+    "src/career_agent/evaluation/memory_metrics.py": "01ff4d935e1ed01a25902a6975342871265465178ca2a1326ad0dab764d66174",
+    "src/career_agent/evaluation/rederivation.py": "4d0f465332666c90b1d82b1a116aed73bb54592d232c37e3223999e5c5326072",
+    "src/career_agent/evaluation/resource_binding_holdouts.py": "a667e2b8438141daadca967b2848ed452f34234e9ab6023faee8806ffe5d30dc",
+    "src/career_agent/evaluation/resume_job_match.py": "07206dc5d66cd2d8f9c9f091f49d3b297b4c5d4f248f9821e7bd35c457ce75af",
+    "src/career_agent/evaluation/search_scenarios.py": "8ce438d81aa675247874742ed9952ac6f39aac8239e91317dd1b131b8a019c1b",
+    "src/career_agent/evaluation/search_trajectory.py": "f449da1efe0bc7cb5d8de2e75d6857e8b33fe80edf57f3d9a12c1ab3dffc6079",
+    "src/career_agent/evaluation/tool_selection.py": "095958026fea3912d4fe4898cd07ae1d08c6a3416b4f202d474453e00d3c49e8",
+    "src/career_agent/evaluation/tool_selection_scenarios.py": "f40d961f615e4ba95340cdf192940bf47a9c0a65d57f240529eeb999638e61b1",
+    "src/career_agent/evaluation/trajectory.py": "80a3d8d923f54b388a85327d0ee99fe42b71f1fc20456a43344f2489400fad22",
+    "src/career_agent/harness/__init__.py": "33662b8846303bacd360f42d39308c48d8178e7db44352b9d7245e82157cd9ca",
+    "src/career_agent/harness/agent_loop.py": "3bf5a885d931f48dc84b2af6c750652756cc9cde3953510232443ee309aed06b",
+    "src/career_agent/harness/capability_steps.py": "a66944025e691061c607507e66d53e008dbe63cfa7fbd35455ab0e5c13004822",
+    "src/career_agent/harness/confirmation_coordinator.py": "c188222f4b5024f38bc7d92137d30ba2a5b30c6daaf0ae2276172bce38456cbb",
+    "src/career_agent/harness/context_hydrator.py": "428cdb49e241c7e455a7099a62ceece9537502843fc5aac249650eeed9cb6fb3",
+    "src/career_agent/harness/graph_routing.py": "3856a7d8995612a81cd5a033e7fc038b807a95a69f41fb8540bdf916fd6b990a",
+    "src/career_agent/harness/memory_telemetry.py": "587e5b973c410ddc8af61e1d1d520d7035a10ec4eff523ce936f0a5e8abe27cc",
+    "src/career_agent/harness/observability.py": "7fe6a22fe901153a20851b0c92e17cc5af9b20172d9dcd8285df472ef6364d3e",
+    "src/career_agent/harness/streaming.py": "a572f8849f70dc267adff9b2958788e3cf33be68d67d9fa141003c3b991ea01b",
+    "src/career_agent/harness/turn_router.py": "f33e133f1fe1042516df119cff728fd8b0529bf7b72ba880ac9181f216af72f3",
+    "src/career_agent/security/__init__.py": "dede3609fa60f4a66dfb95cb2da1b2c229e441d49ef74ed5f1045560cae2c864",
+    "src/career_agent/security/authentication.py": "b4e96f38f688c08e1172f858f3fd00a760dcf1a33e3f3e01a78592046f50396f",
+    "src/career_agent/security/redaction.py": "3f3c10a4cef6646d89d4793d8de98632443bcac85468b7f2fba789536ff44e98",
+    "src/career_agent/services/__init__.py": "5ee368b8b403ddb926e38792d6c660d7a6ec88ea5bd628ded82a91e52931d2f1",
+    "src/career_agent/services/action_center.py": "2385211c978f49407ce0f5e48147018475efe62651dfb9236067ee4bfae95e7b",
+    "src/career_agent/services/applications.py": "019621a5e6919f8b8fae9f29044b585230e4d316238a8d117407848d264831cb",
+    "src/career_agent/services/calendar.py": "b1688fedbb0ada7b04ca454d4c6e3bb2949f48b5ef322c85cf59276a6ce6d76a",
+    "src/career_agent/services/canonical_scope.py": "a0de29dcf8941241cfa9b4adb53a3fd9857d28a747158ecf6ff2a6220ebaa78f",
+    "src/career_agent/services/email_tracking.py": "e95235d4b56f4d8dc45cf8f0bcd63d2e39115e7846d78ebf309daa5e2cd78091",
+    "src/career_agent/services/episode_consolidation.py": "e8e093bd7d5914104b79deb60bb9c7b80d1f9577c5118375f984cdee2fbd4ddb",
+    "src/career_agent/services/episode_reconciliation.py": "4d9ea631e68d0fa5636e77fafdfcc5109e1d9e1096e59258581cd9f3342e0b10",
+    "src/career_agent/services/free_text_preferences.py": "abac91cee71aa9bb51a91271a340490a6570011d0ee48f8455156c343daf5a78",
+    "src/career_agent/services/integrations.py": "3c277c9789686d000301b05aa93731bd5920239cb77e121387231aaf3cfa4cdb",
+    "src/career_agent/services/intent_capture.py": "db6a495daa1aa4c48e3e4be6bb1740aba2dfedeef2c276fc5037e6c739b3c1c3",
+    "src/career_agent/services/interview_context.py": "c372da18b622629ce61373a08b2ddb2c156779f7f2968cfadca8e9d3500decd5",
+    "src/career_agent/services/interview_preparation.py": "d0bd5f8303765656c34c0b5575ceefeeb3c261f1f1d2d711d75b8dc9b7df7178",
+    "src/career_agent/services/interviews.py": "8d03051cafbc14d35f2bf285d701b31731406ff54a294e18b5aa0819a2b550fe",
+    "src/career_agent/services/job_analysis.py": "d1188613038f258e3da94c35f1698c2e70490d6d8a18c66160fd55079cbcb217",
+    "src/career_agent/services/job_comparison.py": "0b32968f8de9c7d87b8853c1c503e704588903fa45af8c7cddd33cd6f82a61de",
+    "src/career_agent/services/job_discovery.py": "4b75beb11a260420a0e05c3405001794befd83e0df04fb352829e0aa5856d98e",
+    "src/career_agent/services/job_research.py": "d4bd88feabe132a6b91a8c949e16b11168ae95bd61696c3966d37f04d8871ad3",
+    "src/career_agent/services/memory_report.py": "956202772b212ab98d272984dce5e0e7263119f6451442105a4cb7ab3366e32b",
+    "src/career_agent/services/memory_review.py": "b5489c8bba53daabe496a50901b9b1f6a261508fa6d731151e27adcad353d26c",
+    "src/career_agent/services/preference_resolution.py": "1902db870f16b4fceeb78ac14ac658289bc5ae10730d5c51fd3859bf596013c7",
+    "src/career_agent/services/resume_export.py": "3622bc82ecf934996580ade9b4f079a76235ebc5b9f347ab7a6c6d776abff316",
+    "src/career_agent/services/resume_import.py": "7923b322e6d9a6bd7f447ca882e76cf139cab6e6e0154c680ba82b38cd0311d1",
+    "src/career_agent/services/resume_job_match.py": "78082dca03221c01f5548f57122487b41a0c7e5015786c51f75765b71d28f648",
+    "src/career_agent/services/resume_tailoring.py": "417148db9be11c1379205e302290f9087e6fa6828f5bc6062e676d8784085467",
+    "src/career_agent/services/resume_text.py": "c8d23cae8b4139ae6c8c828442e3eab7931a025c65f3f9598d09e75546f755e2",
+    "src/career_agent/storage/__init__.py": "35fa2eb299822304cc9e811999dd644e6ce8751b24ff4efe4479627ff69c0f18",
+    "src/career_agent/storage/action_center.py": "641a941e371473b317bfcfcd076c40809481fa341f677af89545513c7b03ddee",
+    "src/career_agent/storage/action_executions.py": "5f19c523c1186532a8e11a899530256154c1ad91c7f8097de29e7df277a566db",
+    "src/career_agent/storage/api_keys.py": "fb4a79a2c361a59eda8372a2bfffd620d5ec5364d8df027119964957e018b875",
+    "src/career_agent/storage/applications.py": "3759504ba1a5e14f022ace38b07cc4240a449152bf0ddb66af290dffdbdfc296",
+    "src/career_agent/storage/backup.py": "c0a8004c74be59396dc2bd46f27fd91a196f10ed0d42687428dce4f0e578ef28",
+    "src/career_agent/storage/calendar.py": "fc42076b4fe81c90ee80f07832b53e26e4e11a19dee39759c2f0eecfdb3ab381",
+    "src/career_agent/storage/capability_confirmations.py": "d020a289ea97c2ffe2e15a0404dd735df7bffeeb4f546ea6d367fa36c19d7086",
+    "src/career_agent/storage/career_history.py": "5a42e9d2cd9e514528244100257a80560c1a631e49daeb8661fad4a702343a82",
+    "src/career_agent/storage/checkpoints.py": "2c62d233d152e3a3b65349472ffdc597b8059c650dd100d7224877dc92ede23b",
+    "src/career_agent/storage/connector_secrets.py": "bc1988f93efd37a4f55f3c697b29377446865be205855808af22bf15baa42f3f",
+    "src/career_agent/storage/context.py": "c8ece899dc702edc0ef51fe1d76df7c7b8f1700c25b9547ccc2ef9a1c067feb0",
+    "src/career_agent/storage/email_tracking.py": "4e4405234d31aefc9b8271f94997b83e73e60807c711ba14b1d7311fc82c744d",
+    "src/career_agent/storage/episode_terms.py": "b2b33cc3a2321dcb69628c2ed3596c1e09193c3845cc40a36d31b7e46284981b",
+    "src/career_agent/storage/episodes.py": "fd286a9d7e57d89abc059344e4c957648eed2e4f79b91a1ccbc3bb28064eda24",
+    "src/career_agent/storage/intent_versions.py": "2dc82d4d0762bdbe84330b4feba008cc73c983cddece24a7de5c9db3e65a3cd6",
+    "src/career_agent/storage/interview_preparations.py": "4ee88c6435b30ab5dce22a29e9a6f43aad76c8ea24a9d8666f145f0e594cc26d",
+    "src/career_agent/storage/interviews.py": "05d30197afb8c6e0ffe406b84358f7ff4bffc3f69a7814fe720e44eecd2d6b94",
+    "src/career_agent/storage/job_captures.py": "8e377fdad073e127d479ab9278ce42ba03d995e1e8ea928a5bb1803041909093",
+    "src/career_agent/storage/job_research.py": "b4e61c47a8d69841c8ecf05767420f6b93b062e046ae0589935df9c6809826b2",
+    "src/career_agent/storage/jobs.py": "4bdcffbe2a58ceef3b5ee0c447690582f9d1eb2af7cf8fb9671024820668cbec",
+    "src/career_agent/storage/memory.py": "2a9cf75d7cb7c3ad3c859a1b97a5837068e3acf52d002f8ac71912724147dbdd",
+    "src/career_agent/storage/mock_interviews.py": "b581a4b21ee82355825814455995819a15a798c6e8d4b547f675919ad53ffbc8",
+    "src/career_agent/storage/oauth_flows.py": "53d97a4f86bd776557d94684c0b88f8e584e680220a8e67f1eeb6432cc467123",
+    "src/career_agent/storage/operation_journal.py": "08a55723bb3a45eb5e16356ac629b109a106fc4ec73b8b3d3c3aa3f491389de1",
+    "src/career_agent/storage/resume_artifacts.py": "1d4ba10262cd29d6331f8ac4d33af62e4249f5dbe8af5204a071a13777f18e66",
+    "src/career_agent/storage/resume_job_matches.py": "d287f11bea6db21c4938b71df8088f83c36323d9483a9cc282948f0ba3805390",
+    "src/career_agent/storage/resume_tailoring.py": "2b07ee80709ac0774796828cd9840a808cdc1f08af4fd1342857e52501967e18",
+    "src/career_agent/storage/resumes.py": "ee7ff7c2111bb33bab8e27f42b43d6a493a8373a8d8f96a39c31fbb15ec260c7",
+    "src/career_agent/storage/run_events.py": "74366c79a8df82f7ffe54d9d069a08c45f3c26569725e98db6b3699c9859c6a7",
+    "src/career_agent/storage/schema.py": "659052fa6b3b3d28e657e131e3c689cf8b25506a7f314c298cf0d3045c43e1d7",
+    "src/career_agent/storage/turn_receipts.py": "7ef219314f382b159aace5e4138930be653b52fb8c8e283dd075aeee8f0bcad1",
+    "src/career_agent/storage/working_notes.py": "15c784b444c4b1ca20fd59f83ed771057f1c29af3763e9b0e79c44017ceb73c6",
+    "evals/catalog_search/model_queries.json": "dca9a3dae15fdcdefa1df50d1d4e38052ab0072ff1c02cfebf0b00d60f85a621",
+    "evals/catalog_search/model_query_semantic_scores.json": "a94aa9e5cf852532b55176235d79cec24ccf40453a737db1867a899a0d37e17f",
+    "evals/capability_semantic_scores.json": "8bd7052017c6021e73a96ded1e044e8ecbeeb4ff98462639b66b8d6e9b7580f8"
+  },
+  "split": "dev",
+  "current": {
+    "model_query_lexical": {
+      "recall": {
+        "1": [
+          7,
+          14
+        ],
+        "3": [
+          10,
+          14
+        ],
+        "5": [
+          12,
+          14
+        ]
+      },
+      "demand_count": 14,
+      "failed_case_count": 2,
+      "write_offer_count": 37,
+      "propose_offer_count": 2,
+      "non_write_query_action_offer_count": 25,
+      "non_target_write_offer_count": 9,
+      "missing": {
+        "查看我的简历": [
+          "list_resumes"
+        ],
+        "帮我看看我的经历": [
+          "search_career_memory"
+        ]
+      }
+    },
+    "model_query_hybrid": {
+      "recall": {
+        "1": [
+          6,
+          14
+        ],
+        "3": [
+          12,
+          14
+        ],
+        "5": [
+          14,
+          14
+        ]
+      },
+      "demand_count": 14,
+      "failed_case_count": 0,
+      "write_offer_count": 36,
+      "propose_offer_count": 2,
+      "non_write_query_action_offer_count": 22,
+      "non_target_write_offer_count": 9,
+      "missing": {}
+    },
+    "user_sentence_lexical": {
+      "recall": {
+        "1": [
+          17,
+          43
+        ],
+        "3": [
+          27,
+          43
+        ],
+        "5": [
+          34,
+          43
+        ]
+      },
+      "demand_count": 43,
+      "failed_case_count": 9,
+      "write_offer_count": 120,
+      "propose_offer_count": 6,
+      "non_write_query_action_offer_count": 65,
+      "non_target_write_offer_count": 43,
+      "missing": {
+        "简历先看到这里，接着准备当前这轮面试。": [
+          "prepare_interview"
+        ],
+        "给当前这轮面试准备日历同步预览。": [
+          "get_interview"
+        ],
+        "先比较岗位与简历，再按结果定制简历。": [
+          "match_resume_to_job"
+        ],
+        "帮我点评一下这份简历，看看哪里写得不好、应该怎么改。": [
+          "load_skill"
+        ],
+        "我很早前说的那家目标公司叫什么？": [
+          "read_conversation_span"
+        ],
+        "我现在只看上海的岗位，记一下。": [
+          "propose_job_intent"
+        ],
+        "先让我看看这轮面试会怎么加进日历。": [
+          "prepare_interview_calendar_sync"
+        ],
+        "刚才列出的增长项目那条经历，具体记了什么？": [
+          "get_career_memory_detail"
+        ],
+        "我那段经历是做增长分析的，帮我记下来。": [
+          "propose_career_fact"
+        ]
+      }
+    },
+    "user_sentence_hybrid": {
+      "recall": {
+        "1": [
+          21,
+          43
+        ],
+        "3": [
+          29,
+          43
+        ],
+        "5": [
+          34,
+          43
+        ]
+      },
+      "demand_count": 43,
+      "failed_case_count": 9,
+      "write_offer_count": 116,
+      "propose_offer_count": 6,
+      "non_write_query_action_offer_count": 66,
+      "non_target_write_offer_count": 39,
+      "missing": {
+        "先比较岗位与简历，再按结果定制简历。": [
+          "match_resume_to_job"
+        ],
+        "帮我点评一下这份简历，看看哪里写得不好、应该怎么改。": [
+          "load_skill"
+        ],
+        "我很早前说的那家目标公司叫什么？": [
+          "read_conversation_span"
+        ],
+        "我现在只看上海的岗位，记一下。": [
+          "propose_job_intent"
+        ],
+        "刚才列出的增长项目那条经历，具体记了什么？": [
+          "get_career_memory_detail"
+        ],
+        "我那段经历是做增长分析的，帮我记下来。": [
+          "propose_career_fact"
+        ],
+        "刚改好的简历导出一份，然后帮我准备明天那场面试。": [
+          "export_resume_artifact"
+        ],
+        "这条申请我看看；那封招聘邮件也帮我对上。": [
+          "get_application"
+        ],
+        "找出我存的那条甲公司岗位，拆一下要求，再看刚才的简历匹不匹配，合适的话改一版。": [
+          "find_saved_jobs"
+        ]
+      }
+    },
+    "runtime_selection": {
+      "covered_steps": [
+        53,
+        62
+      ],
+      "unrequested_write_offer_count": 27,
+      "unreachable_offer_count": 0,
+      "waiting_reoffer_count": 0,
+      "schema_tokens_proxy_total": 100912
+    }
+  },
+  "baseline": {
+    "model_query_lexical": {
+      "recall": {
+        "1": [
+          9,
+          14
+        ],
+        "3": [
+          10,
+          14
+        ],
+        "5": [
+          12,
+          14
+        ]
+      },
+      "demand_count": 14,
+      "failed_case_count": 2,
+      "write_offer_count": 35,
+      "propose_offer_count": 1,
+      "non_write_query_action_offer_count": 20,
+      "non_target_write_offer_count": 11,
+      "missing": {
+        "查看我的简历": [
+          "list_resumes"
+        ],
+        "帮我看看我的经历": [
+          "search_career_memory"
+        ]
+      }
+    },
+    "model_query_hybrid": {
+      "recall": {
+        "1": [
+          10,
+          14
+        ],
+        "3": [
+          11,
+          14
+        ],
+        "5": [
+          14,
+          14
+        ]
+      },
+      "demand_count": 14,
+      "failed_case_count": 0,
+      "write_offer_count": 33,
+      "propose_offer_count": 3,
+      "non_write_query_action_offer_count": 21,
+      "non_target_write_offer_count": 8,
+      "missing": {}
+    },
+    "user_sentence_lexical": {
+      "recall": {
+        "1": [
+          26,
+          43
+        ],
+        "3": [
+          31,
+          43
+        ],
+        "5": [
+          37,
+          43
+        ]
+      },
+      "demand_count": 43,
+      "failed_case_count": 6,
+      "write_offer_count": 125,
+      "propose_offer_count": 7,
+      "non_write_query_action_offer_count": 70,
+      "non_target_write_offer_count": 43,
+      "missing": {
+        "给当前这轮面试准备日历同步预览。": [
+          "get_interview"
+        ],
+        "先比较岗位与简历，再按结果定制简历。": [
+          "match_resume_to_job"
+        ],
+        "帮我点评一下这份简历，看看哪里写得不好、应该怎么改。": [
+          "load_skill"
+        ],
+        "我有哪几版简历？": [
+          "list_resumes"
+        ],
+        "刚才列出的增长项目那条经历，具体记了什么？": [
+          "get_career_memory_detail"
+        ],
+        "我那段经历是做增长分析的，帮我记下来。": [
+          "propose_career_fact"
+        ]
+      }
+    },
+    "user_sentence_hybrid": {
+      "recall": {
+        "1": [
+          23,
+          43
+        ],
+        "3": [
+          31,
+          43
+        ],
+        "5": [
+          36,
+          43
+        ]
+      },
+      "demand_count": 43,
+      "failed_case_count": 7,
+      "write_offer_count": 116,
+      "propose_offer_count": 6,
+      "non_write_query_action_offer_count": 69,
+      "non_target_write_offer_count": 36,
+      "missing": {
+        "先比较岗位与简历，再按结果定制简历。": [
+          "match_resume_to_job"
+        ],
+        "帮我点评一下这份简历，看看哪里写得不好、应该怎么改。": [
+          "load_skill"
+        ],
+        "刚才列出的增长项目那条经历，具体记了什么？": [
+          "get_career_memory_detail"
+        ],
+        "我那段经历是做增长分析的，帮我记下来。": [
+          "propose_career_fact"
+        ],
+        "刚改好的简历导出一份，然后帮我准备明天那场面试。": [
+          "export_resume_artifact"
+        ],
+        "这条申请我看看；那封招聘邮件也帮我对上。": [
+          "get_application"
+        ],
+        "找出我存的那条甲公司岗位，拆一下要求，再看刚才的简历匹不匹配，合适的话改一版。": [
+          "find_saved_jobs"
+        ]
+      }
+    },
+    "runtime_selection": {
+      "covered_steps": [
+        54,
+        62
+      ],
+      "unrequested_write_offer_count": 22,
+      "unreachable_offer_count": 0,
+      "waiting_reoffer_count": 0,
+      "schema_tokens_proxy_total": 99474
+    }
+  }
+}
