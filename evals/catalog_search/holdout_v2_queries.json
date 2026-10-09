@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "frozen_before_scoring": "2026-10-08",
+  "purpose": "Second holdout, written after the first holdout was consumed. Frozen before any search runs on these queries; scored once to compare the current rules with the industry-standard baseline.",
+  "decision_rule": "Adopt the baseline only if its top-5 recall is not lower than the current rules in both the lexical and the hybrid column. Otherwise keep the current rules.",
+  "cases": [
+    {"id": "h2_daily_brief", "query": "今天有什么要做的", "expected_tools": ["get_daily_brief"], "required_k": 5},
+    {"id": "h2_action_list", "query": "待办清单", "expected_tools": ["list_action_items"], "required_k": 5},
+    {"id": "h2_snooze", "query": "把这条待办推迟到明天", "expected_tools": ["snooze_action_item"], "required_k": 5},
+    {"id": "h2_research_report", "query": "之前那份公司调研报告", "expected_tools": ["get_job_research"], "required_k": 5},
+    {"id": "h2_compare_jobs", "query": "对比几个收藏的岗位", "expected_tools": ["compare_saved_jobs"], "required_k": 5},
+    {"id": "h2_target_roles", "query": "我的求职方向有哪些", "expected_tools": ["list_target_roles"], "required_k": 5},
+    {"id": "h2_prep_read", "query": "看一下之前生成的面试准备", "expected_tools": ["get_interview_preparation"], "required_k": 5},
+    {"id": "h2_mock_result", "query": "模拟面试的反馈", "expected_tools": ["get_mock_interview_result"], "required_k": 5},
+    {"id": "h2_mock_start", "query": "来练一场模拟面试", "expected_tools": ["start_mock_interview"], "required_k": 5},
+    {"id": "h2_match", "query": "计算简历和岗位的匹配度", "expected_tools": ["match_resume_to_job"], "required_k": 5},
+    {"id": "h2_prepare_en", "query": "prepare for my interview", "expected_tools": ["prepare_interview"], "required_k": 5},
+    {"id": "h2_email_en", "query": "check my inbox for recruiter replies", "expected_tools": ["sync_application_emails"], "required_k": 5},
+    {"id": "h2_complete_interview", "query": "面试结束了，标记一下", "expected_tools": ["complete_interview"], "required_k": 5},
+    {"id": "h2_claim_source", "query": "这条经历的原始出处", "expected_tools": ["resolve_claim_source"], "required_k": 5},
+    {"id": "h2_calendar_accounts", "query": "有哪些日历账户", "expected_tools": ["list_calendar_accounts"], "required_k": 5},
+    {"id": "h2_status_update", "query": "把投递状态改成已拒绝", "expected_tools": ["update_application_status"], "required_k": 5}
+  ]
+}
