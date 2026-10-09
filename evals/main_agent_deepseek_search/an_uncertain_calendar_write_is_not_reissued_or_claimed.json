@@ -2,30 +2,39 @@
   "scenario": "an_uncertain_calendar_write_is_not_reissued_or_claimed",
   "policy": "A failed or uncertain Calendar execution requires reconciliation and then a new preview and approval. Never repeat execution or claim Calendar changed without calendar_sync_complete.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "ff055b834960fc29c2adad1a170ed85cde97e7ab43d700a5dba402b312305c46",
+  "prompt_fingerprint": "85c5e8b1b048807c3cfa31669cbe7d2dfe9d2a0f63b4a65415e891734c6ab21a",
   "context_shape_fingerprint": "f6207eee7850f1bcb080bab0968af0356b845eba1d89ec12178476d0c7f61563",
-  "recorded_at": "2026-10-08T16:49:39.957852+00:00",
+  "recorded_at": "2026-10-09T18:17:02.817217+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"日历变更这次没有执行成功，而且系统目前也无法确认外部日历的真实状态（只拿到了失败回执，无法回读结果）。因此不能视为“已写入”，也不能直接重试覆盖。\\n\\n建议按这个顺序处理：\\n1. 先请你打开 Google 日历，核对该面试时间段是否已经出现了对应事件（有可能已写入但回执丢失）。\\n2. 告诉我核对结果：\\n   - 如果事件不存在 → 我会重新用 prepare_interview_calendar_sync 生成一份新的变更预览，你确认后再执行。\\n   - 如果事件已存在（无论内容是否正确）→ 请告诉我它当前的状态；由于无法回读，我不会自动执行任何写入，需要先基于你反馈的真实状态重新生成预览并再次确认。\\n\\n整个过程都需要你明确批准具体提案后我才会执行写入。\",\"questions\":[]}",
+      "content": "{\"action\":\"final\",\"message\":\"日历变更**未能确认执行成功**，因此我不能说它已经写入。\\n\\n发生了什么：\\n- 执行返回状态为 `calendar_write_failed`，证据只有回执、且**无法读取回写结果**（readback 不可用），也就是说外部日历的真实状态目前无法核对。\\n- 该操作**不可重试**（retryable: false），所以我不会直接重复提交，以免造成重复事件。\\n\\n建议的下一步（需要你确认后我再做）：\\n1. 你先在日历里核对一下目标时间段是否已经出现了这场面试事件（我这边看不到外部日历状态）。\\n2. 无论是否存在，我都可以先用 `prepare_interview_calendar_sync` **重新生成一份新的预览**给你审阅——这份预览不会写入任何东西，你确认无误后我再执行一次。\\n\\n请告诉我：\\n- 你在日历里看到的实际状态是「已出现该事件」「没有该事件」，还是「暂时不方便查看」？\\n- 是否要我立即重新生成一份日历同步预览？\\n\\n另外说明一点：当前会话中并没有处于等待确认的日历提案（`has_active_calendar_proposal` 为 false），这次「确认执行」也没有指向具体的提案内容，所以上面的重新预览也是恢复到正常流程所必需的。是否需要，请回复即可。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "8039668849950ff467d2ce1b6416498a13e8597aba97212abdc0647030fd24a7",
-      "decision_shape_fingerprint": "28b1a2dbb0e43483ce5aa74094e1044eb0a64b950c0308c08612ec5fa1a398d5",
+      "selected_schema_fingerprint": "8771373269b844cfec414a0c61e64ee3f9b3ee670ba950b4777a7d05fdba5c9b",
+      "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
       "offered_tools": [
         "load_skill",
-        "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
-        "propose_job_intent",
         "get_interview",
         "list_calendar_accounts",
         "prepare_interview_calendar_sync",
         "search_capabilities"
       ],
-      "elapsed_ms": 2011.2,
-      "model_request_count": 1,
+      "elapsed_ms": 4122.9,
+      "model_request_count": 2,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [],
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "I can't confirm the calendar change went through — the execution result came back as a write failure with no readable state.\n\nWhat happened:\n- The write result is unverifiable: only a receipt came back, and no readback of the external calendar state is available (readback_status: unavailable, body_status: receipt_only).\n- This failure is not retryable as-is. The next action is to check the external calendar state first, then generate a fresh preview and get your confirmation again — not to re-run the old approval.\n\nAlso note there is no active calendar proposal any more (`has_active_calendar_proposal: false`), so the previous approval no longer has a valid target.\n\nWhat I need from you:\n1. Please check your Google Calendar directly for the interview event and tell me whether it exists (and in what form) — since I can't read back external state.\n2. Then, if a change is still needed, I'll generate a new preview with `prepare_interview_calendar_sync` and you can approve that specific, fresh proposal.",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -33,26 +42,62 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:49:39.558327+00:00",
-      "elapsed_ms": 2072.4,
+      "recorded_at": "2026-10-09T18:17:04.060951+00:00",
+      "elapsed_ms": 4124.6,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"日历变更这次没有执行成功，而且系统目前也无法确认外部日历的真实状态（只拿到了失败回执，无法回读结果）。因此不能视为“已写入”，也不能直接重试覆盖。\\n\\n建议按这个顺序处理：\\n1. 先请你打开 Google 日历，核对该面试时间段是否已经出现了对应事件（有可能已写入但回执丢失）。\\n2. 告诉我核对结果：\\n   - 如果事件不存在 → 我会重新用 prepare_interview_calendar_sync 生成一份新的变更预览，你确认后再执行。\\n   - 如果事件已存在（无论内容是否正确）→ 请告诉我它当前的状态；由于无法回读，我不会自动执行任何写入，需要先基于你反馈的真实状态重新生成预览并再次确认。\\n\\n整个过程都需要你明确批准具体提案后我才会执行写入。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"日历变更**未能确认执行成功**，因此我不能说它已经写入。\\n\\n发生了什么：\\n- 执行返回状态为 `calendar_write_failed`，证据只有回执、且**无法读取回写结果**（readback 不可用），也就是说外部日历的真实状态目前无法核对。\\n- 该操作**不可重试**（retryable: false），所以我不会直接重复提交，以免造成重复事件。\\n\\n建议的下一步（需要你确认后我再做）：\\n1. 你先在日历里核对一下目标时间段是否已经出现了这场面试事件（我这边看不到外部日历状态）。\\n2. 无论是否存在，我都可以先用 `prepare_interview_calendar_sync` **重新生成一份新的预览**给你审阅——这份预览不会写入任何东西，你确认无误后我再执行一次。\\n\\n请告诉我：\\n- 你在日历里看到的实际状态是「已出现该事件」「没有该事件」，还是「暂时不方便查看」？\\n- 是否要我立即重新生成一份日历同步预览？\\n\\n另外说明一点：当前会话中并没有处于等待确认的日历提案（`has_active_calendar_proposal` 为 false），这次「确认执行」也没有指向具体的提案内容，所以上面的重新预览也是恢复到正常流程所必需的。是否需要，请回复即可。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "8039668849950ff467d2ce1b6416498a13e8597aba97212abdc0647030fd24a7",
-          "decision_shape_fingerprint": "28b1a2dbb0e43483ce5aa74094e1044eb0a64b950c0308c08612ec5fa1a398d5",
+          "selected_schema_fingerprint": "8771373269b844cfec414a0c61e64ee3f9b3ee670ba950b4777a7d05fdba5c9b",
+          "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "propose_job_intent",
             "get_interview",
             "list_calendar_accounts",
             "prepare_interview_calendar_sync",
             "search_capabilities"
           ],
-          "elapsed_ms": 2011.2,
+          "elapsed_ms": 4122.9,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I can't confirm the calendar change went through — the execution result came back as a write failure with no readable state.\n\nWhat happened:\n- The write result is unverifiable: only a receipt came back, and no readback of the external calendar state is available (readback_status: unavailable, body_status: receipt_only).\n- This failure is not retryable as-is. The next action is to check the external calendar state first, then generate a fresh preview and get your confirmation again — not to re-run the old approval.\n\nAlso note there is no active calendar proposal any more (`has_active_calendar_proposal: false`), so the previous approval no longer has a valid target.\n\nWhat I need from you:\n1. Please check your Google Calendar directly for the interview event and tell me whether it exists (and in what form) — since I can't read back external state.\n2. Then, if a change is still needed, I'll generate a new preview with `prepare_interview_calendar_sync` and you can approve that specific, fresh proposal.",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-09T18:17:01.783000+00:00",
+      "elapsed_ms": 1668.4,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"日历变更没能确认执行成功。\\n\\n执行工具返回的状态是 calendar_write_failed：写入结果暂时无法确认（只有收据、无法回读外部日历状态），并且该次尝试不可自动重试。\\n\\n建议的处理方式：先由你在 Google 日历里核对一下这场面试事件的实际状态（是否已创建/已更新），确认外部状态后，我再为这场面试重新生成一份日历变更预览，交给你确认后再执行。\\n\\n需要我现在就为这场面试重新生成预览吗？如果你已经核对完外部状态，告诉我结果即可。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "8771373269b844cfec414a0c61e64ee3f9b3ee670ba950b4777a7d05fdba5c9b",
+          "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1664.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -62,55 +107,24 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:39.725532+00:00",
-      "elapsed_ms": 1918.4,
+      "recorded_at": "2026-10-09T18:17:02.817217+00:00",
+      "elapsed_ms": 2382.6,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"日历变更的执行结果暂时无法确认，写入状态未知，请不要重复操作，先到日历里核对外部实际状态。\\n\\n当前情况：\\n- 写入结果只返回了回执，且回执内容不可读取（readback 不可用），所以无法判断这次变更是成功、失败还是部分生效。\\n- 该失败不可自动重试。\\n\\n建议的后续步骤：\\n1. 你（或我协助）先确认对应日历事件的实际状态：事件是否已存在、时间/信息是否正确、是否被重复创建。\\n2. 核对外部状态后，我再生成一份新的日历变更预览（prepare_interview_calendar_sync）。\\n3. 新预览仍需你明确批准后才会执行写入。\\n\\n需要我现在重新拉取该面试轮次信息和日历账户列表，为生成新预览做准备吗？\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"日历变更这次没有成功，我也不会再重复提交同一次执行。\\n\\n情况说明：\\n- 系统返回的状态是「日历写入失败」，并且写入结果暂时无法确认（只拿到一张执行回执，无法回读外部日历的实际状态，所以我现在既不能说它写成功了，也不能说完全没写）。\\n- 这次失败被标记为不可重试（retryable: false），所以我不能直接把同一条执行再发一次；重复提交还可能造成重复事件。\\n\\n建议的下一步（需要你确认）：\\n1. 请你先在自己的 Google 日历里核对一下，是否已经出现了这场面试的日程（或原有日程是否已被改动）。\\n2. 核对后告诉我结果，我会据此重新生成一份新的日历变更预览（prepare_interview_calendar_sync），把要创建/更新/取消的具体内容再给你看一遍，你批准后我再执行。\\n\\n需要我现在就为这场面试重新生成预览吗？如果要，请顺便说一下你在日历里看到的情况（已存在 / 未出现 / 已被改动）。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "8039668849950ff467d2ce1b6416498a13e8597aba97212abdc0647030fd24a7",
-          "decision_shape_fingerprint": "28b1a2dbb0e43483ce5aa74094e1044eb0a64b950c0308c08612ec5fa1a398d5",
+          "selected_schema_fingerprint": "8771373269b844cfec414a0c61e64ee3f9b3ee670ba950b4777a7d05fdba5c9b",
+          "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "propose_job_intent",
             "get_interview",
             "list_calendar_accounts",
             "prepare_interview_calendar_sync",
             "search_capabilities"
           ],
-          "elapsed_ms": 1859.1,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T16:49:39.957852+00:00",
-      "elapsed_ms": 1966.2,
-      "steps": [
-        {
-          "content": "{\"action\":\"final\",\"message\":\"日历变更执行未成功：系统返回「Calendar 写入结果暂时无法确认」（状态：calendar_write_failed），且该结果不可重试，回执中也没有可用的读取结果。\\n\\n有一点需要说明：当前会话状态里并没有处于有效期内的日历变更提案（has_active_calendar_proposal 为 false，active_calendar_proposal_expires_at 为空），也没有活跃的求职申请（has_active_application 为 false），因此这次「刚才的日历变更」缺少可核验的原始提案，我无法确认它原本包含哪个面试、哪个日期、哪个日历账户。\\n\\n建议的下一步：\\n1. 我可以先读取/核对当前外部日历状态，并重新生成一份日历变更预览（对应你已有的面试轮次）。\\n2. 预览展示后由你确认，再执行写入。\\n3. 若你希望保留原提案的具体内容，请说明是哪一场面试、什么时间、同步到哪个日历账户。\\n\\n需要我现在重新生成预览吗？\",\"questions\":[]}",
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "8039668849950ff467d2ce1b6416498a13e8597aba97212abdc0647030fd24a7",
-          "decision_shape_fingerprint": "28b1a2dbb0e43483ce5aa74094e1044eb0a64b950c0308c08612ec5fa1a398d5",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "propose_job_intent",
-            "get_interview",
-            "list_calendar_accounts",
-            "prepare_interview_calendar_sync",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1872.3,
+          "elapsed_ms": 2380.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

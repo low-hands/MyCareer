@@ -2,18 +2,17 @@
   "scenario": "saved_jd_body_without_language_requirement_finishes",
   "policy": "A bounded observation body is approved presenter text from the read result. When the user's condition is absent from that body, finish instead of following the usual read-to-match route.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7",
+  "prompt_fingerprint": "63aedcc812e4259976611ee9a7da7414c1d3e1e7cc0abb0a10f4041d8b024e9b",
   "context_shape_fingerprint": "b8eacbd0ce7337fadac7ae52ea8ca5ce5ffa80e63820daabc9c782cf4c58a4d1",
-  "recorded_at": "2026-10-08T16:49:36.242469+00:00",
+  "recorded_at": "2026-10-09T18:16:57.883691+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"JD 中没有明确要求 Rust。\\n\\n已读取的算法工程师（示例科技）JD 要求为“具备分布式系统设计和生产环境异步服务经验”，未出现 Rust。按你的条件，匹配到此为止，不继续做简历匹配。\\n\\n如果之后你想基于其他要求（比如分布式系统/异步服务经验）继续匹配简历，告诉我即可。\",\"questions\":[]}",
+      "content": "{\"action\":\"final\",\"message\":\"我读取了当前在焦岗位的 JD（示例科技 · 算法工程师 · 上海 · 30-50K）。从这段可见的 JD 文本来看，它只提到\\\"具备分布式系统设计和生产环境异步服务经验\\\"，**没有出现 Rust 要求**（也没有任何其他编程语言的明确要求）。\\n\\n需要说明一点证据局限：这次读取返回的是 JD 摘录（excerpt），且标记为不可回读（readback unavailable），所以我不能保证这就是 JD 全文。也就是说，我无法百分百排除 JD 其余部分提到 Rust 的可能——只是在目前可取到的文本里，Rust 没有被明确要求。\\n\\n按你给的条件（\\\"没有明确要求就到这里\\\"），我就停在这里，不继续做简历匹配。\\n\\n如果你希望：\\n- 让我按现有 JD 内容继续分析岗位要求，或\\n- 你手上有完整 JD 原文（例如粘贴过来），我可以再核对是否出现 Rust，然后决定要不要匹配简历。\\n\\n请告诉我下一步怎么走。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "36de4e1d45acf4cebb8b27ed17557bbeff0f2fd69de2cd0760b07554a4eb8013",
+      "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
       "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
       "offered_tools": [
         "load_skill",
-        "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
         "get_saved_job",
@@ -21,7 +20,7 @@
         "create_interview",
         "search_capabilities"
       ],
-      "elapsed_ms": 1338.5,
+      "elapsed_ms": 2559.7,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -32,17 +31,16 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:49:34.703815+00:00",
-      "elapsed_ms": 1414.1,
+      "recorded_at": "2026-10-09T18:16:58.494032+00:00",
+      "elapsed_ms": 2561.7,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"JD 中没有明确要求 Rust。\\n\\n已读取的算法工程师（示例科技）JD 要求为“具备分布式系统设计和生产环境异步服务经验”，未出现 Rust。按你的条件，匹配到此为止，不继续做简历匹配。\\n\\n如果之后你想基于其他要求（比如分布式系统/异步服务经验）继续匹配简历，告诉我即可。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"我读取了当前在焦岗位的 JD（示例科技 · 算法工程师 · 上海 · 30-50K）。从这段可见的 JD 文本来看，它只提到\\\"具备分布式系统设计和生产环境异步服务经验\\\"，**没有出现 Rust 要求**（也没有任何其他编程语言的明确要求）。\\n\\n需要说明一点证据局限：这次读取返回的是 JD 摘录（excerpt），且标记为不可回读（readback unavailable），所以我不能保证这就是 JD 全文。也就是说，我无法百分百排除 JD 其余部分提到 Rust 的可能——只是在目前可取到的文本里，Rust 没有被明确要求。\\n\\n按你给的条件（\\\"没有明确要求就到这里\\\"），我就停在这里，不继续做简历匹配。\\n\\n如果你希望：\\n- 让我按现有 JD 内容继续分析岗位要求，或\\n- 你手上有完整 JD 原文（例如粘贴过来），我可以再核对是否出现 Rust，然后决定要不要匹配简历。\\n\\n请告诉我下一步怎么走。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "36de4e1d45acf4cebb8b27ed17557bbeff0f2fd69de2cd0760b07554a4eb8013",
+          "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
           "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_saved_job",
@@ -50,7 +48,7 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 1338.5,
+          "elapsed_ms": 2559.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -60,17 +58,16 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:35.752144+00:00",
-      "elapsed_ms": 2338.4,
+      "recorded_at": "2026-10-09T18:16:58.199325+00:00",
+      "elapsed_ms": 2081.4,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"已停止在这一步：该岗位（示例科技 · 算法工程师）的 JD 中**没有明确要求 Rust**。\\n\\nJD 原文（可见片段）：「岗位要求：具备分布式系统设计和生产环境异步服务经验。」——只提到分布式系统设计与生产环境异步服务经验，未出现 Rust 字样。\\n\\n需要说明的是，这次读取返回的是**节选（excerpt）且无法回读全文**，因此我无法百分百保证 JD 剩余部分绝对不含 Rust；但在可见证据范围内没有明确要求，按你的条件不继续做简历匹配。\\n\\n如果你希望我仍继续简历匹配（或想先让我基于现有 JD 做岗位分析），告诉我一声即可；也可以把完整的 JD 文本发给我，我据此再确认一次。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"我读取了当前岗位（示例科技 · 算法工程师）的 JD。可见的 JD 正文只有一句：\\n\\n> 「岗位要求：具备分布式系统设计和生产环境异步服务经验。」\\n\\n其中**没有明确提到 Rust**，所以按你的条件，就到这里，不再继续做简历匹配。\\n\\n另外说明一点：这次返回的 JD 内容是**摘要片段（excerpt）**，且不支持回读校验（readback unavailable），因此我无法保证这就是完整 JD 的全部要求。如果你手上有完整 JD 文本，可以粘贴或重新提供，我再确认是否会触发 Rust 条件。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "36de4e1d45acf4cebb8b27ed17557bbeff0f2fd69de2cd0760b07554a4eb8013",
+          "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
           "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_saved_job",
@@ -78,7 +75,7 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 2214.8,
+          "elapsed_ms": 2078.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -88,17 +85,16 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:36.242469+00:00",
-      "elapsed_ms": 2723.1,
+      "recorded_at": "2026-10-09T18:16:57.883691+00:00",
+      "elapsed_ms": 1622.3,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"我读取了当前在焦的岗位（示例科技 · 算法工程师）的 JD。返回的正文只有一句：“岗位要求：具备分布式系统设计和生产环境异步服务经验。” 其中**没有出现 “Rust”**（也没有明确的 Rust 要求）。\\n\\n因此按你的条件，就到这里，不继续做简历匹配。\\n\\n需要说明一点：这次 JD 正文状态是 excerpt（节选）、readback_status 为 unavailable，也就是说返回给我的并不是可完整核对的全文。我给出的是“在我可见到的 JD 文本中没有明确要求 Rust”，并不能百分之百保证 JD 原文其他部分没有提到 Rust。如果你希望在这个前提上更确定，可以：\\n- 让我重新拉取一次该岗位的完整 JD（若系统可提供全文），或\\n- 由你把 JD 里相关段落贴给我。\\n\\n另外提醒一下：即便之后确认要求 Rust，要进入简历匹配也还需要先完成该岗位的 JD 分析，并同时选定一个岗位和一个简历版本；目前这两项都还没有就绪。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"我读取的这份完整 JD 内容如下：\\n\\n> 岗位要求：具备分布式系统设计和生产环境异步服务经验。\\n\\n其中**没有明确要求 Rust**，因此按你的条件就此停止，不继续做简历匹配。\\n\\n说明一下：本次 JD 只返回了一段摘录（body_status=excerpt，且 readback_status=unavailable），我无法证明我看到的文字是 JD 全文；如你确信该 JD 里写了 Rust，可以核对后告诉我，我再继续匹配。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "36de4e1d45acf4cebb8b27ed17557bbeff0f2fd69de2cd0760b07554a4eb8013",
+          "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
           "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_saved_job",
@@ -106,7 +102,7 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 2549.0,
+          "elapsed_ms": 1618.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

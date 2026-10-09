@@ -382,6 +382,8 @@ cd browser-extension && node --test tests/*.test.cjs
 
 后端 API 契约有变化时，运行 `uv run python -m career_agent.api.public_contract` 重新生成 `web/src/contracts/api-contract.ts`。
 
+模型评估的录制、离线回放、多步任务、跨轮续接、欠行动、提示词注入和 pass^k 运行说明见 [Runtime 质量评估](evals/runtime_quality/README.md)。单元测试通过与模型质量达标分别报告。
+
 ## 许可证
 
 [MIT](LICENSE) © 2026 Rui Guo

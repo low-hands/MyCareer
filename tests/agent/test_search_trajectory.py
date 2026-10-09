@@ -283,7 +283,7 @@ def test_failed_search_batch_preserves_other_samples_with_raw_retries(monkeypatc
                 {"reason": "invalid_tool_arguments", "raw_output": {"content": "original"}}
             ]}
             raise error
-        return {"steps": [{"decision_retry_events": [
+        return {"recorded_at": "2026-10-09T00:00:00+00:00", "steps": [{"decision_retry_events": [
             {"reason": "text_rejected", "raw_output": {"content": f"original-{number}"}}
         ]}]}
 
@@ -305,4 +305,10 @@ def test_failed_search_batch_preserves_other_samples_with_raw_retries(monkeypatc
     assert all(item["recording"]["steps"][0]["decision_retry_events"][0][
         "raw_output"
     ]["content"].startswith("original-") for item in raised.value.partial_recordings)
-    assert not list(tmp_path.glob("*.json"))
+    from career_agent.evaluation.trajectory import load_cassette
+    cassette = load_cassette(scenario.name, root=tmp_path)
+    assert cassette.sample_count == 3
+    failures = [replay_search_sample(scenario, tool_specs=(), responses=sample)
+                for sample in cassette.recordings if any(item.get("recording_error") for item in sample)]
+    assert len(failures) == 1
+    assert "MAIN_AGENT_INVALID_TOOL_ARGUMENTS" in failures[0][0]

@@ -2,26 +2,26 @@
   "scenario": "a_returned_span_body_is_used_not_the_window_decoy",
   "policy": "A read result whose receipt condenses a larger presenter output may also include body: the bounded text rendered from the same source shown to the user. You may reason from body when it is present. Ground the reply only in message, facts and body.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+  "prompt_fingerprint": "dd7fb7e01655a1a2130a2f6acf060ba3af19850ec09975d4bf41497e2d4226b8",
   "context_shape_fingerprint": "4235b6b7d98c26deaff8bc3972fdf661880a247129528496869ac5705396be50",
-  "recorded_at": "2026-10-08T16:50:01.942632+00:00",
+  "recorded_at": "2026-10-09T18:17:49.437221+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}",
+      "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 Pinnacle Robotics。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "48de561ddab7da15af691dd18e83f89706911779aa289f800a142b3c629b6d09",
-      "decision_shape_fingerprint": "776ffafca8aa41b59c7bbfea18cd9cd06ec0be8adfdca2d9b2a3de3ebc1607a3",
+      "selected_schema_fingerprint": "91b5b4c3b4075fd2150d74dd0b77201f8147f2fed1ae225e39f542c8c27a9c4a",
+      "decision_shape_fingerprint": "72fa78d3d9da31577cd5f7eaea3aee077fde87ea2956071d61e7888cc3e5b721",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
-        "get_daily_brief",
-        "get_job_research",
         "list_target_roles",
+        "propose_job_intent",
+        "start_mock_interview",
         "search_capabilities"
       ],
-      "elapsed_ms": 7623.0,
+      "elapsed_ms": 5978.8,
       "model_request_count": 3,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [
@@ -53,25 +53,25 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:49:59.731874+00:00",
-      "elapsed_ms": 7710.7,
+      "recorded_at": "2026-10-09T18:17:47.820336+00:00",
+      "elapsed_ms": 5982.3,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 Pinnacle Robotics。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "48de561ddab7da15af691dd18e83f89706911779aa289f800a142b3c629b6d09",
-          "decision_shape_fingerprint": "776ffafca8aa41b59c7bbfea18cd9cd06ec0be8adfdca2d9b2a3de3ebc1607a3",
+          "selected_schema_fingerprint": "91b5b4c3b4075fd2150d74dd0b77201f8147f2fed1ae225e39f542c8c27a9c4a",
+          "decision_shape_fingerprint": "72fa78d3d9da31577cd5f7eaea3aee077fde87ea2956071d61e7888cc3e5b721",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "get_daily_brief",
-            "get_job_research",
             "list_target_roles",
+            "propose_job_intent",
+            "start_mock_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 7623.0,
+          "elapsed_ms": 5978.8,
           "model_request_count": 3,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -102,25 +102,25 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:59.397457+00:00",
-      "elapsed_ms": 7253.8,
+      "recorded_at": "2026-10-09T18:17:47.625172+00:00",
+      "elapsed_ms": 5481.5,
       "steps": [
         {
           "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "48de561ddab7da15af691dd18e83f89706911779aa289f800a142b3c629b6d09",
-          "decision_shape_fingerprint": "776ffafca8aa41b59c7bbfea18cd9cd06ec0be8adfdca2d9b2a3de3ebc1607a3",
+          "selected_schema_fingerprint": "91b5b4c3b4075fd2150d74dd0b77201f8147f2fed1ae225e39f542c8c27a9c4a",
+          "decision_shape_fingerprint": "72fa78d3d9da31577cd5f7eaea3aee077fde87ea2956071d61e7888cc3e5b721",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "get_daily_brief",
-            "get_job_research",
             "list_target_roles",
+            "propose_job_intent",
+            "start_mock_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 7158.3,
+          "elapsed_ms": 5477.5,
           "model_request_count": 3,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -151,25 +151,25 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:50:01.942632+00:00",
-      "elapsed_ms": 8142.0,
+      "recorded_at": "2026-10-09T18:17:49.437221+00:00",
+      "elapsed_ms": 5779.2,
       "steps": [
         {
           "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "48de561ddab7da15af691dd18e83f89706911779aa289f800a142b3c629b6d09",
-          "decision_shape_fingerprint": "776ffafca8aa41b59c7bbfea18cd9cd06ec0be8adfdca2d9b2a3de3ebc1607a3",
+          "selected_schema_fingerprint": "91b5b4c3b4075fd2150d74dd0b77201f8147f2fed1ae225e39f542c8c27a9c4a",
+          "decision_shape_fingerprint": "72fa78d3d9da31577cd5f7eaea3aee077fde87ea2956071d61e7888cc3e5b721",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "get_daily_brief",
-            "get_job_research",
             "list_target_roles",
+            "propose_job_intent",
+            "start_mock_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 8086.0,
+          "elapsed_ms": 5775.1,
           "model_request_count": 3,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [

@@ -211,6 +211,7 @@ _POLICIES.update(
             "calendar_sync_complete",
             "claim_source_not_found",
             "archived_constraints_ready",
+            "archived_constraints_not_applicable",
             "no_archived_constraints",
             "constraint_not_found",
             "constraint_retired",

@@ -2,23 +2,22 @@
   "scenario": "cached_research_routes_to_an_explicit_new_focus",
   "policy": "Use the approved cached fact to distinguish a reused report from new research. Run another research operation only when the user explicitly requests a distinct focus.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "794fee4ad3281301f3bda99142586d76ea9c5afa3e0ecfdbc8c119ff63416ba6",
+  "prompt_fingerprint": "2e74fcbda3e03a4317ee842c991d2bb5887add2d4d6e838d3646e8dc9da8f86b",
   "context_shape_fingerprint": "79745c4eefd48957d79891ae9379b18dd58a0000009376284292de1d03b6d148",
-  "recorded_at": "2026-10-08T16:49:36.685517+00:00",
+  "recorded_at": "2026-10-09T18:16:59.032631+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "research_job",
         "arguments": {
-          "focus": "竞争对手：主要竞争公司、竞品产品线与市场格局"
+          "focus": "竞争对手（竞争格局、主要对手公司、同类团队与业务线对比）"
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "ea331bc8e35f3896c9d021e4ed18e69cd00435dfc834cf3cfdc9d8a96d852e9e",
+      "selected_schema_fingerprint": "38b4e3a370102a785073f5921ffe39d35a4dbd847f9081392ec46cce96ed4a2c",
       "decision_shape_fingerprint": "6c5392768eb7eb6ea999441c409d293e2ab8f0dc909f19b932b1a4563b089a7f",
       "offered_tools": [
         "load_skill",
-        "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
         "get_saved_job",
@@ -28,7 +27,7 @@
         "get_mock_interview_result",
         "search_capabilities"
       ],
-      "elapsed_ms": 1287.4,
+      "elapsed_ms": 1339.2,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -39,22 +38,21 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:49:36.056249+00:00",
-      "elapsed_ms": 1344.8,
+      "recorded_at": "2026-10-09T18:16:58.745930+00:00",
+      "elapsed_ms": 1342.3,
       "steps": [
         {
           "tool_call": {
             "name": "research_job",
             "arguments": {
-              "focus": "竞争对手：主要竞争公司、竞品产品线与市场格局"
+              "focus": "竞争对手（竞争格局、主要对手公司、同类团队与业务线对比）"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "ea331bc8e35f3896c9d021e4ed18e69cd00435dfc834cf3cfdc9d8a96d852e9e",
+          "selected_schema_fingerprint": "38b4e3a370102a785073f5921ffe39d35a4dbd847f9081392ec46cce96ed4a2c",
           "decision_shape_fingerprint": "6c5392768eb7eb6ea999441c409d293e2ab8f0dc909f19b932b1a4563b089a7f",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_saved_job",
@@ -64,7 +62,7 @@
             "get_mock_interview_result",
             "search_capabilities"
           ],
-          "elapsed_ms": 1287.4,
+          "elapsed_ms": 1339.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -74,22 +72,19 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:36.380097+00:00",
-      "elapsed_ms": 1175.9,
+      "recorded_at": "2026-10-09T18:16:58.903378+00:00",
+      "elapsed_ms": 1017.6,
       "steps": [
         {
           "tool_call": {
-            "name": "research_job",
-            "arguments": {
-              "focus": "竞争对手（主要竞争公司、其产品与市场定位、与我方岗位所在业务的竞争关系）"
-            }
+            "name": "get_job_research",
+            "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "ea331bc8e35f3896c9d021e4ed18e69cd00435dfc834cf3cfdc9d8a96d852e9e",
+          "selected_schema_fingerprint": "38b4e3a370102a785073f5921ffe39d35a4dbd847f9081392ec46cce96ed4a2c",
           "decision_shape_fingerprint": "6c5392768eb7eb6ea999441c409d293e2ab8f0dc909f19b932b1a4563b089a7f",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_saved_job",
@@ -99,7 +94,7 @@
             "get_mock_interview_result",
             "search_capabilities"
           ],
-          "elapsed_ms": 1116.5,
+          "elapsed_ms": 1013.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -109,22 +104,21 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:36.685517+00:00",
-      "elapsed_ms": 1397.3,
+      "recorded_at": "2026-10-09T18:16:59.032631+00:00",
+      "elapsed_ms": 959.2,
       "steps": [
         {
           "tool_call": {
             "name": "research_job",
             "arguments": {
-              "focus": "竞争对手（主要竞争者、竞品公司及竞争格局）"
+              "focus": "竞争对手格局：主要竞争对手、竞品产品线、市场定位与差异化"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "ea331bc8e35f3896c9d021e4ed18e69cd00435dfc834cf3cfdc9d8a96d852e9e",
+          "selected_schema_fingerprint": "38b4e3a370102a785073f5921ffe39d35a4dbd847f9081392ec46cce96ed4a2c",
           "decision_shape_fingerprint": "6c5392768eb7eb6ea999441c409d293e2ab8f0dc909f19b932b1a4563b089a7f",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_saved_job",
@@ -134,7 +128,7 @@
             "get_mock_interview_result",
             "search_capabilities"
           ],
-          "elapsed_ms": 1230.8,
+          "elapsed_ms": 955.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

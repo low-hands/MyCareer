@@ -93,7 +93,7 @@ def load_model_query_scores(path: Path):
         raise ValueError("semantic score catalogue changed; re-record scores")
     if payload.get("fixture_sha256") != hashlib.sha256(FIXTURE.read_bytes()).hexdigest():
         raise ValueError("semantic score query fixture changed; re-record scores")
-    queries = {case["query"] for case in json.loads(FIXTURE.read_text())["cases"]}
+    queries = {case["query"] for case in json.loads(FIXTURE.read_text(encoding="utf-8"))["cases"]}
     if set(payload["scores"]) != queries:
         raise ValueError("semantic scores must cover all 26 frozen queries exactly")
     return RecordedCapabilityScores(payload["scores"])

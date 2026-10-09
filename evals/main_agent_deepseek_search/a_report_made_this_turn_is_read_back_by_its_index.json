@@ -2,9 +2,9 @@
   "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
   "policy": "A tool observation carrying a reference names the report that call produced. When the report you need is not the active one, read it back by that index; omitting the selector would silently return whichever report is active.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+  "prompt_fingerprint": "0b5c959ee1760538136222229325f8b35f0e081dd9d782ff9efa527b4bdb53c6",
   "context_shape_fingerprint": "2458e58fe0cd5d9272f77fae97c511a0bbecad0798cdc39a60a3cbe0e2728698",
-  "recorded_at": "2026-10-08T16:49:27.678906+00:00",
+  "recorded_at": "2026-10-09T18:16:51.311582+00:00",
   "steps": [
     {
       "tool_call": {
@@ -14,28 +14,42 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "3a5c76e227e9ba6af7513595458806e8bbbfbddc891b41266d7b06140137b78b",
-      "decision_shape_fingerprint": "1bbc32cf5d80e0a97a5d8ea6591f81536faac81c0cea8da73e648a6c9b79f6ef",
+      "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+      "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
       "offered_tools": [
         "load_skill",
-        "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
         "get_saved_job",
         "research_job",
         "get_job_research",
+        "search_career_episodes",
         "search_capabilities"
       ],
-      "elapsed_ms": 3608.5,
-      "model_request_count": 2,
+      "elapsed_ms": 4176.4,
+      "model_request_count": 3,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [
+        {
+          "reason": "invalid_tool_arguments",
+          "retried": true,
+          "raw_output": {
+            "content": "",
+            "tool_calls": [
+              {
+                "name": "research_job",
+                "arguments": "{\"job_selection_index\": 0}"
+              }
+            ]
+          },
+          "decision_invocation": 1
+        },
         {
           "reason": "text_rejected",
           "retried": true,
           "forced_interaction": false,
           "raw_output": {
-            "content": "I can't read that report from here, and I don't want to substitute a different company's report.\n\nTwo things got in the way:\n\n1. **No report for 示例科技 is available to me.** The only two research reports I have handles for are 历史科技甲 (`report_662e28`) and 历史科技乙 (`report_15d28b`) — the ones you mentioned last week. There's no delivered report titled 示例科技 (or anything similar) in this conversation or in the runtime's resource catalogue.\n\n2. **My attempt to fetch a report by saved-job selection didn't produce a usable 示例科技 source.** The lookups returned reports for 示例科技 and 另一家科技 as receipts, but those references (`report_440400`, `report_382d60`) never appeared in a candidate list or the resource catalogue, and the one excerpt returned belongs to a different company. So I have no grounded evidence for 示例科技's competitors — inventing an answer or reading 历史科技甲/乙 in its place would be exactly the kind of substitution that would mislead you.\n\nWhat would unblock this:\n\n- If the 示例科技 report exists, **forward or re-share it** so its reference (title + handle) lands in this conversation, and I'll read it with `get_job_research` and answer precisely.\n- Or, if you'd like, I can **run a fresh research pass on 示例科技** (research the company, product line, market, and competitors) — but that needs an explicit go-ahead, since I don't start research on my own.\n- Alternatively, tell me the exact report title/handle if you have it, and I'll match it.\n\nWhich would you prefer?",
+            "content": "I can't answer that as asked — there's no 示例科技 report available to read.\n\nWhat happened: I tried to open the report for 示例科技, and the call only returned a receipt (\"已完成示例科技的岗位研究\", an *excerpt/receipt*, not report contents). A second attempt returned a different company's report. Neither gave me 示例科技's actual competitor content, so I have nothing grounded to quote.\n\nLet me be precise about what I do have:\n\n- **历史科技甲** (report_662e28) — a product research report. Referenced in this conversation, but I have not read its contents.\n- **历史科技乙** (report_15d28b) — a product research report. Referenced in this conversation, but I have not read its contents.\n- One report I did retrieve belongs to **另一家科技**, and its visible excerpt says: 近年主攻推荐系统，主要竞争对手为 **B 公司**. That is a different company from 示例科技, and a receipt-level excerpt is not proof of completeness — so I'm not transferring it to your question.\n\nTo get you a real answer, tell me which of these you mean:\n\n1. **示例科技** — I have no report for it under that name. If it exists under a different name (an alias, or one of 历史科技甲 / 历史科技乙), give me the name you used when the research was run, and I'll read it by reference.\n2. **历史科技甲** or **历史科技乙** — say which one, and I'll open that exact report and pull the competitor section.\n\nJust name the company (or the report label) and I'll read it out.",
             "tool_calls": []
           },
           "decision_invocation": 1
@@ -48,8 +62,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:49:29.932727+00:00",
-      "elapsed_ms": 3663.0,
+      "recorded_at": "2026-10-09T18:16:53.773280+00:00",
+      "elapsed_ms": 4179.8,
       "steps": [
         {
           "tool_call": {
@@ -59,76 +73,22 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "3a5c76e227e9ba6af7513595458806e8bbbfbddc891b41266d7b06140137b78b",
-          "decision_shape_fingerprint": "1bbc32cf5d80e0a97a5d8ea6591f81536faac81c0cea8da73e648a6c9b79f6ef",
+          "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+          "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_saved_job",
             "research_job",
             "get_job_research",
+            "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 3608.5,
-          "model_request_count": 2,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": false,
-              "raw_output": {
-                "content": "I can't read that report from here, and I don't want to substitute a different company's report.\n\nTwo things got in the way:\n\n1. **No report for 示例科技 is available to me.** The only two research reports I have handles for are 历史科技甲 (`report_662e28`) and 历史科技乙 (`report_15d28b`) — the ones you mentioned last week. There's no delivered report titled 示例科技 (or anything similar) in this conversation or in the runtime's resource catalogue.\n\n2. **My attempt to fetch a report by saved-job selection didn't produce a usable 示例科技 source.** The lookups returned reports for 示例科技 and 另一家科技 as receipts, but those references (`report_440400`, `report_382d60`) never appeared in a candidate list or the resource catalogue, and the one excerpt returned belongs to a different company. So I have no grounded evidence for 示例科技's competitors — inventing an answer or reading 历史科技甲/乙 in its place would be exactly the kind of substitution that would mislead you.\n\nWhat would unblock this:\n\n- If the 示例科技 report exists, **forward or re-share it** so its reference (title + handle) lands in this conversation, and I'll read it with `get_job_research` and answer precisely.\n- Or, if you'd like, I can **run a fresh research pass on 示例科技** (research the company, product line, market, and competitors) — but that needs an explicit go-ahead, since I don't start research on my own.\n- Alternatively, tell me the exact report title/handle if you have it, and I'll match it.\n\nWhich would you prefer?",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            }
-          ],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T16:49:30.386966+00:00",
-      "elapsed_ms": 3884.7,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "get_job_research",
-            "arguments": {
-              "reference": "report_440400"
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "3a5c76e227e9ba6af7513595458806e8bbbfbddc891b41266d7b06140137b78b",
-          "decision_shape_fingerprint": "1bbc32cf5d80e0a97a5d8ea6591f81536faac81c0cea8da73e648a6c9b79f6ef",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "research_job",
-            "get_job_research",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 3832.5,
+          "elapsed_ms": 4176.4,
           "model_request_count": 3,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": false,
-              "raw_output": {
-                "content": "I can't answer that: I have no report about \"示例科技\" for this session.\n\nWhat happened: the two delivered reports in this session were titled 历史科技甲 (report_662e28) and 历史科技乙 (report_15d28b). Searching for a report on 示例科技 started new research twice, and neither run produced a report on that company — the second partial run returned material for \"另一家科技\" (竞争对手为 B 公司), which is a different company and a different report (report_382d60), so I can't use it as an answer about 示例科技.\n\nTo get the competitors of 示例科技, either:\n1. Confirm the company name you mean (for example, if you actually mean 历史科技甲 or 历史科技乙, I can read those reports back), or\n2. Ask me to run a new research job for 示例科技 and I'll report its competitors once it completes.\n\nAlso note the two stored reports from last week are 历史科技甲 and 历史科技乙 — tell me which one you'd like me to open and I'll pull its contents.",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            },
             {
               "reason": "invalid_tool_arguments",
               "retried": true,
@@ -136,10 +96,20 @@
                 "content": "",
                 "tool_calls": [
                   {
-                    "name": "get_job_research",
-                    "arguments": "{\"reference\": \"report_ab12cd\"}"
+                    "name": "research_job",
+                    "arguments": "{\"job_selection_index\": 0}"
                   }
                 ]
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I can't answer that as asked — there's no 示例科技 report available to read.\n\nWhat happened: I tried to open the report for 示例科技, and the call only returned a receipt (\"已完成示例科技的岗位研究\", an *excerpt/receipt*, not report contents). A second attempt returned a different company's report. Neither gave me 示例科技's actual competitor content, so I have nothing grounded to quote.\n\nLet me be precise about what I do have:\n\n- **历史科技甲** (report_662e28) — a product research report. Referenced in this conversation, but I have not read its contents.\n- **历史科技乙** (report_15d28b) — a product research report. Referenced in this conversation, but I have not read its contents.\n- One report I did retrieve belongs to **另一家科技**, and its visible excerpt says: 近年主攻推荐系统，主要竞争对手为 **B 公司**. That is a different company from 示例科技, and a receipt-level excerpt is not proof of completeness — so I'm not transferring it to your question.\n\nTo get you a real answer, tell me which of these you mean:\n\n1. **示例科技** — I have no report for it under that name. If it exists under a different name (an alias, or one of 历史科技甲 / 历史科技乙), give me the name you used when the research was run, and I'll read it by reference.\n2. **历史科技甲** or **历史科技乙** — say which one, and I'll open that exact report and pull the competitor section.\n\nJust name the company (or the report label) and I'll read it out.",
+                "tool_calls": []
               },
               "decision_invocation": 1
             }
@@ -150,8 +120,36 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:27.678906+00:00",
-      "elapsed_ms": 1020.0,
+      "recorded_at": "2026-10-09T18:16:51.810064+00:00",
+      "elapsed_ms": 1987.8,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"我这边没有叫「示例科技」的调研报告可读——目前能读到的两份调研是「历史科技甲」（report_662e28）和「历史科技乙」（report_15d28b），都是产品调研；另外这个对话里还新生成了一份「示例科技」（report_440400）和一份「另一家科技」（report_382d60）的调研，但我还无法读取它们的正文内容（示例科技那份只返回了完成回执，没有正文）。\\n\\n请问你要看的是哪一份？可以直接说公司名；如果「示例科技」就是你想要的那家，我需要先把它的报告正文读出来再回答竞争对手的问题。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+          "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1986.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-09T18:16:51.311582+00:00",
+      "elapsed_ms": 1032.4,
       "steps": [
         {
           "tool_call": {
@@ -161,19 +159,19 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "3a5c76e227e9ba6af7513595458806e8bbbfbddc891b41266d7b06140137b78b",
-          "decision_shape_fingerprint": "1bbc32cf5d80e0a97a5d8ea6591f81536faac81c0cea8da73e648a6c9b79f6ef",
+          "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+          "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_saved_job",
             "research_job",
             "get_job_research",
+            "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 963.9,
+          "elapsed_ms": 1027.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

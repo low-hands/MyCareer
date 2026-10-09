@@ -2,25 +2,24 @@
   "scenario": "clear_brief_finishes_without_opening_the_action_list",
   "policy": "Tool observation facts are approved decision values. When the user explicitly asks for a conditional follow-up, finish when the overdue count is zero instead of opening the action list.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd",
+  "prompt_fingerprint": "df54d2f2e0fe43dd61f644665324fda9380cefc8c5f284fecfa0378c079bd6fa",
   "context_shape_fingerprint": "370de30aa7f9707dc24625fe093b1a985f6009feddd2a0b2431eb65d3d74908a",
-  "recorded_at": "2026-10-08T16:49:33.394072+00:00",
+  "recorded_at": "2026-10-09T18:16:55.688181+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"刚刷新了今天的职业简报：逾期 0 项，所以按你的条件不需要打开行动清单。\\n\\n当前状态：今天到期 4 项，等待中 9 项，共 13 项待办。\\n\\n如果你希望，我也可以列出行动清单，从今天到期的这 4 项里挑一项先处理——需要的话告诉我即可。\",\"questions\":[]}",
+      "content": "{\"action\":\"final\",\"message\":\"已生成今日简报：**没有逾期事项**（逾期 0 项），因此按你的要求直接结束，不打开行动清单。\\n\\n供你参考的简报统计：\\n- 今日到期：4 项\\n- 等待中：9 项\\n- 合计待办：13 项\\n\\n如果你希望现在就挑选其中某一项来处理，告诉我一声，我再列出行动清单供你选择。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "d1001ea8f62b47500ba997f0f054b66b58a85c0c8e4d5f76a53c8df5ca8ab782",
-      "decision_shape_fingerprint": "c33efa9979d0b74101ec10dff74fe97289f48975f2e0f79565e1448b12e04d7f",
+      "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+      "decision_shape_fingerprint": "eea18c9d898b215f18115e888f60c2bcca4efadb3f5c53bac39e3ea916de1bbd",
       "offered_tools": [
         "load_skill",
-        "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
         "get_daily_brief",
         "list_action_items",
         "search_capabilities"
       ],
-      "elapsed_ms": 1358.3,
+      "elapsed_ms": 1409.2,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -31,24 +30,23 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:49:32.644978+00:00",
-      "elapsed_ms": 1448.5,
+      "recorded_at": "2026-10-09T18:16:55.193674+00:00",
+      "elapsed_ms": 1414.3,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"刚刷新了今天的职业简报：逾期 0 项，所以按你的条件不需要打开行动清单。\\n\\n当前状态：今天到期 4 项，等待中 9 项，共 13 项待办。\\n\\n如果你希望，我也可以列出行动清单，从今天到期的这 4 项里挑一项先处理——需要的话告诉我即可。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"已生成今日简报：**没有逾期事项**（逾期 0 项），因此按你的要求直接结束，不打开行动清单。\\n\\n供你参考的简报统计：\\n- 今日到期：4 项\\n- 等待中：9 项\\n- 合计待办：13 项\\n\\n如果你希望现在就挑选其中某一项来处理，告诉我一声，我再列出行动清单供你选择。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "d1001ea8f62b47500ba997f0f054b66b58a85c0c8e4d5f76a53c8df5ca8ab782",
-          "decision_shape_fingerprint": "c33efa9979d0b74101ec10dff74fe97289f48975f2e0f79565e1448b12e04d7f",
+          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "decision_shape_fingerprint": "eea18c9d898b215f18115e888f60c2bcca4efadb3f5c53bac39e3ea916de1bbd",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_daily_brief",
             "list_action_items",
             "search_capabilities"
           ],
-          "elapsed_ms": 1358.3,
+          "elapsed_ms": 1409.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -58,24 +56,23 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:33.394072+00:00",
-      "elapsed_ms": 1575.4,
+      "recorded_at": "2026-10-09T18:16:55.600671+00:00",
+      "elapsed_ms": 1671.2,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"今日简报已生成：逾期 0 项（今日到期 4 项、等待中 9 项）。按你的要求，没有逾期就不需要打开行动清单，本次到此结束。如需查看今日到期的 4 项或等待中的事项，告诉我即可，我再为你列出行动清单。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"已生成了今天的职业简报：共 13 项待办（今日到期 4 项，等待中 9 项），**逾期项为 0**。\\n\\n按你的要求，没有逾期就不再打开行动清单，本轮到此结束。简报正文已随卡片一并送达，如果你之后想按优先顺序处理这 13 项，我可以再帮你打开行动清单来挑选。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "d1001ea8f62b47500ba997f0f054b66b58a85c0c8e4d5f76a53c8df5ca8ab782",
-          "decision_shape_fingerprint": "c33efa9979d0b74101ec10dff74fe97289f48975f2e0f79565e1448b12e04d7f",
+          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "decision_shape_fingerprint": "eea18c9d898b215f18115e888f60c2bcca4efadb3f5c53bac39e3ea916de1bbd",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_daily_brief",
             "list_action_items",
             "search_capabilities"
           ],
-          "elapsed_ms": 1485.6,
+          "elapsed_ms": 1666.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -85,24 +82,23 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:33.394072+00:00",
-      "elapsed_ms": 1476.0,
+      "recorded_at": "2026-10-09T18:16:55.688181+00:00",
+      "elapsed_ms": 1302.1,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"今天的简报已生成：共 13 项待办，其中逾期 0 项、今日到期 4 项、等待中 9 项。\\n\\n由于没有逾期事项，按你的要求就不再打开行动清单了，这里直接结束。如果你想改为先处理今天到期的那 4 项，或需要完整清单明细，告诉我一声即可。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"今日简报已生成（13 项待办：4 项今天到期、9 项等待中），**没有逾期项**，所以按你的要求不再打开行动清单，直接结束。\\n\\n如果之后想处理今天到期的 4 项，或查看那 9 项等待中的事项，随时告诉我，我再列出行动清单让你挑选。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "d1001ea8f62b47500ba997f0f054b66b58a85c0c8e4d5f76a53c8df5ca8ab782",
-          "decision_shape_fingerprint": "c33efa9979d0b74101ec10dff74fe97289f48975f2e0f79565e1448b12e04d7f",
+          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "decision_shape_fingerprint": "eea18c9d898b215f18115e888f60c2bcca4efadb3f5c53bac39e3ea916de1bbd",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_daily_brief",
             "list_action_items",
             "search_capabilities"
           ],
-          "elapsed_ms": 1417.7,
+          "elapsed_ms": 1299.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

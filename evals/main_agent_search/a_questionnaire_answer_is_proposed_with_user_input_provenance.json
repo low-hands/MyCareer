@@ -2,33 +2,32 @@
   "scenario": "a_questionnaire_answer_is_proposed_with_user_input_provenance",
   "policy": "When proposing a career fact from a user's questionnaire answer, supply an exact user_quote so the stored origin is user_input.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "341beb8320f32fda677f3c15ace658310f986bba64c27d65c0abf2c26acdfcc2",
+  "prompt_fingerprint": "eeb919b2dcaea541b54cdd264e0c0a903ee7c968b40ad2a3492cdb44bda1b0d6",
   "context_shape_fingerprint": "ff797a0427602e0c18a429b4507726f6c9d2dad6671f60696af84cbd38f1aefc",
-  "recorded_at": "2026-10-08T16:50:18.611113+00:00",
+  "recorded_at": "2026-10-09T18:18:01.992780+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "propose_career_fact",
         "arguments": {
-          "claim": "日常使用 Claude Code 和 Cursor 开发内部工具",
-          "reason": "用户在问卷中明确陈述了在示例科技工作期间的 AI 编程工具使用情况",
           "record_selection_index": 1,
+          "claim": "在示例科技担任软件工程师期间，日常使用 Claude Code 和 Cursor 开发内部工具。",
+          "reason": "用户在问卷中明确陈述了该工作经历事实。",
           "user_quote": "AI 编程工具：日常使用 Claude Code 和 Cursor 开发内部工具。"
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "0f5a0954c7cfd8f41fcf620873de0d1b0f774e41e9a9b320cdc6376e8b11a8d4",
-      "decision_shape_fingerprint": "6636a698950478fa2968de3ded4cd85179d533472314023cb070d3974e69bd36",
+      "selected_schema_fingerprint": "2fe46b82816b38f8997a33916a27428a9a10088ae4b137f8a7e1094f00dbafb8",
+      "decision_shape_fingerprint": "903b8b417704d7088932d4c33265ce62945bd394bf73da302b1d024b6dc94467",
       "offered_tools": [
         "load_skill",
-        "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
-        "propose_free_text_preference_confirmation",
+        "propose_memory_amendment",
         "propose_career_fact",
         "search_capabilities"
       ],
-      "elapsed_ms": 5105.0,
+      "elapsed_ms": 3812.8,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -39,32 +38,31 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:50:18.331370+00:00",
-      "elapsed_ms": 5163.5,
+      "recorded_at": "2026-10-09T18:18:01.383911+00:00",
+      "elapsed_ms": 3814.6,
       "steps": [
         {
           "tool_call": {
             "name": "propose_career_fact",
             "arguments": {
-              "claim": "日常使用 Claude Code 和 Cursor 开发内部工具",
-              "reason": "用户在问卷中明确陈述了在示例科技工作期间的 AI 编程工具使用情况",
               "record_selection_index": 1,
+              "claim": "在示例科技担任软件工程师期间，日常使用 Claude Code 和 Cursor 开发内部工具。",
+              "reason": "用户在问卷中明确陈述了该工作经历事实。",
               "user_quote": "AI 编程工具：日常使用 Claude Code 和 Cursor 开发内部工具。"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "0f5a0954c7cfd8f41fcf620873de0d1b0f774e41e9a9b320cdc6376e8b11a8d4",
-          "decision_shape_fingerprint": "6636a698950478fa2968de3ded4cd85179d533472314023cb070d3974e69bd36",
+          "selected_schema_fingerprint": "2fe46b82816b38f8997a33916a27428a9a10088ae4b137f8a7e1094f00dbafb8",
+          "decision_shape_fingerprint": "903b8b417704d7088932d4c33265ce62945bd394bf73da302b1d024b6dc94467",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "propose_free_text_preference_confirmation",
+            "propose_memory_amendment",
             "propose_career_fact",
             "search_capabilities"
           ],
-          "elapsed_ms": 5105.0,
+          "elapsed_ms": 3812.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -74,32 +72,31 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:50:18.043166+00:00",
-      "elapsed_ms": 4393.3,
+      "recorded_at": "2026-10-09T18:18:01.898014+00:00",
+      "elapsed_ms": 4195.6,
       "steps": [
         {
           "tool_call": {
             "name": "propose_career_fact",
             "arguments": {
               "claim": "在示例科技担任软件工程师期间，日常使用 Claude Code 和 Cursor 开发内部工具。",
-              "reason": "用户在问卷中明确陈述了 AI 编程工具的使用情况，属于对工作经历的补充说明。",
+              "reason": "用户在问卷中明确陈述了 AI 编程工具的使用情况，需要将其作为职业事实提案供用户确认。",
               "record_selection_index": 1,
               "user_quote": "AI 编程工具：日常使用 Claude Code 和 Cursor 开发内部工具。"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "0f5a0954c7cfd8f41fcf620873de0d1b0f774e41e9a9b320cdc6376e8b11a8d4",
-          "decision_shape_fingerprint": "6636a698950478fa2968de3ded4cd85179d533472314023cb070d3974e69bd36",
+          "selected_schema_fingerprint": "2fe46b82816b38f8997a33916a27428a9a10088ae4b137f8a7e1094f00dbafb8",
+          "decision_shape_fingerprint": "903b8b417704d7088932d4c33265ce62945bd394bf73da302b1d024b6dc94467",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "propose_free_text_preference_confirmation",
+            "propose_memory_amendment",
             "propose_career_fact",
             "search_capabilities"
           ],
-          "elapsed_ms": 4296.5,
+          "elapsed_ms": 4192.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -109,32 +106,31 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:50:18.611113+00:00",
-      "elapsed_ms": 4119.7,
+      "recorded_at": "2026-10-09T18:18:01.992780+00:00",
+      "elapsed_ms": 3976.2,
       "steps": [
         {
           "tool_call": {
             "name": "propose_career_fact",
             "arguments": {
-              "claim": "日常使用 Claude Code 和 Cursor 开发内部工具",
-              "reason": "用户在问卷中明确陈述了在示例科技工作期间的 AI 编程工具使用情况",
+              "claim": "在示例科技担任软件工程师期间，日常使用 Claude Code 和 Cursor 开发内部工具。",
+              "reason": "用户在问卷中明确陈述了该工作经历中的 AI 编程工具使用情况。",
               "record_selection_index": 1,
               "user_quote": "AI 编程工具：日常使用 Claude Code 和 Cursor 开发内部工具。"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "0f5a0954c7cfd8f41fcf620873de0d1b0f774e41e9a9b320cdc6376e8b11a8d4",
-          "decision_shape_fingerprint": "6636a698950478fa2968de3ded4cd85179d533472314023cb070d3974e69bd36",
+          "selected_schema_fingerprint": "2fe46b82816b38f8997a33916a27428a9a10088ae4b137f8a7e1094f00dbafb8",
+          "decision_shape_fingerprint": "903b8b417704d7088932d4c33265ce62945bd394bf73da302b1d024b6dc94467",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "propose_free_text_preference_confirmation",
+            "propose_memory_amendment",
             "propose_career_fact",
             "search_capabilities"
           ],
-          "elapsed_ms": 4055.3,
+          "elapsed_ms": 3971.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

@@ -310,7 +310,8 @@ class TrajectoryCassette:
 
 def summarize_decision_retries(cassettes: Sequence[TrajectoryCassette]) -> dict[str, Any]:
     """Summarize measured completed decisions and retry reasons."""
-    steps = [step for cassette in cassettes for sample in cassette.recordings for step in sample]
+    all_steps = [step for cassette in cassettes for sample in cassette.recordings for step in sample]
+    steps = [step for step in all_steps if not step.get("recording_error")]
     covered = [step for step in steps if step.get("decision_retry_telemetry_version") == 1]
     reason_counts: dict[str, int] = {}
     terminal_counts: dict[str, int] = {}
@@ -342,6 +343,7 @@ def summarize_decision_retries(cassettes: Sequence[TrajectoryCassette]) -> dict[
         )
     return {
         "completed_decisions": len(steps),
+        "terminal_failed_recordings": sum(bool(step.get("recording_error")) for step in all_steps),
         "covered_decisions": len(covered),
         "unknown_decisions": len(steps) - len(covered),
         "decisions_with_retries": with_retries(covered),

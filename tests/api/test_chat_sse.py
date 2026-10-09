@@ -27,6 +27,7 @@ from career_agent.harness.streaming import (
 )
 from career_agent.storage.api_keys import CAPTURE_WRITE, WORKSPACE_READ
 from career_agent.storage.jobs import SQLiteJobPostingRepository
+from career_agent.storage.job_captures import SQLiteJobCaptureStore
 
 
 class Runtime:
@@ -378,6 +379,7 @@ def test_browser_capture_saves_only_after_explicit_endpoint_call(tmp_path, api_k
         api_key_store_factory=lambda: api_keys,
         runtime_factory=lambda: runtime,
         capture_repository_factory=lambda: repository,
+        job_capture_store_factory=lambda: SQLiteJobCaptureStore(tmp_path / "jobs.sqlite3"),
     )
 
     with TestClient(app) as client:

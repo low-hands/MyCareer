@@ -2,9 +2,9 @@
   "scenario": "a_calendar_write_is_never_executed_in_the_turn_that_prepared_it",
   "policy": "prepare_interview_calendar_sync only creates a fixed preview and performs no external write. After preparing it, ask for explicit approval; do not execute it in the same turn.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "7bb6e884e0ac65440cc5eefcdf64d55516e906537b27f358f2a26ea6ba3bc21c",
+  "prompt_fingerprint": "e1ecd1ccb1ceac2e8e127b99705a07552037ddb626e65f8eb772f79908aab2dc",
   "context_shape_fingerprint": "a8a0e273782ca4b93940d5dfa820d817119907cccfa63236114240e3fdb23539",
-  "recorded_at": "2026-10-08T16:49:24.292838+00:00",
+  "recorded_at": "2026-10-09T18:16:48.032259+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,16 +12,14 @@
         "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "365920b0e0c4111f3ca803eb8ce4f0ebd68d4d01510a4a2682d8b3a48ec957f1",
-      "decision_shape_fingerprint": "984a0a6749c2927f528d435e604f60d5380f8478270f4356deb94db2eceb4ec9",
+      "selected_schema_fingerprint": "4456d4c9aa175d7644e746b5b4501da6bbb34fe5fc945fb309e949b258f3492a",
+      "decision_shape_fingerprint": "57b80402910d15099ab0a7e3203817dcc7c7f06b286ec0439f409c7bfae4426a",
       "offered_tools": [
         "load_skill",
-        "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
         "get_interview",
         "update_interview",
-        "complete_interview",
         "list_calendar_accounts",
         "list_calendar_links",
         "prepare_interview_calendar_sync",
@@ -29,7 +27,7 @@
         "execute_calendar_proposal",
         "search_capabilities"
       ],
-      "elapsed_ms": 1297.1,
+      "elapsed_ms": 972.9,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -40,8 +38,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:49:22.702910+00:00",
-      "elapsed_ms": 1358.5,
+      "recorded_at": "2026-10-09T18:16:47.284936+00:00",
+      "elapsed_ms": 975.5,
       "steps": [
         {
           "tool_call": {
@@ -49,16 +47,14 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "365920b0e0c4111f3ca803eb8ce4f0ebd68d4d01510a4a2682d8b3a48ec957f1",
-          "decision_shape_fingerprint": "984a0a6749c2927f528d435e604f60d5380f8478270f4356deb94db2eceb4ec9",
+          "selected_schema_fingerprint": "4456d4c9aa175d7644e746b5b4501da6bbb34fe5fc945fb309e949b258f3492a",
+          "decision_shape_fingerprint": "57b80402910d15099ab0a7e3203817dcc7c7f06b286ec0439f409c7bfae4426a",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_interview",
             "update_interview",
-            "complete_interview",
             "list_calendar_accounts",
             "list_calendar_links",
             "prepare_interview_calendar_sync",
@@ -66,7 +62,7 @@
             "execute_calendar_proposal",
             "search_capabilities"
           ],
-          "elapsed_ms": 1297.1,
+          "elapsed_ms": 972.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -76,8 +72,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:23.630576+00:00",
-      "elapsed_ms": 1612.7,
+      "recorded_at": "2026-10-09T18:16:48.150612+00:00",
+      "elapsed_ms": 1314.9,
       "steps": [
         {
           "tool_call": {
@@ -85,16 +81,14 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "365920b0e0c4111f3ca803eb8ce4f0ebd68d4d01510a4a2682d8b3a48ec957f1",
-          "decision_shape_fingerprint": "984a0a6749c2927f528d435e604f60d5380f8478270f4356deb94db2eceb4ec9",
+          "selected_schema_fingerprint": "4456d4c9aa175d7644e746b5b4501da6bbb34fe5fc945fb309e949b258f3492a",
+          "decision_shape_fingerprint": "57b80402910d15099ab0a7e3203817dcc7c7f06b286ec0439f409c7bfae4426a",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_interview",
             "update_interview",
-            "complete_interview",
             "list_calendar_accounts",
             "list_calendar_links",
             "prepare_interview_calendar_sync",
@@ -102,7 +96,7 @@
             "execute_calendar_proposal",
             "search_capabilities"
           ],
-          "elapsed_ms": 1512.1,
+          "elapsed_ms": 1310.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -112,8 +106,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:24.292838+00:00",
-      "elapsed_ms": 1798.5,
+      "recorded_at": "2026-10-09T18:16:48.032259+00:00",
+      "elapsed_ms": 952.2,
       "steps": [
         {
           "tool_call": {
@@ -121,16 +115,14 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "365920b0e0c4111f3ca803eb8ce4f0ebd68d4d01510a4a2682d8b3a48ec957f1",
-          "decision_shape_fingerprint": "984a0a6749c2927f528d435e604f60d5380f8478270f4356deb94db2eceb4ec9",
+          "selected_schema_fingerprint": "4456d4c9aa175d7644e746b5b4501da6bbb34fe5fc945fb309e949b258f3492a",
+          "decision_shape_fingerprint": "57b80402910d15099ab0a7e3203817dcc7c7f06b286ec0439f409c7bfae4426a",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "get_interview",
             "update_interview",
-            "complete_interview",
             "list_calendar_accounts",
             "list_calendar_links",
             "prepare_interview_calendar_sync",
@@ -138,7 +130,7 @@
             "execute_calendar_proposal",
             "search_capabilities"
           ],
-          "elapsed_ms": 1734.9,
+          "elapsed_ms": 947.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

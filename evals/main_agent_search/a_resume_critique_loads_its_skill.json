@@ -2,9 +2,9 @@
   "scenario": "a_resume_critique_loads_its_skill",
   "policy": "A request to review, critique or improve an attached resume without naming a job loads the resume-critique skill and follows it; comparing a resume with a job is match_resume_to_job.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "699de04d30227db368ac05b8eda655cbb78e9c0aa78f7f883ada4eaf3208cc6b",
+  "prompt_fingerprint": "330a116811544fbb354b8448dd513a8027af652ef285392f9542a1dec420c1f1",
   "context_shape_fingerprint": "92af7027d1fa4470173dd363bd2f57e6209c21138065300fc113d56f0320ce65",
-  "recorded_at": "2026-10-08T16:50:13.161508+00:00",
+  "recorded_at": "2026-10-09T18:17:56.714029+00:00",
   "steps": [
     {
       "tool_call": {
@@ -14,17 +14,16 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "945ef065146c7e02b19bd2b95212045643f9caaeab864391e8f6c249e154523e",
-      "decision_shape_fingerprint": "7f4f0ef6a0a1fb9f89e5d1f7ee309516f8c26bdd8c06d9a8b62072c8889e123a",
+      "selected_schema_fingerprint": "acafcfbb38ed894ff431d71794bceb91ef4f6fbebfc14fc72ac394eba895b194",
+      "decision_shape_fingerprint": "465b918eb253838338e74f7a0d041516bce60ddcc3628e54cd654ec5833fdb03",
       "offered_tools": [
         "load_skill",
-        "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
         "export_resume_artifact",
         "search_capabilities"
       ],
-      "elapsed_ms": 2354.7,
+      "elapsed_ms": 4464.4,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -35,8 +34,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:50:09.951704+00:00",
-      "elapsed_ms": 2411.5,
+      "recorded_at": "2026-10-09T18:17:57.564864+00:00",
+      "elapsed_ms": 4467.6,
       "steps": [
         {
           "tool_call": {
@@ -46,17 +45,16 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "945ef065146c7e02b19bd2b95212045643f9caaeab864391e8f6c249e154523e",
-          "decision_shape_fingerprint": "7f4f0ef6a0a1fb9f89e5d1f7ee309516f8c26bdd8c06d9a8b62072c8889e123a",
+          "selected_schema_fingerprint": "acafcfbb38ed894ff431d71794bceb91ef4f6fbebfc14fc72ac394eba895b194",
+          "decision_shape_fingerprint": "465b918eb253838338e74f7a0d041516bce60ddcc3628e54cd654ec5833fdb03",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "export_resume_artifact",
             "search_capabilities"
           ],
-          "elapsed_ms": 2354.7,
+          "elapsed_ms": 4464.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -66,8 +64,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:50:13.624602+00:00",
-      "elapsed_ms": 4369.3,
+      "recorded_at": "2026-10-09T18:17:55.955010+00:00",
+      "elapsed_ms": 2664.3,
       "steps": [
         {
           "tool_call": {
@@ -77,17 +75,16 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "945ef065146c7e02b19bd2b95212045643f9caaeab864391e8f6c249e154523e",
-          "decision_shape_fingerprint": "7f4f0ef6a0a1fb9f89e5d1f7ee309516f8c26bdd8c06d9a8b62072c8889e123a",
+          "selected_schema_fingerprint": "acafcfbb38ed894ff431d71794bceb91ef4f6fbebfc14fc72ac394eba895b194",
+          "decision_shape_fingerprint": "465b918eb253838338e74f7a0d041516bce60ddcc3628e54cd654ec5833fdb03",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "export_resume_artifact",
             "search_capabilities"
           ],
-          "elapsed_ms": 4312.2,
+          "elapsed_ms": 2659.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -97,8 +94,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:50:13.161508+00:00",
-      "elapsed_ms": 3646.5,
+      "recorded_at": "2026-10-09T18:17:56.714029+00:00",
+      "elapsed_ms": 2683.5,
       "steps": [
         {
           "tool_call": {
@@ -108,17 +105,16 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "945ef065146c7e02b19bd2b95212045643f9caaeab864391e8f6c249e154523e",
-          "decision_shape_fingerprint": "7f4f0ef6a0a1fb9f89e5d1f7ee309516f8c26bdd8c06d9a8b62072c8889e123a",
+          "selected_schema_fingerprint": "acafcfbb38ed894ff431d71794bceb91ef4f6fbebfc14fc72ac394eba895b194",
+          "decision_shape_fingerprint": "465b918eb253838338e74f7a0d041516bce60ddcc3628e54cd654ec5833fdb03",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "export_resume_artifact",
             "search_capabilities"
           ],
-          "elapsed_ms": 3589.6,
+          "elapsed_ms": 2680.3,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

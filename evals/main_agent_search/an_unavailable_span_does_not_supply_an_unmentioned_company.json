@@ -2,25 +2,24 @@
   "scenario": "an_unavailable_span_does_not_supply_an_unmentioned_company",
   "policy": "A failed read supplies no missing company name. Decide from the visible history and observation without guessing.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8",
+  "prompt_fingerprint": "7d2710b7e41a1ae005bf4ba6e3220629c286b0a4e87e26b443896890708793e4",
   "context_shape_fingerprint": "d5a03093a638d2e25feb0e65cef260effd1f74287f055887a6dcf3f836a29dab",
-  "recorded_at": "2026-10-08T16:50:03.802648+00:00",
+  "recorded_at": "2026-10-09T18:17:50.645843+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"当前对话中没有记录你的目标公司。请告诉我你的目标公司全名是什么？\",\"questions\":[]}",
+      "content": "{\"action\":\"ask_user\",\"message\":\"当前会话里没有记录目标公司的全称。请告诉我你的目标公司全名叫什么？\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "8ed9ee8c2c1f388a70819d9a46ab8ab953031fa178d3327b128533661f792b88",
-      "decision_shape_fingerprint": "29bea562f817a4e5b53f4b62eb76cdcf357e17967e09b78918b1da7b3a1f3056",
+      "selected_schema_fingerprint": "db458fb39a540945a6421160b4271bcb50b5853af700a1a764f9c40936372387",
+      "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
       "offered_tools": [
         "load_skill",
-        "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
-        "get_job_research",
         "list_target_roles",
+        "propose_job_intent",
         "search_capabilities"
       ],
-      "elapsed_ms": 2660.7,
+      "elapsed_ms": 2427.8,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -31,24 +30,23 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:50:02.458889+00:00",
-      "elapsed_ms": 2721.0,
+      "recorded_at": "2026-10-09T18:17:50.058665+00:00",
+      "elapsed_ms": 2430.2,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前对话中没有记录你的目标公司。请告诉我你的目标公司全名是什么？\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前会话里没有记录目标公司的全称。请告诉我你的目标公司全名叫什么？\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "8ed9ee8c2c1f388a70819d9a46ab8ab953031fa178d3327b128533661f792b88",
-          "decision_shape_fingerprint": "29bea562f817a4e5b53f4b62eb76cdcf357e17967e09b78918b1da7b3a1f3056",
+          "selected_schema_fingerprint": "db458fb39a540945a6421160b4271bcb50b5853af700a1a764f9c40936372387",
+          "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "get_job_research",
             "list_target_roles",
+            "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 2660.7,
+          "elapsed_ms": 2427.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -58,29 +56,29 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:50:02.720799+00:00",
-      "elapsed_ms": 2913.1,
+      "recorded_at": "2026-10-09T18:17:50.101369+00:00",
+      "elapsed_ms": 2279.1,
       "steps": [
         {
           "tool_call": {
             "name": "search_career_memory",
             "arguments": {
-              "query": "目标公司"
+              "query": "美团 目标公司",
+              "limit": 5
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "8ed9ee8c2c1f388a70819d9a46ab8ab953031fa178d3327b128533661f792b88",
-          "decision_shape_fingerprint": "29bea562f817a4e5b53f4b62eb76cdcf357e17967e09b78918b1da7b3a1f3056",
+          "selected_schema_fingerprint": "db458fb39a540945a6421160b4271bcb50b5853af700a1a764f9c40936372387",
+          "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "get_job_research",
             "list_target_roles",
+            "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 2856.8,
+          "elapsed_ms": 2277.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -90,24 +88,23 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:50:03.802648+00:00",
-      "elapsed_ms": 3765.4,
+      "recorded_at": "2026-10-09T18:17:50.645843+00:00",
+      "elapsed_ms": 2315.9,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"当前会话没有记录目标公司。请告诉我你的目标公司全名是什么？\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前对话中没有记录目标公司。请告诉我你提到的美团岗位对应的目标公司全名是什么？\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "8ed9ee8c2c1f388a70819d9a46ab8ab953031fa178d3327b128533661f792b88",
-          "decision_shape_fingerprint": "29bea562f817a4e5b53f4b62eb76cdcf357e17967e09b78918b1da7b3a1f3056",
+          "selected_schema_fingerprint": "db458fb39a540945a6421160b4271bcb50b5853af700a1a764f9c40936372387",
+          "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "get_job_research",
             "list_target_roles",
+            "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 3678.5,
+          "elapsed_ms": 2313.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

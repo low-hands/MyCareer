@@ -2,24 +2,24 @@
   "scenario": "a_stale_note_is_reviewed_before_reuse",
   "policy": "When working_notes includes stale_days, review whether each note still holds before carrying it forward, and use update_working_notes to remove outdated material.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+  "prompt_fingerprint": "ad8babe2658166dd736b4ecf3eae55c16a8da4e928ccdba9a1e8b9175cf3a7f2",
   "context_shape_fingerprint": "9861cd4ddcd7cabe495311bb491bf981775e82b7334ac346af733f0ff66d278e",
-  "recorded_at": "2026-10-08T16:49:20.257456+00:00",
+  "recorded_at": "2026-10-09T18:16:45.345412+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"questionnaire\",\"message\":\"帮你打开 BOSS 搜索前，需要两个信息（另外那条「偏好 Rust」的旧便笺未经确认，我不会据此替你决定关键词）：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"搜索关键词是什么（岗位名称或技能方向）？例如 Java 后端、数据分析、产品经理等。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q3\",\"prompt\":\"求职类型？\",\"kind\":\"single\",\"options\":[{\"value\":\"full_time\",\"label\":\"全职\",\"meaning\":\"choice\"},{\"value\":\"internship\",\"label\":\"实习\",\"meaning\":\"choice\"},{\"value\":\"part_time\",\"label\":\"兼职\",\"meaning\":\"choice\"},{\"value\":\"unspecified\",\"label\":\"不限 / 暂不确定\",\"meaning\":\"none\"}],\"allow_free_text\":false,\"allow_skip\":true}],\"continuation_capability\":\"open_job_search\"}",
+      "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我两点，我就能为你打开 BOSS 搜索页：\\n1) 关键词/岗位方向（例如「Rust 后端」「数据分析」；工作便笺里有一条未确认的「偏好 Rust 岗位」，如果想要我就按这个搜，请一并确认）\\n2) 城市（你的档案里没有确认的默认城市，所以需要你指定；另外请说明是实习、全职还是兼职）\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "39c20b1816ed611647dc3be9259e5936ec6738fa4163ad7f6a1d6bbe587a504a",
-      "decision_shape_fingerprint": "3ebe16021926f6979940ff1c46b6d8930618d72aa1f02abdfd979656ff2ce64f",
+      "selected_schema_fingerprint": "0cb92b279005264b60663a4d40154061a30b0bf6deae53b738d1bb42e4ef3606",
+      "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
       "offered_tools": [
         "load_skill",
-        "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
         "open_job_search",
+        "find_saved_jobs",
         "search_capabilities"
       ],
-      "elapsed_ms": 2499.9,
+      "elapsed_ms": 1905.2,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -30,23 +30,23 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:49:20.071067+00:00",
-      "elapsed_ms": 2558.1,
+      "recorded_at": "2026-10-09T18:16:45.010273+00:00",
+      "elapsed_ms": 1907.7,
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"帮你打开 BOSS 搜索前，需要两个信息（另外那条「偏好 Rust」的旧便笺未经确认，我不会据此替你决定关键词）：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"搜索关键词是什么（岗位名称或技能方向）？例如 Java 后端、数据分析、产品经理等。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q3\",\"prompt\":\"求职类型？\",\"kind\":\"single\",\"options\":[{\"value\":\"full_time\",\"label\":\"全职\",\"meaning\":\"choice\"},{\"value\":\"internship\",\"label\":\"实习\",\"meaning\":\"choice\"},{\"value\":\"part_time\",\"label\":\"兼职\",\"meaning\":\"choice\"},{\"value\":\"unspecified\",\"label\":\"不限 / 暂不确定\",\"meaning\":\"none\"}],\"allow_free_text\":false,\"allow_skip\":true}],\"continuation_capability\":\"open_job_search\"}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我两点，我就能为你打开 BOSS 搜索页：\\n1) 关键词/岗位方向（例如「Rust 后端」「数据分析」；工作便笺里有一条未确认的「偏好 Rust 岗位」，如果想要我就按这个搜，请一并确认）\\n2) 城市（你的档案里没有确认的默认城市，所以需要你指定；另外请说明是实习、全职还是兼职）\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "39c20b1816ed611647dc3be9259e5936ec6738fa4163ad7f6a1d6bbe587a504a",
-          "decision_shape_fingerprint": "3ebe16021926f6979940ff1c46b6d8930618d72aa1f02abdfd979656ff2ce64f",
+          "selected_schema_fingerprint": "0cb92b279005264b60663a4d40154061a30b0bf6deae53b738d1bb42e4ef3606",
+          "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "open_job_search",
+            "find_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 2499.9,
+          "elapsed_ms": 1905.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -56,23 +56,23 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:19.105985+00:00",
-      "elapsed_ms": 1327.9,
+      "recorded_at": "2026-10-09T18:16:45.360701+00:00",
+      "elapsed_ms": 1924.1,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"我可以帮你打开 BOSS 招聘搜索页，但需要先确认城市。你希望在哪个城市找岗位？（比如：上海 / 北京 / 深圳 / 其他）\",\"questions\":[]}",
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请回答以下问题，我会用它们打开对应的招聘搜索页。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你想找什么方向的岗位？请给一个搜索关键词（例如岗位名称或技能方向）。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"希望在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q3\",\"prompt\":\"求职类型是？\",\"kind\":\"single\",\"options\":[{\"value\":\"full_time\",\"label\":\"全职\",\"meaning\":\"choice\"},{\"value\":\"internship\",\"label\":\"实习\",\"meaning\":\"choice\"},{\"value\":\"part_time\",\"label\":\"兼职\",\"meaning\":\"choice\"}],\"allow_free_text\":false,\"allow_skip\":true}],\"continuation_capability\":\"open_job_search\"}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "39c20b1816ed611647dc3be9259e5936ec6738fa4163ad7f6a1d6bbe587a504a",
-          "decision_shape_fingerprint": "3ebe16021926f6979940ff1c46b6d8930618d72aa1f02abdfd979656ff2ce64f",
+          "selected_schema_fingerprint": "0cb92b279005264b60663a4d40154061a30b0bf6deae53b738d1bb42e4ef3606",
+          "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "open_job_search",
+            "find_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1266.5,
+          "elapsed_ms": 1922.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -82,23 +82,23 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:20.257456+00:00",
-      "elapsed_ms": 1975.5,
+      "recorded_at": "2026-10-09T18:16:45.345412+00:00",
+      "elapsed_ms": 1639.7,
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"帮你开招聘搜索页需要两个信息：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"想在哪个城市找工作？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q2\",\"prompt\":\"搜索关键词是什么（比如具体职位名称或技能方向）？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":false},{\"question_id\":\"q3\",\"prompt\":\"求职类型？\",\"kind\":\"single\",\"options\":[{\"value\":\"full_time\",\"label\":\"全职\",\"meaning\":\"choice\"},{\"value\":\"internship\",\"label\":\"实习\",\"meaning\":\"choice\"},{\"value\":\"part_time\",\"label\":\"兼职\",\"meaning\":\"choice\"}],\"allow_free_text\":true,\"allow_skip\":true}],\"continuation_capability\":\"open_job_search\"}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"你想在哪个城市找岗位？另外请确认一下岗位方向（我看到便笺里有一条未经确认的观察「偏好 Rust 岗位」，但那只是未确认的笔记，不能直接用来筛选）。请提供城市 + 岗位关键词，我就为你打开 BOSS 搜索页。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "39c20b1816ed611647dc3be9259e5936ec6738fa4163ad7f6a1d6bbe587a504a",
-          "decision_shape_fingerprint": "3ebe16021926f6979940ff1c46b6d8930618d72aa1f02abdfd979656ff2ce64f",
+          "selected_schema_fingerprint": "0cb92b279005264b60663a4d40154061a30b0bf6deae53b738d1bb42e4ef3606",
+          "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
             "open_job_search",
+            "find_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1875.3,
+          "elapsed_ms": 1636.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

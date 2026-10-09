@@ -2,24 +2,22 @@
   "scenario": "five_missing_resume_facts_use_one_questionnaire",
   "policy": "For two to eight independent missing facts needed for the current task, use JSON action='questionnaire' rather than a Markdown question list.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "f1cd706b1f6db80c09871342fd7e3aa977ce6933f3f575a138af9c5b756f4160",
+  "prompt_fingerprint": "1836662633963b742a924b4bf7207b61bd6743930cebcb17f0cb7085b4070c5f",
   "context_shape_fingerprint": "ce63e8185614deddd488ff82e8eac2523542b5e4048c92001044811397fa0579",
-  "recorded_at": "2026-10-08T16:49:50.402984+00:00",
+  "recorded_at": "2026-10-09T18:17:12.836850+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"questionnaire\",\"message\":\"请逐题回答以下五项简历定制信息。每项都可跳过，也可以明确回答“没有”。我不会在收集完成前调用工具或撰写优化稿。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"1 前端经验：你有哪些前端开发经验？（技术栈、项目、年限等；可跳过或回答“没有”）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"2 向量数据库：你使用过哪些向量数据库？（如 Milvus、Qdrant、pgvector、FAISS 等；可跳过或回答“没有”）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"3 Dify 经验：你有哪些 Dify 相关经验？（如搭建工作流、Agent、知识库等；可跳过或回答“没有”）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"4 AI 编程工具：你使用过哪些 AI 编程工具？（如 Cursor、Copilot、Claude Code 等，及使用程度；可跳过或回答“没有”）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"5 开源项目或博客：你有哪些开源项目或技术博客？（链接、star 数、更新频率等；可跳过或回答“没有”）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}],\"continuation_capability\":\"draft_resume_tailoring\"}",
+      "content": "{\"action\":\"questionnaire\",\"message\":\"好的，先收集这五项简历定制信息，暂不做分析、不调用业务工具、也不写优化稿。请逐题分别回答（可跳过或明确选择“没有”）；若某项有具体细节，欢迎在自由文本中补充。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"1）前端经验：你有哪些前端开发经验？（技术栈、年限、项目类型等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"2）向量数据库：你使用过哪些向量数据库？（如 Milvus、Pinecone、Weaviate、Qdrant、Chroma、pgvector、FAISS 等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"3）Dify 经验：你使用 Dify 的情况如何？（如搭建过工作流/Agent、部署、二次开发等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"4）AI 编程工具：你用过哪些 AI 编程工具？（如 GitHub Copilot、Cursor、Claude Code、通义灵码、Codex 等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"5）开源项目或博客：你是否有可展示的开源项目或技术博客？如有请给出名称/链接与你的主要贡献。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}],\"continuation_capability\":\"draft_resume_tailoring\"}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "52fa79fb4e478c0601304fe7d5f4dbdc7bb595f597b560310e489167c4b7c407",
-      "decision_shape_fingerprint": "08200821740fd87d36fbf8a3a223971360064eefefef49119e7735762cfcba29",
+      "selected_schema_fingerprint": "63b7e8a12b22becdcb8f56f6f6392534a45e4928130efa85301c9ae0e8c1e6a2",
+      "decision_shape_fingerprint": "f451f44c29a3912cf6844a628927f3daaaae4fc12efc03f87e87510eee3d2e19",
       "offered_tools": [
         "load_skill",
-        "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
-        "search_career_episodes",
         "search_capabilities"
       ],
-      "elapsed_ms": 2738.3,
+      "elapsed_ms": 2391.3,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -30,23 +28,21 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:49:49.283773+00:00",
-      "elapsed_ms": 2807.5,
+      "recorded_at": "2026-10-09T18:17:11.265970+00:00",
+      "elapsed_ms": 2395.0,
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"请逐题回答以下五项简历定制信息。每项都可跳过，也可以明确回答“没有”。我不会在收集完成前调用工具或撰写优化稿。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"1 前端经验：你有哪些前端开发经验？（技术栈、项目、年限等；可跳过或回答“没有”）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"2 向量数据库：你使用过哪些向量数据库？（如 Milvus、Qdrant、pgvector、FAISS 等；可跳过或回答“没有”）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"3 Dify 经验：你有哪些 Dify 相关经验？（如搭建工作流、Agent、知识库等；可跳过或回答“没有”）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"4 AI 编程工具：你使用过哪些 AI 编程工具？（如 Cursor、Copilot、Claude Code 等，及使用程度；可跳过或回答“没有”）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"5 开源项目或博客：你有哪些开源项目或技术博客？（链接、star 数、更新频率等；可跳过或回答“没有”）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}],\"continuation_capability\":\"draft_resume_tailoring\"}",
+          "content": "{\"action\":\"questionnaire\",\"message\":\"好的，先收集这五项简历定制信息，暂不做分析、不调用业务工具、也不写优化稿。请逐题分别回答（可跳过或明确选择“没有”）；若某项有具体细节，欢迎在自由文本中补充。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"1）前端经验：你有哪些前端开发经验？（技术栈、年限、项目类型等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"2）向量数据库：你使用过哪些向量数据库？（如 Milvus、Pinecone、Weaviate、Qdrant、Chroma、pgvector、FAISS 等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"3）Dify 经验：你使用 Dify 的情况如何？（如搭建过工作流/Agent、部署、二次开发等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"4）AI 编程工具：你用过哪些 AI 编程工具？（如 GitHub Copilot、Cursor、Claude Code、通义灵码、Codex 等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"5）开源项目或博客：你是否有可展示的开源项目或技术博客？如有请给出名称/链接与你的主要贡献。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}],\"continuation_capability\":\"draft_resume_tailoring\"}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "52fa79fb4e478c0601304fe7d5f4dbdc7bb595f597b560310e489167c4b7c407",
-          "decision_shape_fingerprint": "08200821740fd87d36fbf8a3a223971360064eefefef49119e7735762cfcba29",
+          "selected_schema_fingerprint": "63b7e8a12b22becdcb8f56f6f6392534a45e4928130efa85301c9ae0e8c1e6a2",
+          "decision_shape_fingerprint": "f451f44c29a3912cf6844a628927f3daaaae4fc12efc03f87e87510eee3d2e19",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 2738.3,
+          "elapsed_ms": 2391.3,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -56,23 +52,21 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:50.173803+00:00",
-      "elapsed_ms": 3517.2,
+      "recorded_at": "2026-10-09T18:17:11.745404+00:00",
+      "elapsed_ms": 2508.7,
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"请逐题回答以下五项信息（每项都可跳过，若无请选择“没有”或直接写明）。这些信息将用于后续简历定制，本轮先不生成优化稿。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"前端经验：你有哪些前端开发经验（框架、年限、代表项目）？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"使用过的向量数据库：你用过哪些向量数据库/向量检索方案？\",\"kind\":\"multiple\",\"options\":[{\"value\":\"milvus\",\"label\":\"Milvus\",\"meaning\":\"choice\"},{\"value\":\"qdrant\",\"label\":\"Qdrant\",\"meaning\":\"choice\"},{\"value\":\"pgvector\",\"label\":\"pgvector\",\"meaning\":\"choice\"},{\"value\":\"chroma\",\"label\":\"Chroma\",\"meaning\":\"choice\"},{\"value\":\"pinecone\",\"label\":\"Pinecone\",\"meaning\":\"choice\"},{\"value\":\"faiss\",\"label\":\"Faiss\",\"meaning\":\"choice\"},{\"value\":\"weaviate\",\"label\":\"Weaviate\",\"meaning\":\"choice\"},{\"value\":\"elasticsearch_vector\",\"label\":\"Elasticsearch 向量检索\",\"meaning\":\"choice\"},{\"value\":\"none\",\"label\":\"没有使用过\",\"meaning\":\"none\"},{\"value\":\"other\",\"label\":\"其他（请补充）\",\"meaning\":\"other\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"Dify 经验：你使用 Dify 的情况如何（用途、项目角色、熟练度）？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"AI 编程工具：你用过哪些 AI 编程/辅助工具？\",\"kind\":\"multiple\",\"options\":[{\"value\":\"cursor\",\"label\":\"Cursor\",\"meaning\":\"choice\"},{\"value\":\"github_copilot\",\"label\":\"GitHub Copilot\",\"meaning\":\"choice\"},{\"value\":\"claude_code\",\"label\":\"Claude Code\",\"meaning\":\"choice\"},{\"value\":\"windsurf\",\"label\":\"Windsurf\",\"meaning\":\"choice\"},{\"value\":\"codeium\",\"label\":\"Codeium\",\"meaning\":\"choice\"},{\"value\":\"tabnine\",\"label\":\"Tabnine\",\"meaning\":\"choice\"},{\"value\":\"tongyi_lingma\",\"label\":\"通义灵码\",\"meaning\":\"choice\"},{\"value\":\"comate\",\"label\":\"文心快码 Comate\",\"meaning\":\"choice\"},{\"value\":\"none\",\"label\":\"没有使用过\",\"meaning\":\"none\"},{\"value\":\"other\",\"label\":\"其他（请补充）\",\"meaning\":\"other\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"开源项目或博客：你有可展示的开源项目或技术博客吗（名称、链接、你的贡献）？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请逐题回答以下 5 个问题（可跳过，也可明确选择“没有”）。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"前端经验：你使用过哪些前端技术、框架或项目？如果没有前端经验，请选择“没有”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"向量数据库：你使用过哪些向量数据库（如 Milvus、Qdrant、Weaviate、pgvector、FAISS 等）？如果没有使用过，请选择“没有”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"Dify 经验：你在什么场景下用过 Dify（如编排工作流、搭建 RAG 应用、插件开发等）？如果没有用过，请选择“没有”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"AI 编程工具：你日常使用哪些 AI 编程工具（如 GitHub Copilot、Cursor、Claude Code、通义灵码等）？如果没有使用过，请选择“没有”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"开源项目或博客：你有哪些可展示的开源贡献或技术博客？如果没有，请选择“没有”。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "52fa79fb4e478c0601304fe7d5f4dbdc7bb595f597b560310e489167c4b7c407",
-          "decision_shape_fingerprint": "08200821740fd87d36fbf8a3a223971360064eefefef49119e7735762cfcba29",
+          "selected_schema_fingerprint": "63b7e8a12b22becdcb8f56f6f6392534a45e4928130efa85301c9ae0e8c1e6a2",
+          "decision_shape_fingerprint": "f451f44c29a3912cf6844a628927f3daaaae4fc12efc03f87e87510eee3d2e19",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 3383.2,
+          "elapsed_ms": 2505.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -82,23 +76,21 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:50.402984+00:00",
-      "elapsed_ms": 3840.2,
+      "recorded_at": "2026-10-09T18:17:12.836850+00:00",
+      "elapsed_ms": 3578.8,
       "steps": [
         {
-          "content": "{\"action\":\"questionnaire\",\"message\":\"好的，先收集这 5 项独立的简历定制信息。请逐题回答；每题都可以跳过，也可以明确选择\\\"没有/无\\\"。暂时不会调用其他工具，也不会生成优化稿。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的前端经验情况是？（例如：是否有前端开发经历、大致年限、技术栈、做过的项目）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"你使用过哪些向量数据库？（可多选，也可补充未列出的）\",\"kind\":\"multiple\",\"options\":[{\"value\":\"milvus\",\"label\":\"Milvus\",\"meaning\":\"choice\"},{\"value\":\"qdrant\",\"label\":\"Qdrant\",\"meaning\":\"choice\"},{\"value\":\"weaviate\",\"label\":\"Weaviate\",\"meaning\":\"choice\"},{\"value\":\"pgvector\",\"label\":\"pgvector\",\"meaning\":\"choice\"},{\"value\":\"chroma\",\"label\":\"Chroma\",\"meaning\":\"choice\"},{\"value\":\"pinecone\",\"label\":\"Pinecone\",\"meaning\":\"choice\"},{\"value\":\"faiss\",\"label\":\"FAISS\",\"meaning\":\"choice\"},{\"value\":\"elasticsearch_vector\",\"label\":\"Elasticsearch / OpenSearch 向量检索\",\"meaning\":\"choice\"},{\"value\":\"redis_vector\",\"label\":\"Redis 向量检索\",\"meaning\":\"choice\"},{\"value\":\"none\",\"label\":\"没有使用过\",\"meaning\":\"none\"},{\"value\":\"other\",\"label\":\"其他（请补充）\",\"meaning\":\"other\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你的 Dify 经验情况是？（例如：是否用过、用来做什么、熟悉哪些模块如工作流/Agent/RAG）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"你用过哪些 AI 编程工具？（可多选，也可补充未列出的）\",\"kind\":\"multiple\",\"options\":[{\"value\":\"cursor\",\"label\":\"Cursor\",\"meaning\":\"choice\"},{\"value\":\"github_copilot\",\"label\":\"GitHub Copilot\",\"meaning\":\"choice\"},{\"value\":\"claude_code\",\"label\":\"Claude Code\",\"meaning\":\"choice\"},{\"value\":\"windsurf\",\"label\":\"Windsurf\",\"meaning\":\"choice\"},{\"value\":\"codeium\",\"label\":\"Codeium\",\"meaning\":\"choice\"},{\"value\":\"tongyi_lingma\",\"label\":\"通义灵码\",\"meaning\":\"choice\"},{\"value\":\"codegeex\",\"label\":\"CodeGeeX\",\"meaning\":\"choice\"},{\"value\":\"trae\",\"label\":\"Trae\",\"meaning\":\"choice\"},{\"value\":\"chatgpt_codex\",\"label\":\"ChatGPT / Codex 辅助编码\",\"meaning\":\"choice\"},{\"value\":\"none\",\"label\":\"没有使用过\",\"meaning\":\"none\"},{\"value\":\"other\",\"label\":\"其他（请补充）\",\"meaning\":\"other\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"你的开源项目或技术博客情况是？（例如：GitHub 仓库及其亮点、star 数、博客平台与内容方向、有没有链接）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+          "content": "{\"action\":\"questionnaire\",\"message\":\"请逐题回答以下五项简历定制信息（可跳过或明确回答“没有”）：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的前端经验情况如何？（例如：无、了解、1年以下、1-3年、3年以上；可补充技术栈）\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有前端经验\",\"meaning\":\"none\"},{\"value\":\"basic\",\"label\":\"了解/基础水平\",\"meaning\":\"choice\"},{\"value\":\"lt1y\",\"label\":\"1 年以下\",\"meaning\":\"choice\"},{\"value\":\"option_4\",\"label\":\"1-3 年\",\"meaning\":\"choice\"},{\"value\":\"gt3y\",\"label\":\"3 年以上\",\"meaning\":\"choice\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"你使用过哪些向量数据库？（可多选；没有请选“没有”）\",\"kind\":\"multiple\",\"options\":[{\"value\":\"milvus\",\"label\":\"Milvus\",\"meaning\":\"choice\"},{\"value\":\"pgvector\",\"label\":\"pgvector\",\"meaning\":\"choice\"},{\"value\":\"pinecone\",\"label\":\"Pinecone\",\"meaning\":\"choice\"},{\"value\":\"chroma\",\"label\":\"Chroma\",\"meaning\":\"choice\"},{\"value\":\"weaviate\",\"label\":\"Weaviate\",\"meaning\":\"choice\"},{\"value\":\"qdrant\",\"label\":\"Qdrant\",\"meaning\":\"choice\"},{\"value\":\"faiss\",\"label\":\"FAISS\",\"meaning\":\"choice\"},{\"value\":\"none\",\"label\":\"没有使用过\",\"meaning\":\"none\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你的 Dify 经验情况如何？\",\"kind\":\"single\",\"options\":[{\"value\":\"none\",\"label\":\"没有 Dify 经验\",\"meaning\":\"none\"},{\"value\":\"tried\",\"label\":\"试用/了解过\",\"meaning\":\"choice\"},{\"value\":\"project\",\"label\":\"在项目中实际用过\",\"meaning\":\"choice\"},{\"value\":\"production\",\"label\":\"在生产环境部署/维护过\",\"meaning\":\"choice\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"你使用过哪些 AI 编程工具？（可多选；没有请选“没有”）\",\"kind\":\"multiple\",\"options\":[{\"value\":\"copilot\",\"label\":\"GitHub Copilot\",\"meaning\":\"choice\"},{\"value\":\"cursor\",\"label\":\"Cursor\",\"meaning\":\"choice\"},{\"value\":\"claude_code\",\"label\":\"Claude Code\",\"meaning\":\"choice\"},{\"value\":\"windsurf\",\"label\":\"Windsurf\",\"meaning\":\"choice\"},{\"value\":\"codex\",\"label\":\"Codex\",\"meaning\":\"choice\"},{\"value\":\"trae\",\"label\":\"Trae\",\"meaning\":\"choice\"},{\"value\":\"tongyi\",\"label\":\"通义灵码\",\"meaning\":\"choice\"},{\"value\":\"none\",\"label\":\"没有使用过\",\"meaning\":\"none\"}],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"你有开源项目或技术博客吗？（可简述项目/博客名称、链接与你的角色；没有请选“没有”）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}],\"continuation_capability\":\"draft_resume_tailoring\"}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "52fa79fb4e478c0601304fe7d5f4dbdc7bb595f597b560310e489167c4b7c407",
-          "decision_shape_fingerprint": "08200821740fd87d36fbf8a3a223971360064eefefef49119e7735762cfcba29",
+          "selected_schema_fingerprint": "63b7e8a12b22becdcb8f56f6f6392534a45e4928130efa85301c9ae0e8c1e6a2",
+          "decision_shape_fingerprint": "f451f44c29a3912cf6844a628927f3daaaae4fc12efc03f87e87510eee3d2e19",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 3697.6,
+          "elapsed_ms": 3575.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

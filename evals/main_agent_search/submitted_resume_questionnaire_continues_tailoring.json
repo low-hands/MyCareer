@@ -2,9 +2,9 @@
   "scenario": "submitted_resume_questionnaire_continues_tailoring",
   "policy": "After a user submits answers to a questionnaire for the current resume tailoring task, continue that task with the bound resume and match. Skipped and absent answers are not career facts or permission to invent experience.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "7bf4a78e7e4a1b2bf4e3f572b3bcfa4d28b0b133be00446a477dc18421fa823e",
+  "prompt_fingerprint": "175fe3a21d57cd17917598cdbba8877fc63219c795af3360188b2e238f73dca6",
   "context_shape_fingerprint": "2a7924fc8dda76d33903c9162cba2cf866d73a90fa7322af9149bfec6ac7b293",
-  "recorded_at": "2026-10-08T16:50:15.740262+00:00",
+  "recorded_at": "2026-10-09T18:17:59.353647+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,22 +12,20 @@
         "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "16ae7db91d452417c80a0e6b7ed2b82c6169b91aba1829c233d6250e9b6ba330",
-      "decision_shape_fingerprint": "6bddffff91b499e5abdd6e927202879af45789ae4ea6704d2e132d21e93e488e",
+      "selected_schema_fingerprint": "b9f29f811c83584e807ed26f532a46d0117869d5cbd89c3fe74df9f911ad6754",
+      "decision_shape_fingerprint": "ae3b49c38645c9725261c44e8afa2d0166247f9e7daa87e2ec45bc85559a5952",
       "offered_tools": [
         "load_skill",
-        "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
-        "find_saved_jobs",
         "get_saved_job",
         "get_resume_job_match",
         "draft_resume_tailoring",
-        "get_career_memory_detail",
-        "propose_memory_tombstone",
+        "search_career_history",
+        "propose_career_fact",
         "search_capabilities"
       ],
-      "elapsed_ms": 3831.9,
+      "elapsed_ms": 1958.9,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -38,8 +36,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:50:15.740771+00:00",
-      "elapsed_ms": 4038.3,
+      "recorded_at": "2026-10-09T18:17:58.014394+00:00",
+      "elapsed_ms": 1965.6,
       "steps": [
         {
           "tool_call": {
@@ -47,22 +45,20 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "16ae7db91d452417c80a0e6b7ed2b82c6169b91aba1829c233d6250e9b6ba330",
-          "decision_shape_fingerprint": "6bddffff91b499e5abdd6e927202879af45789ae4ea6704d2e132d21e93e488e",
+          "selected_schema_fingerprint": "b9f29f811c83584e807ed26f532a46d0117869d5cbd89c3fe74df9f911ad6754",
+          "decision_shape_fingerprint": "ae3b49c38645c9725261c44e8afa2d0166247f9e7daa87e2ec45bc85559a5952",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "find_saved_jobs",
             "get_saved_job",
             "get_resume_job_match",
             "draft_resume_tailoring",
-            "get_career_memory_detail",
-            "propose_memory_tombstone",
+            "search_career_history",
+            "propose_career_fact",
             "search_capabilities"
           ],
-          "elapsed_ms": 3831.9,
+          "elapsed_ms": 1958.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -72,8 +68,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:50:14.483836+00:00",
-      "elapsed_ms": 2539.0,
+      "recorded_at": "2026-10-09T18:17:58.912439+00:00",
+      "elapsed_ms": 2194.1,
       "steps": [
         {
           "tool_call": {
@@ -81,22 +77,20 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "16ae7db91d452417c80a0e6b7ed2b82c6169b91aba1829c233d6250e9b6ba330",
-          "decision_shape_fingerprint": "6bddffff91b499e5abdd6e927202879af45789ae4ea6704d2e132d21e93e488e",
+          "selected_schema_fingerprint": "b9f29f811c83584e807ed26f532a46d0117869d5cbd89c3fe74df9f911ad6754",
+          "decision_shape_fingerprint": "ae3b49c38645c9725261c44e8afa2d0166247f9e7daa87e2ec45bc85559a5952",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "find_saved_jobs",
             "get_saved_job",
             "get_resume_job_match",
             "draft_resume_tailoring",
-            "get_career_memory_detail",
-            "propose_memory_tombstone",
+            "search_career_history",
+            "propose_career_fact",
             "search_capabilities"
           ],
-          "elapsed_ms": 2438.9,
+          "elapsed_ms": 2189.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -106,8 +100,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:50:15.740262+00:00",
-      "elapsed_ms": 3035.5,
+      "recorded_at": "2026-10-09T18:17:59.353647+00:00",
+      "elapsed_ms": 1887.4,
       "steps": [
         {
           "tool_call": {
@@ -115,22 +109,20 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "16ae7db91d452417c80a0e6b7ed2b82c6169b91aba1829c233d6250e9b6ba330",
-          "decision_shape_fingerprint": "6bddffff91b499e5abdd6e927202879af45789ae4ea6704d2e132d21e93e488e",
+          "selected_schema_fingerprint": "b9f29f811c83584e807ed26f532a46d0117869d5cbd89c3fe74df9f911ad6754",
+          "decision_shape_fingerprint": "ae3b49c38645c9725261c44e8afa2d0166247f9e7daa87e2ec45bc85559a5952",
           "offered_tools": [
             "load_skill",
-            "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "find_saved_jobs",
             "get_saved_job",
             "get_resume_job_match",
             "draft_resume_tailoring",
-            "get_career_memory_detail",
-            "propose_memory_tombstone",
+            "search_career_history",
+            "propose_career_fact",
             "search_capabilities"
           ],
-          "elapsed_ms": 2927.3,
+          "elapsed_ms": 1882.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

@@ -2,31 +2,31 @@
   "scenario": "a_long_compacted_history_is_searched_in_one_page_in_call",
   "policy": "When omitted history is longer than the bounded read-call budget can scan, call read_conversation_span with focused query terms inside sequence 1 through through_sequence instead of walking positional chunks or guessing.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "714162ca6a862bf5374845b2ffb3deb12359ab3c0b82f1b66851bd5c95694121",
+  "prompt_fingerprint": "2b79ee08122d7b707fcdb2e5a342829a164b27b53ff6e834a4bf6b8e423f1c9b",
   "context_shape_fingerprint": "720c64c0e111845ac36282255287dc00fe96a9769230eb0da4bebf0e4e5c4f31",
-  "recorded_at": "2026-10-08T16:49:43.318729+00:00",
+  "recorded_at": "2026-10-09T18:17:05.225413+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "read_conversation_span",
         "arguments": {
-          "query": "目标公司 美团 算法工程师"
+          "query": "目标公司 算法工程师 岗位"
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "6aa2eacbbc8e5d47b02053f42b5a322cd41b2880d40558605008adbb4fdbbcab",
-      "decision_shape_fingerprint": "f3b7199f5f81dd953202d99dd93a8daddff2d783b299f231fff6871f98edd3f7",
+      "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
+      "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
         "fetch_archived_constraints",
         "search_career_memory",
-        "get_job_research",
         "list_target_roles",
+        "propose_job_intent",
         "search_career_episodes",
         "search_capabilities"
       ],
-      "elapsed_ms": 889.0,
+      "elapsed_ms": 1116.9,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -37,8 +37,41 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-08T16:49:42.256527+00:00",
-      "elapsed_ms": 945.8,
+      "recorded_at": "2026-10-09T18:17:05.045822+00:00",
+      "elapsed_ms": 1118.0,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "read_conversation_span",
+            "arguments": {
+              "query": "目标公司 算法工程师 岗位"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
+          "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1116.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-09T18:17:04.864589+00:00",
+      "elapsed_ms": 922.9,
       "steps": [
         {
           "tool_call": {
@@ -48,19 +81,19 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "6aa2eacbbc8e5d47b02053f42b5a322cd41b2880d40558605008adbb4fdbbcab",
-          "decision_shape_fingerprint": "f3b7199f5f81dd953202d99dd93a8daddff2d783b299f231fff6871f98edd3f7",
+          "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
+          "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "get_job_research",
             "list_target_roles",
+            "propose_job_intent",
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 889.0,
+          "elapsed_ms": 919.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -70,41 +103,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-08T16:49:43.069872+00:00",
-      "elapsed_ms": 1548.2,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "read_conversation_span",
-            "arguments": {
-              "query": "目标公司 算法工程师 美团"
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "6aa2eacbbc8e5d47b02053f42b5a322cd41b2880d40558605008adbb4fdbbcab",
-          "decision_shape_fingerprint": "f3b7199f5f81dd953202d99dd93a8daddff2d783b299f231fff6871f98edd3f7",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_job_research",
-            "list_target_roles",
-            "search_career_episodes",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1454.7,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-08T16:49:43.318729+00:00",
-      "elapsed_ms": 1773.5,
+      "recorded_at": "2026-10-09T18:17:05.225413+00:00",
+      "elapsed_ms": 1161.8,
       "steps": [
         {
           "tool_call": {
@@ -114,19 +114,19 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "6aa2eacbbc8e5d47b02053f42b5a322cd41b2880d40558605008adbb4fdbbcab",
-          "decision_shape_fingerprint": "f3b7199f5f81dd953202d99dd93a8daddff2d783b299f231fff6871f98edd3f7",
+          "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
+          "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
             "fetch_archived_constraints",
             "search_career_memory",
-            "get_job_research",
             "list_target_roles",
+            "propose_job_intent",
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 1675.2,
+          "elapsed_ms": 1160.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

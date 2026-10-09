@@ -295,10 +295,20 @@ def record_search_catalogue(scenarios: Sequence[TrajectoryScenario],
                 })
                 if first_error is None:
                     first_error = error
-                continue
+                trace = getattr(error, "recording_trace", None) or {}
+                sample = {
+                    "recorded_at": datetime.now(timezone.utc).isoformat(),
+                    "terminal_error": error.code,
+                    "steps": [*trace.get("completed_steps", ()), {
+                        "scenario_step": trace.get("step", 0),
+                        "recording_error": error.code,
+                        "model_request_count": trace.get("model_request_count", 0),
+                        "decision_retry_telemetry_version": 1,
+                        "decision_retry_events": trace.get("decision_retry_events", []),
+                        "recording_retry_events": trace.get("recording_retry_events", []),
+                    }],
+                }
             completed.setdefault(scenario.name, {})[index] = sample
-            if scenario.name in failed:
-                continue
             count = sum(item.name == scenario.name for item, _ in work)
             if len(completed[scenario.name]) != count:
                 continue
@@ -324,6 +334,7 @@ def record_search_catalogue(scenarios: Sequence[TrajectoryScenario],
             {"scenario": scenario, "sample": index + 1, "recording": sample}
             for scenario, indexed in completed.items() if scenario in failed
             for index, sample in sorted(indexed.items())
+            if "terminal_error" not in sample
         ]
         raise first_error
     return tuple(written)
@@ -360,6 +371,12 @@ def replay_search_sample(scenario: TrajectoryScenario,
                          *, tool_specs: tuple[dict[str, Any], ...],
                          responses: Sequence[Mapping[str, Any]],
                          quality: bool = False) -> tuple[str, ...]:
+    # A terminal live-model failure is fresh evidence, not a stale cassette
+    # and not a sample to discard from the pass^k denominator.
+    terminal = next((item for item in responses if item.get("recording_error")), None)
+    if terminal is not None:
+        return (f"{scenario.name}[{terminal.get('scenario_step', 0)}]: "
+                f"live recording failed: {terminal['recording_error']}",)
     strategy = evaluation_strategy()
     maker = OpenAICompatibleMainAgentDecisionMaker(
         OpenAICompatibleAgentConfig(
