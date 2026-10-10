@@ -1,0 +1,57 @@
+{
+  "protocol": {
+    "fixed_samples_per_scenario": 10,
+    "scenarios": [
+      "a_card_backed_report_is_answered_without_reproducing_it",
+      "five_missing_resume_facts_use_one_questionnaire",
+      "a_report_made_this_turn_is_read_back_by_its_index",
+      "a_report_made_this_turn_without_an_index_cannot_be_named"
+    ],
+    "compatibility_preflight_required": true,
+    "model": "qwen3.7-plus",
+    "mode": "required_on_initial_auto_requests",
+    "grading": "Unchanged existing scenario behavioural and quality rules; all errors count, no replacement samples.",
+    "comparison": "Existing three-sample auto recordings are historical, not concurrent matched A/B.",
+    "prompt_fingerprints": {
+      "a_card_backed_report_is_answered_without_reproducing_it": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f",
+      "five_missing_resume_facts_use_one_questionnaire": "1836662633963b742a924b4bf7207b61bd6743930cebcb17f0cb7085b4070c5f",
+      "a_report_made_this_turn_is_read_back_by_its_index": "0b5c959ee1760538136222229325f8b35f0e081dd9d782ff9efa527b4bdb53c6",
+      "a_report_made_this_turn_without_an_index_cannot_be_named": "0b5c959ee1760538136222229325f8b35f0e081dd9d782ff9efa527b4bdb53c6"
+    }
+  },
+  "attempts": [
+    {
+      "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+      "sample": 1,
+      "recording": {
+        "recorded_at": "2026-10-10T05:51:17.545828+00:00",
+        "elapsed_ms": 5270.4,
+        "steps": [
+          {
+            "content": "{\"action\":\"final\",\"message\":\"调研已完成：示例科技在2026年第二季度将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。\",\"questions\":[]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "56629f520c701fe5e85811e151ccd1780ab162c196de63b1e128aee9ac5fe10c",
+            "decision_shape_fingerprint": "436ab5e33e503b8cdbe9779d8b837ea536a45582480d6fb98bde68ed34aa1199",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 5268.1,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    }
+  ]
+}

@@ -1,0 +1,1574 @@
+{
+  "protocol": {
+    "fixed_samples_per_scenario": 10,
+    "scenarios": [
+      "a_card_backed_report_is_answered_without_reproducing_it",
+      "five_missing_resume_facts_use_one_questionnaire",
+      "a_report_made_this_turn_is_read_back_by_its_index",
+      "a_report_made_this_turn_without_an_index_cannot_be_named"
+    ],
+    "compatibility_preflight_required": true,
+    "model": "qwen3.7-plus",
+    "mode": "required_on_initial_auto_requests",
+    "grading": "Unchanged existing scenario behavioural and quality rules; all errors count, no replacement samples.",
+    "comparison": "Existing three-sample auto recordings are historical, not concurrent matched A/B.",
+    "prompt_fingerprints": {
+      "a_card_backed_report_is_answered_without_reproducing_it": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f",
+      "five_missing_resume_facts_use_one_questionnaire": "1836662633963b742a924b4bf7207b61bd6743930cebcb17f0cb7085b4070c5f",
+      "a_report_made_this_turn_is_read_back_by_its_index": "0b5c959ee1760538136222229325f8b35f0e081dd9d782ff9efa527b4bdb53c6",
+      "a_report_made_this_turn_without_an_index_cannot_be_named": "0b5c959ee1760538136222229325f8b35f0e081dd9d782ff9efa527b4bdb53c6"
+    }
+  },
+  "attempts": [
+    {
+      "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+      "sample": 1,
+      "recording": {
+        "recorded_at": "2026-10-10T05:53:01.028052+00:00",
+        "elapsed_ms": 3985.5,
+        "steps": [
+          {
+            "content": "{\"action\":\"final\",\"message\":\"调研已完成：该公司在2026年第二季度将检索业务拆分为独立事业部，招聘规模较上一季度扩大约四成，且主要竞争对手在同一赛道尚未公开同类产品。\",\"questions\":[]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "56629f520c701fe5e85811e151ccd1780ab162c196de63b1e128aee9ac5fe10c",
+            "decision_shape_fingerprint": "436ab5e33e503b8cdbe9779d8b837ea536a45582480d6fb98bde68ed34aa1199",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 3981.7,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [
+        "a_card_backed_report_is_answered_without_reproducing_it[0]: reply restated runtime-owned delivery '主要竞争对手在同一赛道尚未公开同类产品'",
+        "a_card_backed_report_is_answered_without_reproducing_it[0]: reply restated runtime-owned delivery '招聘规模较上一季度扩大约四成'"
+      ],
+      "status": "behaviour_failed"
+    },
+    {
+      "scenario": "five_missing_resume_facts_use_one_questionnaire",
+      "sample": 1,
+      "recording": {
+        "recorded_at": "2026-10-10T05:53:09.206631+00:00",
+        "elapsed_ms": 8173.2,
+        "steps": [
+          {
+            "content": "{\"action\":\"questionnaire\",\"message\":\"请逐题回答以下五项简历定制信息，以便后续为您进行针对性优化。您可以选择跳过某项或明确回答“没有”。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"请描述您的前端开发经验（如年限、主要技术栈、负责过的核心项目等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"您使用过哪些向量数据库？（如 Milvus, Pinecone, Chroma 等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"请描述您在 Dify 平台上的相关经验（如搭建应用、工作流设计、插件开发等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"您常用哪些 AI 编程工具？（如 GitHub Copilot, Cursor, Tabnine 等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"请提供您的开源项目贡献经历或个人博客/技术文章链接及简介\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "63b7e8a12b22becdcb8f56f6f6392534a45e4928130efa85301c9ae0e8c1e6a2",
+            "decision_shape_fingerprint": "f451f44c29a3912cf6844a628927f3daaaae4fc12efc03f87e87510eee3d2e19",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 8170.1,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
+      "sample": 1,
+      "recording": {
+        "recorded_at": "2026-10-10T05:53:12.998491+00:00",
+        "elapsed_ms": 3786.9,
+        "steps": [
+          {
+            "tool_call": {
+              "name": "get_job_research",
+              "arguments": {
+                "reference": "report_440400"
+              }
+            },
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+            "decision_shape_fingerprint": "3ea58e55b1c83d08782a57f1cb2d22a48cd85d9a132b98c4ec361958734334c2",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_career_episodes",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 3785.3,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
+      "sample": 1,
+      "status": "failed",
+      "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+      "recording": {
+        "step": 0,
+        "completed_steps": [],
+        "offered_tools": [
+          "load_skill",
+          "fetch_archived_constraints",
+          "search_career_memory",
+          "get_saved_job",
+          "research_job",
+          "get_job_research",
+          "search_career_episodes",
+          "search_capabilities"
+        ],
+        "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+        "error_detail": "get_job_research: The proposed arguments do not satisfy this capability's input contract or resource binding. Nothing executed. Follow its schema, documented prerequisites and supplied references. Clarify missing or ambiguous inputs instead of inventing selectors.",
+        "model_request_count": 2,
+        "decision_retry_events": [
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": true,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          },
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": false,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          }
+        ],
+        "recording_retry_events": []
+      }
+    },
+    {
+      "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+      "sample": 2,
+      "recording": {
+        "recorded_at": "2026-10-10T05:53:23.913208+00:00",
+        "elapsed_ms": 2910.4,
+        "steps": [
+          {
+            "content": "{\"action\":\"final\",\"message\":\"调研已完成：示例科技在2026年第二季度将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。\",\"questions\":[]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "56629f520c701fe5e85811e151ccd1780ab162c196de63b1e128aee9ac5fe10c",
+            "decision_shape_fingerprint": "436ab5e33e503b8cdbe9779d8b837ea536a45582480d6fb98bde68ed34aa1199",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 2906.9,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "five_missing_resume_facts_use_one_questionnaire",
+      "sample": 2,
+      "recording": {
+        "recorded_at": "2026-10-10T05:53:31.655294+00:00",
+        "elapsed_ms": 7733.6,
+        "steps": [
+          {
+            "content": "{\"action\":\"questionnaire\",\"message\":\"请回答以下五项简历定制信息，可跳过或明确回答没有。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的前端经验？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"使用过的向量数据库有哪些？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"是否有 Dify 相关经验？\",\"kind\":\"single\",\"options\":[{\"value\":\"yes\",\"label\":\"有\",\"meaning\":\"choice\"},{\"value\":\"none\",\"label\":\"没有\",\"meaning\":\"none\"}],\"allow_free_text\":false,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"使用过哪些 AI 编程工具？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"是否有开源项目或技术博客？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "63b7e8a12b22becdcb8f56f6f6392534a45e4928130efa85301c9ae0e8c1e6a2",
+            "decision_shape_fingerprint": "f451f44c29a3912cf6844a628927f3daaaae4fc12efc03f87e87510eee3d2e19",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 7729.7,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
+      "sample": 2,
+      "recording": {
+        "recorded_at": "2026-10-10T05:53:35.801620+00:00",
+        "elapsed_ms": 4138.2,
+        "steps": [
+          {
+            "tool_call": {
+              "name": "get_job_research",
+              "arguments": {
+                "reference": "report_440400"
+              }
+            },
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+            "decision_shape_fingerprint": "3ea58e55b1c83d08782a57f1cb2d22a48cd85d9a132b98c4ec361958734334c2",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_career_episodes",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 4135.1,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
+      "sample": 2,
+      "status": "failed",
+      "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+      "recording": {
+        "step": 0,
+        "completed_steps": [],
+        "offered_tools": [
+          "load_skill",
+          "fetch_archived_constraints",
+          "search_career_memory",
+          "get_saved_job",
+          "research_job",
+          "get_job_research",
+          "search_career_episodes",
+          "search_capabilities"
+        ],
+        "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+        "error_detail": "get_job_research: The proposed arguments do not satisfy this capability's input contract or resource binding. Nothing executed. Follow its schema, documented prerequisites and supplied references. Clarify missing or ambiguous inputs instead of inventing selectors.",
+        "model_request_count": 2,
+        "decision_retry_events": [
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": true,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          },
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": false,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          }
+        ],
+        "recording_retry_events": []
+      }
+    },
+    {
+      "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+      "sample": 3,
+      "recording": {
+        "recorded_at": "2026-10-10T05:53:46.063323+00:00",
+        "elapsed_ms": 3895.0,
+        "steps": [
+          {
+            "content": "{\"action\":\"final\",\"message\":\"调研已完成：该公司在 2026 年第二季度将检索业务拆分为独立事业部，招聘规模较上一季度扩大约四成，且主要竞争对手在同一赛道尚未公开同类产品。\",\"questions\":[]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "56629f520c701fe5e85811e151ccd1780ab162c196de63b1e128aee9ac5fe10c",
+            "decision_shape_fingerprint": "436ab5e33e503b8cdbe9779d8b837ea536a45582480d6fb98bde68ed34aa1199",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 3890.8,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [
+        "a_card_backed_report_is_answered_without_reproducing_it[0]: reply restated runtime-owned delivery '主要竞争对手在同一赛道尚未公开同类产品'",
+        "a_card_backed_report_is_answered_without_reproducing_it[0]: reply restated runtime-owned delivery '招聘规模较上一季度扩大约四成'",
+        "a_card_backed_report_is_answered_without_reproducing_it[0]: reply restated runtime-owned delivery '该公司在 2026 年第二季度将检索业务拆分为独立事业部'"
+      ],
+      "status": "behaviour_failed"
+    },
+    {
+      "scenario": "five_missing_resume_facts_use_one_questionnaire",
+      "sample": 3,
+      "recording": {
+        "recorded_at": "2026-10-10T05:53:53.277883+00:00",
+        "elapsed_ms": 7208.4,
+        "steps": [
+          {
+            "content": "{\"action\":\"questionnaire\",\"message\":\"请回答以下五项简历定制相关信息，每题可跳过或明确回答没有：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的前端开发经验（技术栈、年限、主要项目类型等）？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"你使用过哪些向量数据库？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你有 Dify 相关的使用或开发经验吗？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"你常用的 AI 编程工具有哪些？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"你有开源项目贡献或个人技术博客吗？请简要说明。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "63b7e8a12b22becdcb8f56f6f6392534a45e4928130efa85301c9ae0e8c1e6a2",
+            "decision_shape_fingerprint": "f451f44c29a3912cf6844a628927f3daaaae4fc12efc03f87e87510eee3d2e19",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 7204.4,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
+      "sample": 3,
+      "recording": {
+        "recorded_at": "2026-10-10T05:53:55.915995+00:00",
+        "elapsed_ms": 2627.0,
+        "steps": [
+          {
+            "tool_call": {
+              "name": "get_job_research",
+              "arguments": {
+                "reference": "report_440400"
+              }
+            },
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+            "decision_shape_fingerprint": "3ea58e55b1c83d08782a57f1cb2d22a48cd85d9a132b98c4ec361958734334c2",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_career_episodes",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 2623.0,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
+      "sample": 3,
+      "status": "failed",
+      "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+      "recording": {
+        "step": 0,
+        "completed_steps": [],
+        "offered_tools": [
+          "load_skill",
+          "fetch_archived_constraints",
+          "search_career_memory",
+          "get_saved_job",
+          "research_job",
+          "get_job_research",
+          "search_career_episodes",
+          "search_capabilities"
+        ],
+        "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+        "error_detail": "get_job_research: The proposed arguments do not satisfy this capability's input contract or resource binding. Nothing executed. Follow its schema, documented prerequisites and supplied references. Clarify missing or ambiguous inputs instead of inventing selectors.",
+        "model_request_count": 2,
+        "decision_retry_events": [
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": true,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          },
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": false,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          }
+        ],
+        "recording_retry_events": []
+      }
+    },
+    {
+      "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+      "sample": 4,
+      "recording": {
+        "recorded_at": "2026-10-10T05:54:04.186277+00:00",
+        "elapsed_ms": 2462.2,
+        "steps": [
+          {
+            "content": "{\"action\":\"final\",\"message\":\"调研已完成：示例科技在2026年Q2将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。\",\"questions\":[]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "56629f520c701fe5e85811e151ccd1780ab162c196de63b1e128aee9ac5fe10c",
+            "decision_shape_fingerprint": "436ab5e33e503b8cdbe9779d8b837ea536a45582480d6fb98bde68ed34aa1199",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 2456.3,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "five_missing_resume_facts_use_one_questionnaire",
+      "sample": 4,
+      "recording": {
+        "recorded_at": "2026-10-10T05:54:11.162927+00:00",
+        "elapsed_ms": 6968.0,
+        "steps": [
+          {
+            "content": "{\"action\":\"questionnaire\",\"message\":\"请回答以下五个关于简历定制的问题，您可以选择跳过任意题目：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"请描述您的前端开发经验（如年限、主要技术栈等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"您使用过哪些向量数据库？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"请描述您的 Dify 相关经验\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"您使用过哪些 AI 编程工具？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"您是否有开源项目或技术博客？如有请提供链接或简要描述\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "63b7e8a12b22becdcb8f56f6f6392534a45e4928130efa85301c9ae0e8c1e6a2",
+            "decision_shape_fingerprint": "f451f44c29a3912cf6844a628927f3daaaae4fc12efc03f87e87510eee3d2e19",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 6964.2,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
+      "sample": 4,
+      "recording": {
+        "recorded_at": "2026-10-10T05:54:14.164406+00:00",
+        "elapsed_ms": 2992.1,
+        "steps": [
+          {
+            "tool_call": {
+              "name": "get_job_research",
+              "arguments": {
+                "reference": "report_440400"
+              }
+            },
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+            "decision_shape_fingerprint": "3ea58e55b1c83d08782a57f1cb2d22a48cd85d9a132b98c4ec361958734334c2",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_career_episodes",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 2987.6,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
+      "sample": 4,
+      "status": "failed",
+      "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+      "recording": {
+        "step": 0,
+        "completed_steps": [],
+        "offered_tools": [
+          "load_skill",
+          "fetch_archived_constraints",
+          "search_career_memory",
+          "get_saved_job",
+          "research_job",
+          "get_job_research",
+          "search_career_episodes",
+          "search_capabilities"
+        ],
+        "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+        "error_detail": "get_job_research: The proposed arguments do not satisfy this capability's input contract or resource binding. Nothing executed. Follow its schema, documented prerequisites and supplied references. Clarify missing or ambiguous inputs instead of inventing selectors.",
+        "model_request_count": 2,
+        "decision_retry_events": [
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": true,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          },
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": false,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          }
+        ],
+        "recording_retry_events": []
+      }
+    },
+    {
+      "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+      "sample": 5,
+      "recording": {
+        "recorded_at": "2026-10-10T05:54:23.289786+00:00",
+        "elapsed_ms": 2921.0,
+        "steps": [
+          {
+            "content": "{\"action\":\"final\",\"message\":\"调研已完成：该公司在2026年第二季度将检索业务拆分为独立事业部，招聘规模扩大约四成，主要竞争对手尚未公开同类产品。\",\"questions\":[]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "56629f520c701fe5e85811e151ccd1780ab162c196de63b1e128aee9ac5fe10c",
+            "decision_shape_fingerprint": "436ab5e33e503b8cdbe9779d8b837ea536a45582480d6fb98bde68ed34aa1199",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 2916.1,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "five_missing_resume_facts_use_one_questionnaire",
+      "sample": 5,
+      "recording": {
+        "recorded_at": "2026-10-10T05:54:30.441765+00:00",
+        "elapsed_ms": 7142.7,
+        "steps": [
+          {
+            "content": "{\"action\":\"questionnaire\",\"message\":\"请回答以下五个关于简历定制的问题，您可以选择跳过或明确回答没有：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"前端经验（例如框架、年限等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"使用过的向量数据库\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"Dify 经验\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"AI 编程工具\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"开源项目或博客\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "63b7e8a12b22becdcb8f56f6f6392534a45e4928130efa85301c9ae0e8c1e6a2",
+            "decision_shape_fingerprint": "f451f44c29a3912cf6844a628927f3daaaae4fc12efc03f87e87510eee3d2e19",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 7138.4,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
+      "sample": 5,
+      "recording": {
+        "recorded_at": "2026-10-10T05:54:33.957688+00:00",
+        "elapsed_ms": 3505.6,
+        "steps": [
+          {
+            "tool_call": {
+              "name": "get_job_research",
+              "arguments": {
+                "reference": "report_440400"
+              }
+            },
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+            "decision_shape_fingerprint": "3ea58e55b1c83d08782a57f1cb2d22a48cd85d9a132b98c4ec361958734334c2",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_career_episodes",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 3500.8,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
+      "sample": 5,
+      "recording": {
+        "recorded_at": "2026-10-10T05:54:37.076105+00:00",
+        "elapsed_ms": 3101.0,
+        "steps": [
+          {
+            "tool_call": {
+              "name": "get_job_research",
+              "arguments": {
+                "reference": "report_662e28"
+              }
+            },
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+            "decision_shape_fingerprint": "4fda7822c16b16c93d1523035af78fb8961ef4eec13f508eaa8aa3358976a499",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_career_episodes",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 3098.7,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [
+        "a_report_made_this_turn_without_an_index_cannot_be_named[0]: called forbidden tool 'get_job_research'",
+        "a_report_made_this_turn_without_an_index_cannot_be_named[0]: passed reference='report_662e28', which the projection never offered"
+      ],
+      "status": "behaviour_failed"
+    },
+    {
+      "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+      "sample": 6,
+      "recording": {
+        "recorded_at": "2026-10-10T05:54:39.731532+00:00",
+        "elapsed_ms": 2650.6,
+        "steps": [
+          {
+            "content": "{\"action\":\"final\",\"message\":\"调研已完成：示例科技在2026年第二季度将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。\",\"questions\":[]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "56629f520c701fe5e85811e151ccd1780ab162c196de63b1e128aee9ac5fe10c",
+            "decision_shape_fingerprint": "436ab5e33e503b8cdbe9779d8b837ea536a45582480d6fb98bde68ed34aa1199",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 2647.0,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "five_missing_resume_facts_use_one_questionnaire",
+      "sample": 6,
+      "recording": {
+        "recorded_at": "2026-10-10T05:54:46.730096+00:00",
+        "elapsed_ms": 6989.8,
+        "steps": [
+          {
+            "content": "{\"action\":\"questionnaire\",\"message\":\"请回答以下五个问题，以便后续进行简历定制：\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的前端经验（年限、主要技术栈等）？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"你使用过哪些向量数据库？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你有 Dify 相关经验吗？如有请简述。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"你常用的 AI 编程工具有哪些？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"你是否有开源项目或技术博客？如有请提供链接或简述。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "63b7e8a12b22becdcb8f56f6f6392534a45e4928130efa85301c9ae0e8c1e6a2",
+            "decision_shape_fingerprint": "f451f44c29a3912cf6844a628927f3daaaae4fc12efc03f87e87510eee3d2e19",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 6985.9,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
+      "sample": 6,
+      "recording": {
+        "recorded_at": "2026-10-10T05:54:49.659344+00:00",
+        "elapsed_ms": 2921.1,
+        "steps": [
+          {
+            "tool_call": {
+              "name": "get_job_research",
+              "arguments": {
+                "reference": "report_440400"
+              }
+            },
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+            "decision_shape_fingerprint": "3ea58e55b1c83d08782a57f1cb2d22a48cd85d9a132b98c4ec361958734334c2",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_career_episodes",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 2915.9,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
+      "sample": 6,
+      "recording": {
+        "recorded_at": "2026-10-10T05:54:52.595035+00:00",
+        "elapsed_ms": 2924.6,
+        "steps": [
+          {
+            "tool_call": {
+              "name": "get_job_research",
+              "arguments": {
+                "reference": "report_662e28"
+              }
+            },
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+            "decision_shape_fingerprint": "4fda7822c16b16c93d1523035af78fb8961ef4eec13f508eaa8aa3358976a499",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_career_episodes",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 2920.6,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [
+        "a_report_made_this_turn_without_an_index_cannot_be_named[0]: called forbidden tool 'get_job_research'",
+        "a_report_made_this_turn_without_an_index_cannot_be_named[0]: passed reference='report_662e28', which the projection never offered"
+      ],
+      "status": "behaviour_failed"
+    },
+    {
+      "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+      "sample": 7,
+      "recording": {
+        "recorded_at": "2026-10-10T05:54:55.396509+00:00",
+        "elapsed_ms": 2789.1,
+        "steps": [
+          {
+            "content": "{\"action\":\"final\",\"message\":\"调研已完成：该公司在 2026 年第二季度将检索业务拆分为独立事业部，招聘规模较上一季度扩大约四成，且主要竞争对手在同一赛道尚未公开同类产品。\",\"questions\":[]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "56629f520c701fe5e85811e151ccd1780ab162c196de63b1e128aee9ac5fe10c",
+            "decision_shape_fingerprint": "436ab5e33e503b8cdbe9779d8b837ea536a45582480d6fb98bde68ed34aa1199",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 2786.0,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [
+        "a_card_backed_report_is_answered_without_reproducing_it[0]: reply restated runtime-owned delivery '主要竞争对手在同一赛道尚未公开同类产品'",
+        "a_card_backed_report_is_answered_without_reproducing_it[0]: reply restated runtime-owned delivery '招聘规模较上一季度扩大约四成'",
+        "a_card_backed_report_is_answered_without_reproducing_it[0]: reply restated runtime-owned delivery '该公司在 2026 年第二季度将检索业务拆分为独立事业部'"
+      ],
+      "status": "behaviour_failed"
+    },
+    {
+      "scenario": "five_missing_resume_facts_use_one_questionnaire",
+      "sample": 7,
+      "recording": {
+        "recorded_at": "2026-10-10T05:55:03.626013+00:00",
+        "elapsed_ms": 8217.6,
+        "steps": [
+          {
+            "content": "{\"action\":\"questionnaire\",\"message\":\"请回答以下五个问题，以便后续进行简历定制。每个问题都可以跳过或回答“没有”。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的前端开发经验如何？（例如：年限、主要技术栈、项目类型等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"你使用过哪些向量数据库？（例如：Milvus、Pinecone、Chroma 等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你有 Dify 相关的使用或开发经验吗？请简述。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"你常用哪些 AI 编程工具？（例如：GitHub Copilot、Cursor、Codeium 等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"你是否有开源项目贡献或个人技术博客？请提供链接或简述。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "63b7e8a12b22becdcb8f56f6f6392534a45e4928130efa85301c9ae0e8c1e6a2",
+            "decision_shape_fingerprint": "f451f44c29a3912cf6844a628927f3daaaae4fc12efc03f87e87510eee3d2e19",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 8214.6,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
+      "sample": 7,
+      "recording": {
+        "recorded_at": "2026-10-10T05:55:08.403381+00:00",
+        "elapsed_ms": 4764.4,
+        "steps": [
+          {
+            "tool_call": {
+              "name": "get_job_research",
+              "arguments": {
+                "reference": "report_440400"
+              }
+            },
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+            "decision_shape_fingerprint": "3ea58e55b1c83d08782a57f1cb2d22a48cd85d9a132b98c4ec361958734334c2",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_career_episodes",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 4761.4,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
+      "sample": 7,
+      "status": "failed",
+      "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+      "recording": {
+        "step": 0,
+        "completed_steps": [],
+        "offered_tools": [
+          "load_skill",
+          "fetch_archived_constraints",
+          "search_career_memory",
+          "get_saved_job",
+          "research_job",
+          "get_job_research",
+          "search_career_episodes",
+          "search_capabilities"
+        ],
+        "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+        "error_detail": "get_job_research: The proposed arguments do not satisfy this capability's input contract or resource binding. Nothing executed. Follow its schema, documented prerequisites and supplied references. Clarify missing or ambiguous inputs instead of inventing selectors.",
+        "model_request_count": 2,
+        "decision_retry_events": [
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": true,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          },
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": false,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          }
+        ],
+        "recording_retry_events": []
+      }
+    },
+    {
+      "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+      "sample": 8,
+      "recording": {
+        "recorded_at": "2026-10-10T05:55:22.369317+00:00",
+        "elapsed_ms": 3211.6,
+        "steps": [
+          {
+            "content": "{\"action\":\"final\",\"message\":\"调研结论：示例科技在2026年第二季度将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。\",\"questions\":[]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "56629f520c701fe5e85811e151ccd1780ab162c196de63b1e128aee9ac5fe10c",
+            "decision_shape_fingerprint": "436ab5e33e503b8cdbe9779d8b837ea536a45582480d6fb98bde68ed34aa1199",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 3210.3,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "five_missing_resume_facts_use_one_questionnaire",
+      "sample": 8,
+      "recording": {
+        "recorded_at": "2026-10-10T05:55:30.111852+00:00",
+        "elapsed_ms": 7739.4,
+        "steps": [
+          {
+            "content": "{\"action\":\"questionnaire\",\"message\":\"请逐题回答以下五项简历定制信息，允许跳过或明确回答没有。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"你的前端经验？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"使用过哪些向量数据库？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"你有 Dify 相关经验吗？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"你常用的 AI 编程工具有哪些？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"你有开源项目或技术博客吗？请提供链接或描述。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "63b7e8a12b22becdcb8f56f6f6392534a45e4928130efa85301c9ae0e8c1e6a2",
+            "decision_shape_fingerprint": "f451f44c29a3912cf6844a628927f3daaaae4fc12efc03f87e87510eee3d2e19",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 7736.5,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
+      "sample": 8,
+      "recording": {
+        "recorded_at": "2026-10-10T05:55:33.079262+00:00",
+        "elapsed_ms": 2956.6,
+        "steps": [
+          {
+            "tool_call": {
+              "name": "get_job_research",
+              "arguments": {
+                "reference": "report_440400"
+              }
+            },
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+            "decision_shape_fingerprint": "3ea58e55b1c83d08782a57f1cb2d22a48cd85d9a132b98c4ec361958734334c2",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_career_episodes",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 2953.7,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
+      "sample": 8,
+      "status": "failed",
+      "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+      "recording": {
+        "step": 0,
+        "completed_steps": [],
+        "offered_tools": [
+          "load_skill",
+          "fetch_archived_constraints",
+          "search_career_memory",
+          "get_saved_job",
+          "research_job",
+          "get_job_research",
+          "search_career_episodes",
+          "search_capabilities"
+        ],
+        "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+        "error_detail": "get_job_research: The proposed arguments do not satisfy this capability's input contract or resource binding. Nothing executed. Follow its schema, documented prerequisites and supplied references. Clarify missing or ambiguous inputs instead of inventing selectors.",
+        "model_request_count": 2,
+        "decision_retry_events": [
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": true,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          },
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": false,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          }
+        ],
+        "recording_retry_events": []
+      }
+    },
+    {
+      "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+      "sample": 9,
+      "recording": {
+        "recorded_at": "2026-10-10T05:55:43.891051+00:00",
+        "elapsed_ms": 4462.0,
+        "steps": [
+          {
+            "content": "{\"action\":\"final\",\"message\":\"调研已完成：该公司在2026年第二季度将检索业务拆分为独立事业部，招聘规模较上一季度扩大约四成，且主要竞争对手在同一赛道尚未公开同类产品。\",\"questions\":[]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "56629f520c701fe5e85811e151ccd1780ab162c196de63b1e128aee9ac5fe10c",
+            "decision_shape_fingerprint": "436ab5e33e503b8cdbe9779d8b837ea536a45582480d6fb98bde68ed34aa1199",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 4458.3,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [
+        "a_card_backed_report_is_answered_without_reproducing_it[0]: reply restated runtime-owned delivery '主要竞争对手在同一赛道尚未公开同类产品'",
+        "a_card_backed_report_is_answered_without_reproducing_it[0]: reply restated runtime-owned delivery '招聘规模较上一季度扩大约四成'"
+      ],
+      "status": "behaviour_failed"
+    },
+    {
+      "scenario": "five_missing_resume_facts_use_one_questionnaire",
+      "sample": 9,
+      "recording": {
+        "recorded_at": "2026-10-10T05:55:51.895447+00:00",
+        "elapsed_ms": 7994.8,
+        "steps": [
+          {
+            "content": "{\"action\":\"questionnaire\",\"message\":\"请回答以下五个问题，以便后续进行简历定制。您可以跳过任何问题或明确回答没有。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"请描述您的前端开发经验（如技术栈、年限、主要项目类型等）。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"您使用过哪些向量数据库？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"请描述您的 Dify 使用经验（如有）。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"您使用过哪些 AI 编程工具？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"您是否有参与的开源项目或个人博客？请提供链接或简要描述。\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "63b7e8a12b22becdcb8f56f6f6392534a45e4928130efa85301c9ae0e8c1e6a2",
+            "decision_shape_fingerprint": "f451f44c29a3912cf6844a628927f3daaaae4fc12efc03f87e87510eee3d2e19",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 7991.3,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
+      "sample": 9,
+      "recording": {
+        "recorded_at": "2026-10-10T05:55:54.731121+00:00",
+        "elapsed_ms": 2827.6,
+        "steps": [
+          {
+            "tool_call": {
+              "name": "get_job_research",
+              "arguments": {
+                "reference": "report_440400"
+              }
+            },
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+            "decision_shape_fingerprint": "3ea58e55b1c83d08782a57f1cb2d22a48cd85d9a132b98c4ec361958734334c2",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_career_episodes",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 2824.4,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
+      "sample": 9,
+      "status": "failed",
+      "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+      "recording": {
+        "step": 0,
+        "completed_steps": [],
+        "offered_tools": [
+          "load_skill",
+          "fetch_archived_constraints",
+          "search_career_memory",
+          "get_saved_job",
+          "research_job",
+          "get_job_research",
+          "search_career_episodes",
+          "search_capabilities"
+        ],
+        "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+        "error_detail": "get_job_research: The proposed arguments do not satisfy this capability's input contract or resource binding. Nothing executed. Follow its schema, documented prerequisites and supplied references. Clarify missing or ambiguous inputs instead of inventing selectors.",
+        "model_request_count": 2,
+        "decision_retry_events": [
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": true,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          },
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": false,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          }
+        ],
+        "recording_retry_events": []
+      }
+    },
+    {
+      "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+      "sample": 10,
+      "recording": {
+        "recorded_at": "2026-10-10T05:56:05.728317+00:00",
+        "elapsed_ms": 3764.8,
+        "steps": [
+          {
+            "content": "{\"action\":\"final\",\"message\":\"调研已完成：示例科技在2026年Q2将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。\",\"questions\":[]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "56629f520c701fe5e85811e151ccd1780ab162c196de63b1e128aee9ac5fe10c",
+            "decision_shape_fingerprint": "436ab5e33e503b8cdbe9779d8b837ea536a45582480d6fb98bde68ed34aa1199",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 3761.2,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "five_missing_resume_facts_use_one_questionnaire",
+      "sample": 10,
+      "recording": {
+        "recorded_at": "2026-10-10T05:56:14.094100+00:00",
+        "elapsed_ms": 8356.8,
+        "steps": [
+          {
+            "content": "{\"action\":\"questionnaire\",\"message\":\"请回答以下五个关于简历定制的问题，以便后续为您生成定制内容。您可以选择跳过任何一项。\",\"questions\":[{\"question_id\":\"q1\",\"prompt\":\"请描述您的前端开发经验（如技术栈、年限、主要项目等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q2\",\"prompt\":\"您使用过哪些向量数据库？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q3\",\"prompt\":\"请描述您的 Dify 相关经验（如使用场景、深度等）\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q4\",\"prompt\":\"您常用的 AI 编程工具有哪些？\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true},{\"question_id\":\"q5\",\"prompt\":\"请列出您的开源项目贡献或个人博客链接/简介\",\"kind\":\"free_text\",\"options\":[],\"allow_free_text\":true,\"allow_skip\":true}]}",
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "63b7e8a12b22becdcb8f56f6f6392534a45e4928130efa85301c9ae0e8c1e6a2",
+            "decision_shape_fingerprint": "f451f44c29a3912cf6844a628927f3daaaae4fc12efc03f87e87510eee3d2e19",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 8353.5,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
+      "sample": 10,
+      "recording": {
+        "recorded_at": "2026-10-10T05:56:16.716802+00:00",
+        "elapsed_ms": 2611.8,
+        "steps": [
+          {
+            "tool_call": {
+              "name": "get_job_research",
+              "arguments": {
+                "reference": "report_440400"
+              }
+            },
+            "scenario_step": 0,
+            "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+            "decision_shape_fingerprint": "3ea58e55b1c83d08782a57f1cb2d22a48cd85d9a132b98c4ec361958734334c2",
+            "offered_tools": [
+              "load_skill",
+              "fetch_archived_constraints",
+              "search_career_memory",
+              "get_saved_job",
+              "research_job",
+              "get_job_research",
+              "search_career_episodes",
+              "search_capabilities"
+            ],
+            "elapsed_ms": 2606.5,
+            "model_request_count": 1,
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [],
+            "recording_retry_events": [],
+            "decision_invocations": 1
+          }
+        ]
+      },
+      "failures": [],
+      "status": "passed"
+    },
+    {
+      "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
+      "sample": 10,
+      "status": "failed",
+      "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+      "recording": {
+        "step": 0,
+        "completed_steps": [],
+        "offered_tools": [
+          "load_skill",
+          "fetch_archived_constraints",
+          "search_career_memory",
+          "get_saved_job",
+          "research_job",
+          "get_job_research",
+          "search_career_episodes",
+          "search_capabilities"
+        ],
+        "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+        "error_detail": "get_job_research: The proposed arguments do not satisfy this capability's input contract or resource binding. Nothing executed. Follow its schema, documented prerequisites and supplied references. Clarify missing or ambiguous inputs instead of inventing selectors.",
+        "model_request_count": 2,
+        "decision_retry_events": [
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": true,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          },
+          {
+            "reason": "invalid_tool_arguments",
+            "retried": false,
+            "raw_output": {
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "get_job_research",
+                  "arguments": "{\"selection_index\": 1}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          }
+        ],
+        "recording_retry_events": []
+      }
+    }
+  ]
+}

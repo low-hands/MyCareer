@@ -1,0 +1,19 @@
+{
+  "fixed_samples_per_scenario": 10,
+  "scenarios": [
+    "a_card_backed_report_is_answered_without_reproducing_it",
+    "five_missing_resume_facts_use_one_questionnaire",
+    "a_report_made_this_turn_is_read_back_by_its_index",
+    "a_report_made_this_turn_without_an_index_cannot_be_named"
+  ],
+  "model": "qwen3.7-plus",
+  "mode": "required_on_initial_auto_requests",
+  "grading": "Unchanged existing scenario behavioural and quality rules; all errors count, no replacement samples.",
+  "comparison": "Existing three-sample auto recordings are historical, not concurrent matched A/B.",
+  "prompt_fingerprints": {
+    "a_card_backed_report_is_answered_without_reproducing_it": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f",
+    "five_missing_resume_facts_use_one_questionnaire": "1836662633963b742a924b4bf7207b61bd6743930cebcb17f0cb7085b4070c5f",
+    "a_report_made_this_turn_is_read_back_by_its_index": "0b5c959ee1760538136222229325f8b35f0e081dd9d782ff9efa527b4bdb53c6",
+    "a_report_made_this_turn_without_an_index_cannot_be_named": "0b5c959ee1760538136222229325f8b35f0e081dd9d782ff9efa527b4bdb53c6"
+  }
+}
