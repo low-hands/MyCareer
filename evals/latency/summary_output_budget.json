@@ -1,0 +1,17 @@
+{
+  "token_estimator": "cl100k_base, used by production request budgeting; Qwen token counts may differ",
+  "provider_max_output_tokens": 1200,
+  "request_target_output_tokens": 600,
+  "empty_envelope_tokens": 36,
+  "schema_capacity_examples": {
+    "common_cjk": {
+      "text_characters": 6000,
+      "estimated_json_tokens": 6075
+    },
+    "rare_cjk": {
+      "text_characters": 6000,
+      "estimated_json_tokens": 12075
+    }
+  },
+  "conclusion": "The stored-summary schema capacity cannot guarantee completion in 1200 tokens. Keep its validation capacity for existing memory, use a 600-token complete-output target with 600 tokens of headroom, and measure actual provider usage. This is a generation target, not a proven hard guarantee; max_tokens=1200 remains the hard cap. No per-array upper bounds are presented as fill targets."
+}

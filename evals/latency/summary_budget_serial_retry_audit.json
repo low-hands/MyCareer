@@ -1,0 +1,14 @@
+{
+  "all_rejection_events": {
+    "implicit_capability_load": 6,
+    "text_rejected": 25
+  },
+  "retried_rejection_events": {
+    "implicit_capability_load": 6,
+    "text_rejected": 25
+  },
+  "logical_decisions": 82,
+  "provider_requests": 107,
+  "extra_requests": 25,
+  "scope": "Safe reason vocabulary only; each internal retry can add another provider wait. This is not proof that an alternate model or request policy would succeed."
+}

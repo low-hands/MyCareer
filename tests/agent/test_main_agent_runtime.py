@@ -3924,8 +3924,8 @@ def _saved_job_runtime(tmp_path, repository, *decisions):
     )
 
 
-def test_the_jd_card_follows_the_prose_and_the_prose_never_holds_the_jd(tmp_path) -> None:
-    """Scenario: the JD is not in the reply body; the card comes after it."""
+def test_the_jd_card_precedes_the_final_decision_and_never_leaks_into_prose(tmp_path) -> None:
+    """Scenario: the durable JD card is available while the model writes prose."""
     repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
     job_posting_id = _seed_saved_job(repository)
     _, agent = _saved_job_runtime(
@@ -3947,7 +3947,10 @@ def test_the_jd_card_follows_the_prose_and_the_prose_never_holds_the_jd(tmp_path
     assert card.job_posting_id == job_posting_id
     assert card.title == "Acme｜RAG Engineer"
     last_delta = max(index for index, event in enumerate(events) if event.type == "content_delta")
-    assert events.index(card) > last_delta
+    assert events.index(card) < last_delta
+    assert len([e for e in events if isinstance(e, JobResourceReadyEvent)]) == 1
+    deciding = [i for i, e in enumerate(events) if e.type == "progress" and e.stage == "deciding"]
+    assert events.index(card) < deciding[-1]
     assert isinstance(events[-1], TurnCompletedEvent)
     stored = CareerContextStore(tmp_path / "context.sqlite3").list_messages("u1", "c1", limit=10)[-1]
     assert "PRIVATE SAVED JD" not in stored.content

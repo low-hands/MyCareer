@@ -184,3 +184,46 @@ def test_summary_worker_client_does_not_retry(monkeypatch) -> None:
     # A failed summary is attempted again by the next load; client retries
     # would only lengthen how long that turn waits on an outage.
     assert captured["max_retries"] == 0
+
+
+def test_summary_fact_budget_drops_one_fact_and_preserves_the_others() -> None:
+    from career_agent.harness.observability import ACTIVE_TRACE_CONTEXT, InMemoryTraceRecorder
+    decoded = {name: [] for name in (
+        "key_facts", "user_goals", "confirmed_decisions",
+        "unresolved_questions", "active_constraints", "long_term_memory_candidates",
+    )}
+    decoded["key_facts"] = [{"fact": "x" * 194 + "薪资 300k", "source_sequence": 1}, {"fact": "Keep this", "source_sequence": 2}]
+    client = Client(json.dumps(decoded))
+    worker = OpenAIConversationSummaryWorker(config(), client=client, disable_thinking=True)
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "summary"))
+    try:
+        result = worker.summarize(previous=None, messages=(SummaryMessage(sequence=1, role="user", content="hello"),))
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+    assert len(result.key_facts) == 1
+    assert result.key_facts[0].fact == "Keep this"
+    assert result.key_facts[0].source_sequence == 2
+    events = [event for event in recorder.snapshot("summary").events if event.event_type == "summary_facts_dropped"]
+    assert len(events) == 1
+    assert events[0].details == {"overlong_fact_count": 1}
+    assert "300k" not in events[0].model_dump_json()
+    assert client.completions.kwargs["extra_body"] == {"enable_thinking": False}
+    schema = client.completions.kwargs["response_format"]["json_schema"]["schema"]
+    assert schema["$defs"]["SummaryKeyFact"]["properties"]["fact"]["maxLength"] == 200
+    system = client.completions.kwargs["messages"][0]["content"]
+    assert "200 characters" in system
+    assert "Aim for at most" not in system
+    assert "1200 tokens" in system
+
+
+def test_fact_dropping_does_not_salvage_missing_provenance() -> None:
+    decoded = {name: [] for name in (
+        "key_facts", "user_goals", "confirmed_decisions",
+        "unresolved_questions", "active_constraints", "long_term_memory_candidates",
+    )}
+    decoded["key_facts"] = [{"fact": "x" * 201}]
+    worker = OpenAIConversationSummaryWorker(config(), client=Client(json.dumps(decoded)))
+    with pytest.raises(AgentWorkerError) as error:
+        worker.summarize(previous=None, messages=(SummaryMessage(sequence=1, role="user", content="hello"),))
+    assert error.value.code == "CONVERSATION_SUMMARY_INVALID_RESPONSE"

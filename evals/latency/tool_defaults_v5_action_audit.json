@@ -1,0 +1,122 @@
+{
+  "historical_capture": "tool_defaults_v5",
+  "classification": "final and ask_user are distinct; combined is not final writing",
+  "by_action": {
+    "final": {
+      "started_count": 0,
+      "completed_count": 2,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 2
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 2,
+      "operation_duration_ms": {
+        "samples": 2,
+        "total": 22625,
+        "mean": 11312.5,
+        "p50": 10224,
+        "p95": 12401,
+        "max": 12401
+      },
+      "per_run_count": {
+        "samples": 24,
+        "total": 2,
+        "mean": 0.083,
+        "p50": 0,
+        "p95": 1,
+        "max": 1
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 24,
+        "total": 22625,
+        "mean": 942.708,
+        "p50": 0,
+        "p95": 10224,
+        "max": 12401
+      },
+      "successful_duration_ms": {
+        "samples": 2,
+        "total": 22625,
+        "mean": 11312.5,
+        "p50": 10224,
+        "p95": 12401,
+        "max": 12401
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    },
+    "ask_user": {
+      "started_count": 0,
+      "completed_count": 10,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 10
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 10,
+      "operation_duration_ms": {
+        "samples": 10,
+        "total": 235217,
+        "mean": 23521.7,
+        "p50": 21496,
+        "p95": 40041,
+        "max": 40041
+      },
+      "per_run_count": {
+        "samples": 24,
+        "total": 10,
+        "mean": 0.417,
+        "p50": 0,
+        "p95": 1,
+        "max": 1
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 24,
+        "total": 235217,
+        "mean": 9800.708,
+        "p50": 0,
+        "p95": 34180,
+        "max": 40041
+      },
+      "successful_duration_ms": {
+        "samples": 10,
+        "total": 235217,
+        "mean": 23521.7,
+        "p50": 21496,
+        "p95": 40041,
+        "max": 40041
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    }
+  },
+  "capture_wall_by_action": {
+    "final": {
+      "total_ms": 22625,
+      "mean_ms_per_eligible_turn": 942.7083333333334,
+      "weighted_wall_share": 0.02196958147583152
+    },
+    "ask_user": {
+      "total_ms": 235217,
+      "mean_ms_per_eligible_turn": 9800.708333333334,
+      "weighted_wall_share": 0.22840305175693534
+    }
+  },
+  "eligible_turns": 24,
+  "total_wall_ms": 1029833
+}

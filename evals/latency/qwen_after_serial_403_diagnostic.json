@@ -1,0 +1,8 @@
+{
+  "fixed_samples": 1,
+  "purpose": "Infrastructure diagnostic only; not a replacement benchmark sample",
+  "model": "qwen3.7-plus",
+  "status": "succeeded",
+  "finish_reason": "stop",
+  "wall_ms": 1991
+}

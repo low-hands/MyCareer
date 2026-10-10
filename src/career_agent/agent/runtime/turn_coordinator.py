@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Callable, Generic, Protocol, TypeVar
 from uuid import uuid4
 
+from career_agent.harness.stream_context import EARLY_RESOURCE_IDS, STREAM_SINK
 from career_agent.harness.observability import ACTIVE_TRACE_CONTEXT, TraceRecorder
 from career_agent.agent.context.turn_builder import TurnContextBuilder
 from career_agent.agent.context.manager import ContextManager
@@ -41,10 +42,6 @@ from career_agent.storage.turn_receipts import (
 from career_agent.storage.context import DeliveredBodyDraft
 
 
-STREAM_SINK: ContextVar[StreamEventSink | None] = ContextVar(
-    "main_agent_stream_sink",
-    default=None,
-)
 TRACE_CONTEXT = ACTIVE_TRACE_CONTEXT
 ACTION_INVOCATION: ContextVar[tuple[str, str | None] | None] = ContextVar(
     "main_agent_action_invocation",
@@ -191,6 +188,7 @@ class TurnCoordinator(Generic[TurnResultT]):
         if receipt_owner is not None:
             event_sink = self._answer_recording_sink(event_sink, answered)
         sink_token = STREAM_SINK.set(event_sink)
+        resource_token = EARLY_RESOURCE_IDS.set(set())
         action_token = ACTION_INVOCATION.set((turn_id, request_id))
         trace_token = TRACE_CONTEXT.set(
             (self._trace_recorder, turn_id)
@@ -271,6 +269,7 @@ class TurnCoordinator(Generic[TurnResultT]):
             )
             raise
         finally:
+            EARLY_RESOURCE_IDS.reset(resource_token)
             STREAM_SINK.reset(sink_token)
             TRACE_CONTEXT.reset(trace_token)
             ACTION_INVOCATION.reset(action_token)

@@ -1,0 +1,16 @@
+{
+  "fixed_rounds": 10,
+  "independent_chains": 1,
+  "model": "qwen3.7-plus",
+  "disable_thinking": true,
+  "hard_output_tokens": 1200,
+  "fixture_sha256": "f483efacc36b3177a929742d99b1ef7118e38f7e0bbfd023b6df98e9c4a34e7b",
+  "rules": [
+    "Use each successful output as previous_summary; keep last valid summary and pending messages on failure.",
+    "Preserve all 10 attempts, never replace failed rounds.",
+    "Record completion token trend and length/validation failures; no claim of independent success rate.",
+    "Do not change prompt or grading after sampling begins."
+  ],
+  "summary_prompt_sha256": "7008e013e7c5f4d83b2854aa87bf97f8d9214c2df5f3877ee73b7a5e4245ef77",
+  "worker_source_sha256": "932c1e90a9d5dec700810c825bdaf12aeda8d356c026d4fa7d86bd80751e3a76"
+}

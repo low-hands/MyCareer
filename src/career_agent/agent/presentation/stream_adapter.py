@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+from career_agent.harness.stream_context import EARLY_RESOURCE_IDS, STREAM_SINK
+
+if TYPE_CHECKING:
+    from career_agent.agent.runtime.state import PendingAction
 
 from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.agent.contracts.resources import ConversationResourceReference
@@ -23,7 +29,7 @@ from career_agent.harness.streaming import (
 
 
 class StreamAdapter:
-    """Translate a completed turn into the public streaming protocol."""
+    """Deliver durable tool cards immediately, then the completed turn envelope."""
 
     def __init__(
         self,
@@ -69,9 +75,27 @@ class StreamAdapter:
                     byte_size=reference.byte_size,
                 )
             )
+        early = EARLY_RESOURCE_IDS.get() or set()
         for reference in self._presenter.turn_resource_refs(result.tool_results):
-            self._emit(self.resource_ready_event(reference))
+            if reference.resource_id not in early:
+                self._emit(self.resource_ready_event(reference))
         self._emit(TurnCompletedEvent(turn_id=turn_id))
+
+    def deliver_tool_card(self, pending: PendingAction) -> None:
+        """Publish only a durable completed result; orchestration continues."""
+        result = pending["result"]
+        seen = EARLY_RESOURCE_IDS.get()
+        if (seen is None or STREAM_SINK.get() is None
+                or pending.get("synthetic_kind") is not None
+                or result.disposition != "completed"
+                or (pending.get("effect") == "WRITE" and result.execution_outcome != "committed")):
+            return
+        for reference in self._presenter.turn_resource_refs((result,)):
+            # Resume versions attach to user messages, outside assistant card events.
+            if reference.kind == "resume_version" or reference.resource_id in seen:
+                continue
+            self._emit(self.resource_ready_event(reference))
+            seen.add(reference.resource_id)
 
     def deliver_reply(
         self,

@@ -22,7 +22,7 @@ from career_agent.agent.contracts.decisions import (
 from career_agent.agent.contracts.observations import decision_observation_chars
 from career_agent.agent.capabilities.selection_strategy import SearchStrategy, selection_trace
 from career_agent.agent.capabilities.effects import is_notes_guarded
-from career_agent.agent.runtime.turn_coordinator import STREAM_SINK
+from career_agent.harness.stream_context import STREAM_SINK
 from career_agent.agent.middleware.working_notes import working_notes_only_tokens
 from career_agent.harness.memory_telemetry import memory_context_observation
 from career_agent.harness.observability import conversation_trace_key

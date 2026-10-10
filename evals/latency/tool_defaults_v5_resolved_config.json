@@ -1,0 +1,8 @@
+{
+  "main_model": "qwen3.7-plus",
+  "main_enable_thinking": false,
+  "summary_model": "qwen3.7-plus",
+  "summary_timeout_seconds": 30.0,
+  "summary_disable_thinking": false,
+  "interpretation": "Resolved configured request options only. No provider default or timeout cause is inferred."
+}

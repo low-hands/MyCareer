@@ -10,6 +10,7 @@ from career_agent.services.free_text_preferences import (
     normalize_preference_stance,
 )
 
+SUMMARY_FACT_MAX_CHARS = 200
 SUMMARY_SOURCE_MAX_CHARS = 4000
 SUMMARY_ITEM_MAX_CHARS = 500
 SUMMARY_TEXT_MAX_CHARS = 6000
@@ -45,7 +46,7 @@ class SummaryMessage(ConversationMemoryContract):
 class SummaryKeyFact(ConversationMemoryContract):
     """A concise explicit chat fact with its original message sequence."""
 
-    fact: str = Field(min_length=1, max_length=200)
+    fact: str = Field(min_length=1, max_length=SUMMARY_FACT_MAX_CHARS)
     source_sequence: int = Field(ge=1)
 
 

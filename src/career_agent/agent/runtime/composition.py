@@ -190,6 +190,7 @@ def build_main_runtime_components(
         update_atomic_task=ports.update_atomic_task,
         tool_call_fingerprint=DecisionEngine.tool_call_fingerprint,
         tool_observation=tool_observation,
+        emit_tool_card=lambda pending: stream_adapter.deliver_tool_card(pending),
     )
     decision_engine = DecisionEngine(
         emit=RuntimeObservability.emit,

@@ -57,6 +57,7 @@ EventType = Literal[
     "write_outcome_unknown",
     "presentation_degraded",
     "context_compacted",
+    "summary_facts_dropped",
     # The complete-request estimate a load took, as numbers. Paired with the
     # run's first model_succeeded it gives estimator against provider count,
     # which compaction events alone recorded only on turns that compacted.
@@ -192,6 +193,38 @@ def record_active_trace(
 
 
 TraceStage = str | Callable[..., str]
+
+
+def traced_provider_call(stage: str):
+    """Time a non-orchestrator provider operation without recording its content.
+
+    One terminal event includes validation and retries inside the operation.
+    These timings can nest inside capability execution and must not be added
+    to that inclusive duration.
+    """
+    def decorate(function):
+        @wraps(function)
+        def wrapped(*args, **kwargs):
+            if ACTIVE_TRACE_CONTEXT.get() is None:
+                return function(*args, **kwargs)
+            started = perf_counter()
+            outcome = "succeeded"
+            error_code = None
+            try:
+                return function(*args, **kwargs)
+            except Exception as error:
+                outcome = "failed"
+                code = getattr(error, "code", None)
+                error_code = code if isinstance(code, str) and code else type(error).__name__
+                raise
+            finally:
+                record_active_trace(
+                    "provider_request", stage, outcome=outcome,
+                    duration_ms=int((perf_counter() - started) * 1000),
+                    error_code=error_code,
+                )
+        return wrapped
+    return decorate
 
 
 def traced_model_call(

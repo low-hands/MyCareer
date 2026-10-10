@@ -119,3 +119,28 @@ def test_stream_adapter_uses_durable_card_content_for_synthetic_reply() -> None:
 
     assert events[0].type == "progress"
     assert "".join(event.delta for event in events[1:]) == "durable content"
+
+
+def test_early_card_is_deduplicated_and_uncommitted_write_is_withheld():
+    from career_agent.agent.contracts.resources import ConversationResourceReference
+    from career_agent.agent.presentation.presenter import TurnPresenter
+    from career_agent.agent.runtime.turn_coordinator import EARLY_RESOURCE_IDS, STREAM_SINK
+    events = []
+    host = Host()
+    host.turn_resource_refs = TurnPresenter.turn_resource_refs
+    adapter = StreamAdapter(interaction_renderer=host, presenter=host, emit=events.append)
+    observation = ToolObservation(tool_name="analyze_job", state="job_analysis_ready", message="分析完成", execution_outcome="committed", resource_ref=ConversationResourceReference(kind="job_analysis", resource_id="analysis-1"))
+    token = EARLY_RESOURCE_IDS.set(set())
+    sink = STREAM_SINK.set(events.append)
+    try:
+        pending = {"result": observation, "effect": "WRITE"}
+        adapter.deliver_tool_card({**pending, "result": observation.model_copy(update={"execution_outcome": "not_committed"})})
+        assert events == []
+        adapter.deliver_tool_card(pending)
+        assert [e.type for e in events] == ["report_ready"]
+        adapter.deliver_tool_card(pending)
+        adapter.deliver_events(result=_turn(results=(observation,)), turn_id="t", conversation_id="c")
+        assert [e.type for e in events] == ["report_ready", "turn_completed"]
+    finally:
+        STREAM_SINK.reset(sink)
+        EARLY_RESOURCE_IDS.reset(token)

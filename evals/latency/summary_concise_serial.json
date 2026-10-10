@@ -1,0 +1,1974 @@
+{
+  "version": 2,
+  "generated_at": "2026-10-10T05:09:56.417468+00:00",
+  "selection": {
+    "since": null,
+    "until": null,
+    "min_context_chars": 0,
+    "require_tool_trace": false
+  },
+  "run_count": 15,
+  "excluded_run_count": 0,
+  "event_count": 272,
+  "time_range": {
+    "first": "2026-10-10T05:02:23.438754+00:00",
+    "last": "2026-10-10T05:08:29.558556+00:00"
+  },
+  "terminal_events": {
+    "turn_completed": 12,
+    "turn_failed": 3,
+    "run_interrupted": 5
+  },
+  "first_decision_context_chars": {
+    "samples": 15,
+    "total": 143013,
+    "mean": 9534.2,
+    "p50": 9567,
+    "p95": 10504,
+    "max": 10504
+  },
+  "unknown_context_runs": 0,
+  "observed_trace_span_ms": {
+    "samples": 15,
+    "total": 353007,
+    "mean": 23533.8,
+    "p50": 23678,
+    "p95": 50813,
+    "max": 50813
+  },
+  "post_tool_reply": {
+    "final_reply": {
+      "started_count": 0,
+      "completed_count": 1,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 1
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 1,
+      "operation_duration_ms": {
+        "samples": 1,
+        "total": 7810,
+        "mean": 7810.0,
+        "p50": 7810,
+        "p95": 7810,
+        "max": 7810
+      },
+      "per_run_count": {
+        "samples": 15,
+        "total": 1,
+        "mean": 0.067,
+        "p50": 0,
+        "p95": 1,
+        "max": 1
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 15,
+        "total": 7810,
+        "mean": 520.667,
+        "p50": 0,
+        "p95": 7810,
+        "max": 7810
+      },
+      "successful_duration_ms": {
+        "samples": 1,
+        "total": 7810,
+        "mean": 7810.0,
+        "p50": 7810,
+        "p95": 7810,
+        "max": 7810
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    },
+    "ask_user_reply": {
+      "started_count": 0,
+      "completed_count": 5,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 5
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 5,
+      "operation_duration_ms": {
+        "samples": 5,
+        "total": 120600,
+        "mean": 24120.0,
+        "p50": 22200,
+        "p95": 45290,
+        "max": 45290
+      },
+      "per_run_count": {
+        "samples": 15,
+        "total": 5,
+        "mean": 0.333,
+        "p50": 0,
+        "p95": 1,
+        "max": 1
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 15,
+        "total": 120600,
+        "mean": 8040.0,
+        "p50": 0,
+        "p95": 45290,
+        "max": 45290
+      },
+      "successful_duration_ms": {
+        "samples": 5,
+        "total": 120600,
+        "mean": 24120.0,
+        "p50": 22200,
+        "p95": 45290,
+        "max": 45290
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    },
+    "continued_tool_selection": {
+      "started_count": 0,
+      "completed_count": 22,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 22
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 10,
+      "operation_duration_ms": {
+        "samples": 22,
+        "total": 79330,
+        "mean": 3605.909,
+        "p50": 3237,
+        "p95": 5340,
+        "max": 7139
+      },
+      "per_run_count": {
+        "samples": 15,
+        "total": 22,
+        "mean": 1.467,
+        "p50": 1,
+        "p95": 4,
+        "max": 4
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 15,
+        "total": 79330,
+        "mean": 5288.667,
+        "p50": 2591,
+        "p95": 15076,
+        "max": 15076
+      },
+      "successful_duration_ms": {
+        "samples": 22,
+        "total": 79330,
+        "mean": 3605.909,
+        "p50": 3237,
+        "p95": 5340,
+        "max": 7139
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    },
+    "failed_post_tool_decision": {
+      "started_count": 0,
+      "completed_count": 3,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "failed": 3
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 3,
+      "operation_duration_ms": {
+        "samples": 3,
+        "total": 7668,
+        "mean": 2556.0,
+        "p50": 2801,
+        "p95": 3354,
+        "max": 3354
+      },
+      "per_run_count": {
+        "samples": 15,
+        "total": 3,
+        "mean": 0.2,
+        "p50": 0,
+        "p95": 1,
+        "max": 1
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 15,
+        "total": 7668,
+        "mean": 511.2,
+        "p50": 0,
+        "p95": 3354,
+        "max": 3354
+      },
+      "successful_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "failed_duration_ms": {
+        "samples": 3,
+        "total": 7668,
+        "mean": 2556.0,
+        "p50": 2801,
+        "p95": 3354,
+        "max": 3354
+      }
+    },
+    "other_post_tool_decision": {
+      "started_count": 0,
+      "completed_count": 0,
+      "unfinished_model_calls": 0,
+      "outcomes": {},
+      "missing_duration_count": 0,
+      "runs_with_events": 0,
+      "operation_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "per_run_count": {
+        "samples": 15,
+        "total": 0,
+        "mean": 0.0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "successful_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    },
+    "unknown_action_count": 0,
+    "per_completed_run_reply_share": {
+      "samples": 1,
+      "total": 0.335,
+      "mean": 0.335,
+      "p50": 0.33488366030156164,
+      "p95": 0.33488366030156164,
+      "max": 0.33488366030156164
+    },
+    "weighted_reply_share": 0.3348836603015617,
+    "runs": [
+      {
+        "run_id": "1b52726103c74100b9b434c1748bfb00",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 32873.104,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "3e6240dbc77446d8b2d0c58200456b04",
+        "completed": false,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 21958.522,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "62c66685e1024b3aa8499ae6769526bb",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 29010.524,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "647fad32265d48f19f07d861bf5582ca",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 23677.714,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "7166ed49c2d7426cba2238ec87539ebf",
+        "completed": true,
+        "post_tool_final_calls": 1,
+        "reply_ms": 7810,
+        "observed_span_ms": 23321.532,
+        "reply_share_of_observed_span": 0.33488366030156164
+      },
+      {
+        "run_id": "85aece905ef94559a61b5a9aeb552d0b",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 33071.769,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "8826b94ea3e1437da4af219d5b81f214",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 10816.838,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "921df4a5b97a4012983876721ba75af9",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 28712.474,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "c1e480fda6364191bd9b74b245268eb9",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 34576.781,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "c9aa435e8129414b8aa94852af82b1d7",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 50813.062,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "cf140e74f93b419e8da0636bf1496832",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 30872.523,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "d3f19fad2f2841b3b82714ad5c8973da",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 8980.871,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "dbc4021ecf584f8da01fc0b594bcce2e",
+        "completed": false,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 10915.878,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "dbddcb910da047f5a25a3f9ae0c1fcd6",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 8070.62,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "de72f837d3f94983941b440c4f937606",
+        "completed": false,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 5331.656,
+        "reply_share_of_observed_span": null
+      }
+    ],
+    "semantics": "Only successful decision_action=final after an executed tool is reply writing. ask_user/questionnaire and further tool selection are separate. Shares use completed runs with known reply timing and the observed trace span, not user-perceived latency; failed runs and absent timings are excluded from shares, retained in counts."
+  },
+  "phases": {
+    "decision": {
+      "started_count": 52,
+      "completed_count": 52,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 49,
+        "failed": 3
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 15,
+      "operation_duration_ms": {
+        "samples": 52,
+        "total": 287717,
+        "mean": 5533.019,
+        "p50": 3237,
+        "p95": 22200,
+        "max": 45290
+      },
+      "per_run_count": {
+        "samples": 15,
+        "total": 52,
+        "mean": 3.467,
+        "p50": 3,
+        "p95": 6,
+        "max": 6
+      },
+      "per_run_started_count": {
+        "samples": 15,
+        "total": 52,
+        "mean": 3.467,
+        "p50": 3,
+        "p95": 6,
+        "max": 6
+      },
+      "per_run_duration_ms": {
+        "samples": 15,
+        "total": 287717,
+        "mean": 19181.133,
+        "p50": 14536,
+        "p95": 50408,
+        "max": 50408
+      },
+      "successful_duration_ms": {
+        "samples": 49,
+        "total": 280049,
+        "mean": 5715.286,
+        "p50": 3301,
+        "p95": 22200,
+        "max": 45290
+      },
+      "failed_duration_ms": {
+        "samples": 3,
+        "total": 7668,
+        "mean": 2556.0,
+        "p50": 2801,
+        "p95": 3354,
+        "max": 3354
+      },
+      "provider_request_count": 64,
+      "unknown_request_count_decisions": 0,
+      "per_run_provider_request_count": {
+        "samples": 15,
+        "total": 64,
+        "mean": 4.267,
+        "p50": 3,
+        "p95": 8,
+        "max": 8
+      }
+    },
+    "specialist_worker": {
+      "started_count": 1,
+      "completed_count": 1,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 1
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 1,
+      "operation_duration_ms": {
+        "samples": 1,
+        "total": 3826,
+        "mean": 3826.0,
+        "p50": 3826,
+        "p95": 3826,
+        "max": 3826
+      },
+      "per_run_count": {
+        "samples": 15,
+        "total": 1,
+        "mean": 0.067,
+        "p50": 0,
+        "p95": 1,
+        "max": 1
+      },
+      "per_run_started_count": {
+        "samples": 15,
+        "total": 1,
+        "mean": 0.067,
+        "p50": 0,
+        "p95": 1,
+        "max": 1
+      },
+      "per_run_duration_ms": {
+        "samples": 15,
+        "total": 3826,
+        "mean": 255.067,
+        "p50": 0,
+        "p95": 3826,
+        "max": 3826
+      },
+      "successful_duration_ms": {
+        "samples": 1,
+        "total": 3826,
+        "mean": 3826.0,
+        "p50": 3826,
+        "p95": 3826,
+        "max": 3826
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "breakdown": {
+        "job_analysis": {
+          "started_count": 1,
+          "completed_count": 1,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 1
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 1,
+          "operation_duration_ms": {
+            "samples": 1,
+            "total": 3826,
+            "mean": 3826.0,
+            "p50": 3826,
+            "p95": 3826,
+            "max": 3826
+          },
+          "per_run_count": {
+            "samples": 15,
+            "total": 1,
+            "mean": 0.067,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_started_count": {
+            "samples": 15,
+            "total": 1,
+            "mean": 0.067,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_duration_ms": {
+            "samples": 15,
+            "total": 3826,
+            "mean": 255.067,
+            "p50": 0,
+            "p95": 3826,
+            "max": 3826
+          },
+          "successful_duration_ms": {
+            "samples": 1,
+            "total": 3826,
+            "mean": 3826.0,
+            "p50": 3826,
+            "p95": 3826,
+            "max": 3826
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        }
+      }
+    },
+    "embedding": {
+      "started_count": 0,
+      "completed_count": 30,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 30
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 15,
+      "operation_duration_ms": {
+        "samples": 30,
+        "total": 19360,
+        "mean": 645.333,
+        "p50": 673,
+        "p95": 1140,
+        "max": 1287
+      },
+      "per_run_count": {
+        "samples": 15,
+        "total": 30,
+        "mean": 2.0,
+        "p50": 2,
+        "p95": 2,
+        "max": 2
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 15,
+        "total": 19360,
+        "mean": 1290.667,
+        "p50": 1276,
+        "p95": 1585,
+        "max": 1585
+      },
+      "successful_duration_ms": {
+        "samples": 30,
+        "total": 19360,
+        "mean": 645.333,
+        "p50": 673,
+        "p95": 1140,
+        "max": 1287
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    },
+    "tool_execution": {
+      "started_count": 0,
+      "completed_count": 31,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 31
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 13,
+      "operation_duration_ms": {
+        "samples": 31,
+        "total": 3886,
+        "mean": 125.355,
+        "p50": 1,
+        "p95": 7,
+        "max": 3835
+      },
+      "per_run_count": {
+        "samples": 15,
+        "total": 31,
+        "mean": 2.067,
+        "p50": 1,
+        "p95": 5,
+        "max": 5
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 15,
+        "total": 3886,
+        "mean": 259.067,
+        "p50": 4,
+        "p95": 3835,
+        "max": 3835
+      },
+      "successful_duration_ms": {
+        "samples": 31,
+        "total": 3886,
+        "mean": 125.355,
+        "p50": 1,
+        "p95": 7,
+        "max": 3835
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "breakdown": {
+        "analyze_job": {
+          "started_count": 0,
+          "completed_count": 6,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 6
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 6,
+          "operation_duration_ms": {
+            "samples": 6,
+            "total": 3861,
+            "mean": 643.5,
+            "p50": 6,
+            "p95": 3835,
+            "max": 3835
+          },
+          "per_run_count": {
+            "samples": 15,
+            "total": 6,
+            "mean": 0.4,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_started_count": null,
+          "per_run_duration_ms": {
+            "samples": 15,
+            "total": 3861,
+            "mean": 257.4,
+            "p50": 0,
+            "p95": 3835,
+            "max": 3835
+          },
+          "successful_duration_ms": {
+            "samples": 6,
+            "total": 3861,
+            "mean": 643.5,
+            "p50": 6,
+            "p95": 3835,
+            "max": 3835
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "find_saved_jobs": {
+          "started_count": 0,
+          "completed_count": 4,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 4
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 4,
+          "operation_duration_ms": {
+            "samples": 4,
+            "total": 8,
+            "mean": 2.0,
+            "p50": 2,
+            "p95": 2,
+            "max": 2
+          },
+          "per_run_count": {
+            "samples": 15,
+            "total": 4,
+            "mean": 0.267,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_started_count": null,
+          "per_run_duration_ms": {
+            "samples": 15,
+            "total": 8,
+            "mean": 0.533,
+            "p50": 0,
+            "p95": 2,
+            "max": 2
+          },
+          "successful_duration_ms": {
+            "samples": 4,
+            "total": 8,
+            "mean": 2.0,
+            "p50": 2,
+            "p95": 2,
+            "max": 2
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "get_saved_job": {
+          "started_count": 0,
+          "completed_count": 1,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 1
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 1,
+          "operation_duration_ms": {
+            "samples": 1,
+            "total": 1,
+            "mean": 1.0,
+            "p50": 1,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_count": {
+            "samples": 15,
+            "total": 1,
+            "mean": 0.067,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_started_count": null,
+          "per_run_duration_ms": {
+            "samples": 15,
+            "total": 1,
+            "mean": 0.067,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "successful_duration_ms": {
+            "samples": 1,
+            "total": 1,
+            "mean": 1.0,
+            "p50": 1,
+            "p95": 1,
+            "max": 1
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "list_applications": {
+          "started_count": 0,
+          "completed_count": 4,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 4
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 4,
+          "operation_duration_ms": {
+            "samples": 4,
+            "total": 4,
+            "mean": 1.0,
+            "p50": 1,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_count": {
+            "samples": 15,
+            "total": 4,
+            "mean": 0.267,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_started_count": null,
+          "per_run_duration_ms": {
+            "samples": 15,
+            "total": 4,
+            "mean": 0.267,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "successful_duration_ms": {
+            "samples": 4,
+            "total": 4,
+            "mean": 1.0,
+            "p50": 1,
+            "p95": 1,
+            "max": 1
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "list_interviews": {
+          "started_count": 0,
+          "completed_count": 4,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 4
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 4,
+          "operation_duration_ms": {
+            "samples": 4,
+            "total": 2,
+            "mean": 0.5,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_count": {
+            "samples": 15,
+            "total": 4,
+            "mean": 0.267,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_started_count": null,
+          "per_run_duration_ms": {
+            "samples": 15,
+            "total": 2,
+            "mean": 0.133,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "successful_duration_ms": {
+            "samples": 4,
+            "total": 2,
+            "mean": 0.5,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "list_resumes": {
+          "started_count": 0,
+          "completed_count": 6,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 6
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 6,
+          "operation_duration_ms": {
+            "samples": 6,
+            "total": 10,
+            "mean": 1.667,
+            "p50": 1,
+            "p95": 3,
+            "max": 3
+          },
+          "per_run_count": {
+            "samples": 15,
+            "total": 6,
+            "mean": 0.4,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_started_count": null,
+          "per_run_duration_ms": {
+            "samples": 15,
+            "total": 10,
+            "mean": 0.667,
+            "p50": 0,
+            "p95": 3,
+            "max": 3
+          },
+          "successful_duration_ms": {
+            "samples": 6,
+            "total": 10,
+            "mean": 1.667,
+            "p50": 1,
+            "p95": 3,
+            "max": 3
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "search_capabilities": {
+          "started_count": 0,
+          "completed_count": 6,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 6
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 6,
+          "operation_duration_ms": {
+            "samples": 6,
+            "total": 0,
+            "mean": 0.0,
+            "p50": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "per_run_count": {
+            "samples": 15,
+            "total": 6,
+            "mean": 0.4,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_started_count": null,
+          "per_run_duration_ms": {
+            "samples": 15,
+            "total": 0,
+            "mean": 0.0,
+            "p50": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "successful_duration_ms": {
+            "samples": 6,
+            "total": 0,
+            "mean": 0.0,
+            "p50": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        }
+      }
+    },
+    "summary_compaction": {
+      "started_count": 0,
+      "completed_count": 3,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 3
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 3,
+      "operation_duration_ms": {
+        "samples": 3,
+        "total": 54420,
+        "mean": 18140.0,
+        "p50": 17961,
+        "p95": 19573,
+        "max": 19573
+      },
+      "per_run_count": {
+        "samples": 15,
+        "total": 3,
+        "mean": 0.2,
+        "p50": 0,
+        "p95": 1,
+        "max": 1
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 15,
+        "total": 54420,
+        "mean": 3628.0,
+        "p50": 0,
+        "p95": 19573,
+        "max": 19573
+      },
+      "successful_duration_ms": {
+        "samples": 3,
+        "total": 54420,
+        "mean": 18140.0,
+        "p50": 17961,
+        "p95": 19573,
+        "max": 19573
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    }
+  },
+  "context_cohorts": {
+    "short_lt_4000": {
+      "runs": 0,
+      "decision": {
+        "started_count": 0,
+        "completed_count": 0,
+        "unfinished_model_calls": 0,
+        "outcomes": {},
+        "missing_duration_count": 0,
+        "runs_with_events": 0,
+        "operation_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "per_run_count": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "per_run_started_count": null,
+        "per_run_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "successful_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "failed_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        }
+      }
+    },
+    "medium_4000_11999": {
+      "runs": 15,
+      "decision": {
+        "started_count": 52,
+        "completed_count": 52,
+        "unfinished_model_calls": 0,
+        "outcomes": {
+          "succeeded": 49,
+          "failed": 3
+        },
+        "missing_duration_count": 0,
+        "runs_with_events": 15,
+        "operation_duration_ms": {
+          "samples": 52,
+          "total": 287717,
+          "mean": 5533.019,
+          "p50": 3237,
+          "p95": 22200,
+          "max": 45290
+        },
+        "per_run_count": {
+          "samples": 15,
+          "total": 52,
+          "mean": 3.467,
+          "p50": 3,
+          "p95": 6,
+          "max": 6
+        },
+        "per_run_started_count": {
+          "samples": 15,
+          "total": 52,
+          "mean": 3.467,
+          "p50": 3,
+          "p95": 6,
+          "max": 6
+        },
+        "per_run_duration_ms": {
+          "samples": 15,
+          "total": 287717,
+          "mean": 19181.133,
+          "p50": 14536,
+          "p95": 50408,
+          "max": 50408
+        },
+        "successful_duration_ms": {
+          "samples": 49,
+          "total": 280049,
+          "mean": 5715.286,
+          "p50": 3301,
+          "p95": 22200,
+          "max": 45290
+        },
+        "failed_duration_ms": {
+          "samples": 3,
+          "total": 7668,
+          "mean": 2556.0,
+          "p50": 2801,
+          "p95": 3354,
+          "max": 3354
+        }
+      }
+    },
+    "long_gte_12000": {
+      "runs": 0,
+      "decision": {
+        "started_count": 0,
+        "completed_count": 0,
+        "unfinished_model_calls": 0,
+        "outcomes": {},
+        "missing_duration_count": 0,
+        "runs_with_events": 0,
+        "operation_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "per_run_count": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "per_run_started_count": null,
+        "per_run_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "successful_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "failed_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        }
+      }
+    }
+  },
+  "warnings": [
+    "specialist_worker: only 1 timed operations; p95 is a descriptive small-sample statistic.",
+    "summary_compaction: only 3 timed operations; p95 is a descriptive small-sample statistic."
+  ],
+  "semantics": [
+    "Durations include failures and internal retries; model_retry is not an extra decision.",
+    "Decision counts are logical decide() calls; provider_request_count uses attempt_count to include internal retries when available.",
+    "Tool execution is inclusive of nested workers/embedding; phase totals must not be added.",
+    "Embedding measures one embed() operation including its batches; startup warmup outside a turn is excluded.",
+    "Summary timing covers summarize() including validation, not the entire context load/commit.",
+    "Observed trace span excludes time before the first event; it is not end-to-end response latency.",
+    "Per-run counts include zero-use runs; duration totals exclude runs with missing phase timings.",
+    "Context cohorts use the first decision context_chars, not the full serialized request token count."
+  ],
+  "post_tool_response_message": {
+    "by_action": {
+      "final": {
+        "started_count": 0,
+        "completed_count": 1,
+        "unfinished_model_calls": 0,
+        "outcomes": {
+          "succeeded": 1
+        },
+        "missing_duration_count": 0,
+        "runs_with_events": 1,
+        "operation_duration_ms": {
+          "samples": 1,
+          "total": 7810,
+          "mean": 7810.0,
+          "p50": 7810,
+          "p95": 7810,
+          "max": 7810
+        },
+        "per_run_count": {
+          "samples": 15,
+          "total": 1,
+          "mean": 0.067,
+          "p50": 0,
+          "p95": 1,
+          "max": 1
+        },
+        "per_run_started_count": null,
+        "per_run_duration_ms": {
+          "samples": 15,
+          "total": 7810,
+          "mean": 520.667,
+          "p50": 0,
+          "p95": 7810,
+          "max": 7810
+        },
+        "successful_duration_ms": {
+          "samples": 1,
+          "total": 7810,
+          "mean": 7810.0,
+          "p50": 7810,
+          "p95": 7810,
+          "max": 7810
+        },
+        "failed_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        }
+      },
+      "ask_user": {
+        "started_count": 0,
+        "completed_count": 5,
+        "unfinished_model_calls": 0,
+        "outcomes": {
+          "succeeded": 5
+        },
+        "missing_duration_count": 0,
+        "runs_with_events": 5,
+        "operation_duration_ms": {
+          "samples": 5,
+          "total": 120600,
+          "mean": 24120.0,
+          "p50": 22200,
+          "p95": 45290,
+          "max": 45290
+        },
+        "per_run_count": {
+          "samples": 15,
+          "total": 5,
+          "mean": 0.333,
+          "p50": 0,
+          "p95": 1,
+          "max": 1
+        },
+        "per_run_started_count": null,
+        "per_run_duration_ms": {
+          "samples": 15,
+          "total": 120600,
+          "mean": 8040.0,
+          "p50": 0,
+          "p95": 45290,
+          "max": 45290
+        },
+        "successful_duration_ms": {
+          "samples": 5,
+          "total": 120600,
+          "mean": 24120.0,
+          "p50": 22200,
+          "p95": 45290,
+          "max": 45290
+        },
+        "failed_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        }
+      }
+    },
+    "combined": {
+      "started_count": 0,
+      "completed_count": 6,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 6
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 6,
+      "operation_duration_ms": {
+        "samples": 6,
+        "total": 128410,
+        "mean": 21401.667,
+        "p50": 13812,
+        "p95": 45290,
+        "max": 45290
+      },
+      "per_run_count": {
+        "samples": 15,
+        "total": 6,
+        "mean": 0.4,
+        "p50": 0,
+        "p95": 1,
+        "max": 1
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 15,
+        "total": 128410,
+        "mean": 8560.667,
+        "p50": 0,
+        "p95": 45290,
+        "max": 45290
+      },
+      "successful_duration_ms": {
+        "samples": 6,
+        "total": 128410,
+        "mean": 21401.667,
+        "p50": 13812,
+        "p95": 45290,
+        "max": 45290
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    },
+    "per_completed_run_share": {
+      "samples": 10,
+      "total": 3.727,
+      "mean": 0.373,
+      "p50": 0.33488366030156164,
+      "p95": 0.918563208303304,
+      "max": 0.918563208303304
+    },
+    "share_eligible_runs": 10,
+    "completed_runs_without_tool_trace": 2,
+    "runs_with_reply": 6,
+    "completed_runs_without_reply": 4,
+    "weighted_share_among_reply_runs": 0.6508135427765281,
+    "weighted_share": 0.4339489925384632,
+    "runs": [
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 0
+        },
+        "run_id": "1b52726103c74100b9b434c1748bfb00",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 32873.104,
+        "share": 0.0
+      },
+      {
+        "action_ms": {
+          "final": null,
+          "ask_user": null
+        },
+        "run_id": "3e6240dbc77446d8b2d0c58200456b04",
+        "completed": false,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": null,
+        "trace_span_ms": 21958.521999999997,
+        "share": null
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 26648
+        },
+        "run_id": "62c66685e1024b3aa8499ae6769526bb",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 26648,
+        "trace_span_ms": 29010.524,
+        "share": 0.918563208303304
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 0
+        },
+        "run_id": "647fad32265d48f19f07d861bf5582ca",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 23677.714,
+        "share": 0.0
+      },
+      {
+        "action_ms": {
+          "final": 7810,
+          "ask_user": 0
+        },
+        "run_id": "7166ed49c2d7426cba2238ec87539ebf",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 7810,
+        "trace_span_ms": 23321.532000000003,
+        "share": 0.33488366030156164
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 0
+        },
+        "run_id": "85aece905ef94559a61b5a9aeb552d0b",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 33071.769,
+        "share": 0.0
+      },
+      {
+        "action_ms": {
+          "final": null,
+          "ask_user": null
+        },
+        "run_id": "8826b94ea3e1437da4af219d5b81f214",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": null,
+        "trace_span_ms": 10816.838,
+        "share": null
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 22200
+        },
+        "run_id": "921df4a5b97a4012983876721ba75af9",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 22200,
+        "trace_span_ms": 28712.474000000002,
+        "share": 0.7731831119812246
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 13812
+        },
+        "run_id": "c1e480fda6364191bd9b74b245268eb9",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 13812,
+        "trace_span_ms": 34576.780999999995,
+        "share": 0.3994588160187613
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 45290
+        },
+        "run_id": "c9aa435e8129414b8aa94852af82b1d7",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 45290,
+        "trace_span_ms": 50813.062000000005,
+        "share": 0.8913062550727605
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 12650
+        },
+        "run_id": "cf140e74f93b419e8da0636bf1496832",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 12650,
+        "trace_span_ms": 30872.523,
+        "share": 0.40974947204671286
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 0
+        },
+        "run_id": "d3f19fad2f2841b3b82714ad5c8973da",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 8980.871000000001,
+        "share": 0.0
+      },
+      {
+        "action_ms": {
+          "final": null,
+          "ask_user": null
+        },
+        "run_id": "dbc4021ecf584f8da01fc0b594bcce2e",
+        "completed": false,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": null,
+        "trace_span_ms": 10915.877999999999,
+        "share": null
+      },
+      {
+        "action_ms": {
+          "final": null,
+          "ask_user": null
+        },
+        "run_id": "dbddcb910da047f5a25a3f9ae0c1fcd6",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": null,
+        "trace_span_ms": 8070.62,
+        "share": null
+      },
+      {
+        "action_ms": {
+          "final": null,
+          "ask_user": null
+        },
+        "run_id": "de72f837d3f94983941b440c4f937606",
+        "completed": false,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": null,
+        "trace_span_ms": 5331.656,
+        "share": null
+      }
+    ],
+    "semantics": "Successful final or ask_user after an executed tool. ask_user can be an answer with a follow-up or a needed clarification; it is not necessarily successful task completion. Further tool selection, questionnaire and failed decisions are separate. Shares include only completed runs with known response timings; denominator is trace span, not first-card or end-to-end user latency. Completed turns with fully paired decision telemetry and no response call contribute a true zero. Incomplete or unknown telemetry is not imputed as zero; conditional shares among reply runs are also reported."
+  },
+  "capture_wall_time": {
+    "manifest": "output/latency-summary-concise-serial-2026-10-09/capture.json",
+    "attempted_turns": 15,
+    "wall_ms": {
+      "samples": 15,
+      "total": 366819,
+      "mean": 24454.6,
+      "p50": 24580,
+      "p95": 51713,
+      "max": 51713
+    },
+    "share_eligible_turns": 12,
+    "turns_with_reply": 6,
+    "known_zero_reply_turns": 6,
+    "per_turn_reply_share": {
+      "samples": 12,
+      "total": 3.626,
+      "mean": 0.302,
+      "p50": 0.0,
+      "p95": 0.8899873087970075,
+      "max": 0.8899873087970075
+    },
+    "weighted_reply_share": 0.39388241501053645,
+    "weighted_reply_share_among_reply_turns": 0.6332416092158081,
+    "by_action": {
+      "final": {
+        "total_ms": 7810,
+        "mean_ms_per_eligible_turn": 650.8333333333334,
+        "weighted_wall_share": 0.02395624687510544
+      },
+      "ask_user": {
+        "total_ms": 120600,
+        "mean_ms_per_eligible_turn": 10050.0,
+        "weighted_wall_share": 0.369926168135431
+      }
+    },
+    "runs": [
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 0
+        },
+        "run_id": "1b52726103c74100b9b434c1748bfb00",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 32873.104,
+        "share": 0.0,
+        "conversation": 2,
+        "turn": 3,
+        "wall_ms": 34178,
+        "wall_share": 0.0
+      },
+      {
+        "action_ms": {
+          "final": null,
+          "ask_user": null
+        },
+        "run_id": "3e6240dbc77446d8b2d0c58200456b04",
+        "completed": false,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": null,
+        "trace_span_ms": 21958.521999999997,
+        "share": null,
+        "conversation": 4,
+        "turn": 1,
+        "wall_ms": 22815,
+        "wall_share": null
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 26648
+        },
+        "run_id": "62c66685e1024b3aa8499ae6769526bb",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 26648,
+        "trace_span_ms": 29010.524,
+        "share": 0.918563208303304,
+        "conversation": 3,
+        "turn": 2,
+        "wall_ms": 29942,
+        "wall_share": 0.8899873087970075
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 0
+        },
+        "run_id": "647fad32265d48f19f07d861bf5582ca",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 23677.714,
+        "share": 0.0,
+        "conversation": 3,
+        "turn": 3,
+        "wall_ms": 24580,
+        "wall_share": 0.0
+      },
+      {
+        "action_ms": {
+          "final": 7810,
+          "ask_user": 0
+        },
+        "run_id": "7166ed49c2d7426cba2238ec87539ebf",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 7810,
+        "trace_span_ms": 23321.532000000003,
+        "share": 0.33488366030156164,
+        "conversation": 2,
+        "turn": 1,
+        "wall_ms": 24476,
+        "wall_share": 0.31908808628860924
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 0
+        },
+        "run_id": "85aece905ef94559a61b5a9aeb552d0b",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 33071.769,
+        "share": 0.0,
+        "conversation": 1,
+        "turn": 3,
+        "wall_ms": 33822,
+        "wall_share": 0.0
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 0
+        },
+        "run_id": "8826b94ea3e1437da4af219d5b81f214",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 10816.838,
+        "share": null,
+        "conversation": 3,
+        "turn": 4,
+        "wall_ms": 11773,
+        "wall_share": 0.0
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 22200
+        },
+        "run_id": "921df4a5b97a4012983876721ba75af9",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 22200,
+        "trace_span_ms": 28712.474000000002,
+        "share": 0.7731831119812246,
+        "conversation": 1,
+        "turn": 2,
+        "wall_ms": 29493,
+        "wall_share": 0.7527209846404231
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 13812
+        },
+        "run_id": "c1e480fda6364191bd9b74b245268eb9",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 13812,
+        "trace_span_ms": 34576.780999999995,
+        "share": 0.3994588160187613,
+        "conversation": 3,
+        "turn": 1,
+        "wall_ms": 35538,
+        "wall_share": 0.3886543981090664
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 45290
+        },
+        "run_id": "c9aa435e8129414b8aa94852af82b1d7",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 45290,
+        "trace_span_ms": 50813.062000000005,
+        "share": 0.8913062550727605,
+        "conversation": 2,
+        "turn": 2,
+        "wall_ms": 51713,
+        "wall_share": 0.8757952545781525
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 12650
+        },
+        "run_id": "cf140e74f93b419e8da0636bf1496832",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 12650,
+        "trace_span_ms": 30872.523,
+        "share": 0.40974947204671286,
+        "conversation": 1,
+        "turn": 1,
+        "wall_ms": 31620,
+        "wall_share": 0.4000632511068944
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 0
+        },
+        "run_id": "d3f19fad2f2841b3b82714ad5c8973da",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 8980.871000000001,
+        "share": 0.0,
+        "conversation": 2,
+        "turn": 4,
+        "wall_ms": 10106,
+        "wall_share": 0.0
+      },
+      {
+        "action_ms": {
+          "final": null,
+          "ask_user": null
+        },
+        "run_id": "dbc4021ecf584f8da01fc0b594bcce2e",
+        "completed": false,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": null,
+        "trace_span_ms": 10915.877999999999,
+        "share": null,
+        "conversation": 5,
+        "turn": 1,
+        "wall_ms": 11914,
+        "wall_share": null
+      },
+      {
+        "action_ms": {
+          "final": 0,
+          "ask_user": 0
+        },
+        "run_id": "dbddcb910da047f5a25a3f9ae0c1fcd6",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 8070.62,
+        "share": null,
+        "conversation": 1,
+        "turn": 4,
+        "wall_ms": 8770,
+        "wall_share": 0.0
+      },
+      {
+        "action_ms": {
+          "final": null,
+          "ask_user": null
+        },
+        "run_id": "de72f837d3f94983941b440c4f937606",
+        "completed": false,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": null,
+        "trace_span_ms": 5331.656,
+        "share": null,
+        "conversation": 6,
+        "turn": 1,
+        "wall_ms": 6079,
+        "wall_share": null
+      }
+    ],
+    "semantics": "Denominator is capture run_turn() wall time, including context load/commit. Only exact sequential conversation joins are accepted. Runtime completion is not task-success grading. Failed/unknown timing is excluded from shares; proven no-writer runtime refusals are retained as zero."
+  }
+}

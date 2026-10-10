@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 from openai import OpenAI
 
 from career_agent.storage.career_history import CareerHistoryStore
+from career_agent.harness.observability import traced_provider_call
 
 _EMBED_TIMEOUT_SECONDS = 30.0
 MAX_EMBEDDING_BATCH_SIZE = 20
@@ -96,6 +97,7 @@ class OpenAICompatibleEmbeddingClient:
             max_retries=0,
         )
 
+    @traced_provider_call("embedding")
     def embed(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
         if not texts:
             return ()

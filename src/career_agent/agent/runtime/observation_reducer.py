@@ -113,6 +113,7 @@ class ObservationReducer:
             [str, MainAgentToolOutput, dict[str, Any] | None],
             DecisionObservation,
         ],
+        emit_tool_card: Callable[[PendingAction], None] = lambda pending: None,
     ) -> None:
         self._context_manager = context_manager
         self._emit_trace = emit_trace
@@ -120,6 +121,7 @@ class ObservationReducer:
         self._update_atomic_task = update_atomic_task
         self._tool_call_fingerprint = tool_call_fingerprint
         self._tool_observation = tool_observation
+        self._emit_tool_card = emit_tool_card
 
     def reduce(self, state: MainAgentState) -> MainAgentState:
         context = state["context"]
@@ -225,6 +227,7 @@ class ObservationReducer:
         ):
             career_memory_scope_keys = (*career_memory_scope_keys, result_scope_key)
 
+        self._emit_tool_card(pending)
         return {
             "context": updated,
             "tool_results": tool_results,

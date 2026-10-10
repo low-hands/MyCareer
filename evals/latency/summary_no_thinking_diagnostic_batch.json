@@ -1,0 +1,169 @@
+{
+  "fixed_samples": 10,
+  "fixture_sha256": "9d54be5dd23b6222e3c8841961d82197f7058605e9dfaf844fb314db84fbe139",
+  "input_sha256": "58f67072e903f099dfa732c2f9b19c43f26db3c69c1b0ed52d9e2816640ffd44",
+  "source_characters": 2919,
+  "model": "qwen3.7-plus",
+  "disable_thinking": true,
+  "timeout_seconds": 30.0,
+  "attempts": [
+    {
+      "sample": 1,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "wall_ms": 18432,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    },
+    {
+      "sample": 2,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "wall_ms": 18861,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    },
+    {
+      "sample": 3,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "wall_ms": 18239,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    },
+    {
+      "sample": 4,
+      "status": "failed",
+      "error_code": "CONVERSATION_SUMMARY_INVALID_RESPONSE",
+      "wall_ms": 18504,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": false,
+        "validation_errors": [
+          {
+            "location": [
+              "key_facts",
+              5,
+              "fact"
+            ],
+            "type": "string_too_long"
+          }
+        ]
+      }
+    },
+    {
+      "sample": 5,
+      "status": "failed",
+      "error_code": "CONVERSATION_SUMMARY_INVALID_RESPONSE",
+      "wall_ms": 18915,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": false,
+        "validation_errors": [
+          {
+            "location": [
+              "key_facts",
+              3,
+              "fact"
+            ],
+            "type": "string_too_long"
+          },
+          {
+            "location": [
+              "key_facts",
+              5,
+              "fact"
+            ],
+            "type": "string_too_long"
+          }
+        ]
+      }
+    },
+    {
+      "sample": 6,
+      "status": "failed",
+      "error_code": "CONVERSATION_SUMMARY_INVALID_RESPONSE",
+      "wall_ms": 19954,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": false,
+        "validation_errors": [
+          {
+            "location": [
+              "key_facts",
+              5,
+              "fact"
+            ],
+            "type": "string_too_long"
+          }
+        ]
+      }
+    },
+    {
+      "sample": 7,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "wall_ms": 17482,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    },
+    {
+      "sample": 8,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "wall_ms": 18688,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    },
+    {
+      "sample": 9,
+      "status": "succeeded",
+      "key_fact_count": 11,
+      "wall_ms": 18345,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    },
+    {
+      "sample": 10,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "wall_ms": 18734,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    }
+  ]
+}
