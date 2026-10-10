@@ -1,0 +1,223 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "interview_english",
+  "suite_fingerprint": "f0d700dd3dcbd2a40abac0f523ce2e3ea5100a768ade4f58cfeb7a1ea3339c87",
+  "recorded_at": "2026-10-10T01:42:57.419242+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Bring up my interview schedule, please.": {
+            "list_interviews": 0.7668963092294336,
+            "update_interview": 0.7413522068808492,
+            "create_interview": 0.7363719666235675,
+            "get_interview": 0.7238147138706281,
+            "prepare_interview_calendar_sync": 0.689964049162516,
+            "complete_interview": 0.6689667038802302,
+            "list_calendar_links": 0.6609345256146445,
+            "prepare_interview": 0.6434108859504594,
+            "record_interview_retro": 0.6367240284138082,
+            "get_interview_preparation": 0.619756208815124
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Bring up my interview schedule, please.",
+          "assistant_message": "目前没有面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "482637e89114a579aa7fc3ed3a087acc874c4e3a53c18b7a8ed887d85836efa8",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有面试安排。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "482637e89114a579aa7fc3ed3a087acc874c4e3a53c18b7a8ed887d85836efa8",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Bring up my interview schedule, please.": {
+            "list_interviews": 0.7668963092294336,
+            "update_interview": 0.7413522068808492,
+            "create_interview": 0.7363719666235675,
+            "get_interview": 0.7238147138706281,
+            "prepare_interview_calendar_sync": 0.689964049162516,
+            "complete_interview": 0.6689667038802302,
+            "list_calendar_links": 0.6609345256146445,
+            "prepare_interview": 0.6434108859504594,
+            "record_interview_retro": 0.6367240284138082,
+            "get_interview_preparation": 0.619756208815124
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Bring up my interview schedule, please.",
+          "assistant_message": "目前没有面试安排。如果你已经安排了面试，可以告诉我公司名称、岗位和面试时间，我可以帮你创建面试记录；或者如果你需要开始准备面试，也可以告诉我具体信息。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "482637e89114a579aa7fc3ed3a087acc874c4e3a53c18b7a8ed887d85836efa8",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有面试安排。如果你已经安排了面试，可以告诉我公司名称、岗位和面试时间，我可以帮你创建面试记录；或者如果你需要开始准备面试，也可以告诉我具体信息。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "482637e89114a579aa7fc3ed3a087acc874c4e3a53c18b7a8ed887d85836efa8",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Bring up my interview schedule, please.": {
+            "list_interviews": 0.7668963092294336,
+            "update_interview": 0.7413522068808492,
+            "create_interview": 0.7363719666235675,
+            "get_interview": 0.7238147138706281,
+            "prepare_interview_calendar_sync": 0.689964049162516,
+            "complete_interview": 0.6689667038802302,
+            "list_calendar_links": 0.6609345256146445,
+            "prepare_interview": 0.6434108859504594,
+            "record_interview_retro": 0.6367240284138082,
+            "get_interview_preparation": 0.619756208815124
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Bring up my interview schedule, please.",
+          "assistant_message": "目前没有找到任何面试安排。如果您有即将进行的面试需要记录，可以告诉我公司、岗位和面试时间等信息，我可以帮您创建面试记录。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "482637e89114a579aa7fc3ed3a087acc874c4e3a53c18b7a8ed887d85836efa8",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有找到任何面试安排。如果您有即将进行的面试需要记录，可以告诉我公司、岗位和面试时间等信息，我可以帮您创建面试记录。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "482637e89114a579aa7fc3ed3a087acc874c4e3a53c18b7a8ed887d85836efa8",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

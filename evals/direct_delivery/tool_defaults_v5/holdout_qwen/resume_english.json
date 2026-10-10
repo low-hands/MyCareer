@@ -1,0 +1,208 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "resume_english",
+  "suite_fingerprint": "f0d700dd3dcbd2a40abac0f523ce2e3ea5100a768ade4f58cfeb7a1ea3339c87",
+  "recorded_at": "2026-10-10T01:42:57.418742+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Could you pull up the CVs I have on file?": {
+            "list_resumes": 0.6588826385569433,
+            "get_resume_metadata": 0.6125588854898892,
+            "get_resume_tailoring_draft": 0.5908112540014435,
+            "get_resume_job_match": 0.588822672118693,
+            "resolve_claim_source": 0.5703726510190592,
+            "export_resume_artifact": 0.5504642082511849
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Could you pull up the CVs I have on file?",
+          "assistant_message": "当前没有找到任何已保存的简历。如果您需要创建或上传简历，请告诉我您的具体需求。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "c12ec6718c0bc5409a01d9197914ae1b924b07b7afd72c1a4e1721b447a2639a",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何已保存的简历。如果您需要创建或上传简历，请告诉我您的具体需求。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "c12ec6718c0bc5409a01d9197914ae1b924b07b7afd72c1a4e1721b447a2639a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Could you pull up the CVs I have on file?": {
+            "list_resumes": 0.6588826385569433,
+            "get_resume_metadata": 0.6125588854898892,
+            "get_resume_tailoring_draft": 0.5908112540014435,
+            "get_resume_job_match": 0.588822672118693,
+            "resolve_claim_source": 0.5703726510190592,
+            "export_resume_artifact": 0.5504642082511849
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Could you pull up the CVs I have on file?",
+          "assistant_message": "目前系统中没有找到已保存的简历。如果您需要上传或创建新的简历，请告诉我具体需求。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "c12ec6718c0bc5409a01d9197914ae1b924b07b7afd72c1a4e1721b447a2639a",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前系统中没有找到已保存的简历。如果您需要上传或创建新的简历，请告诉我具体需求。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "c12ec6718c0bc5409a01d9197914ae1b924b07b7afd72c1a4e1721b447a2639a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Could you pull up the CVs I have on file?": {
+            "list_resumes": 0.6588826385569433,
+            "get_resume_metadata": 0.6125588854898892,
+            "get_resume_tailoring_draft": 0.5908112540014435,
+            "get_resume_job_match": 0.588822672118693,
+            "resolve_claim_source": 0.5703726510190592,
+            "export_resume_artifact": 0.5504642082511849
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Could you pull up the CVs I have on file?",
+          "assistant_message": "目前没有在你的档案中找到任何简历。你可以上传或创建一份新的简历，我可以帮你进行定制和优化。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "c12ec6718c0bc5409a01d9197914ae1b924b07b7afd72c1a4e1721b447a2639a",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有在你的档案中找到任何简历。你可以上传或创建一份新的简历，我可以帮你进行定制和优化。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "c12ec6718c0bc5409a01d9197914ae1b924b07b7afd72c1a4e1721b447a2639a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

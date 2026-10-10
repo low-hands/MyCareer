@@ -1,0 +1,205 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "resume_list",
+  "suite_fingerprint": "f0d700dd3dcbd2a40abac0f523ce2e3ea5100a768ade4f58cfeb7a1ea3339c87",
+  "recorded_at": "2026-10-10T01:42:57.415616+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "简历给我列一下": {
+            "list_resumes": 0.6804195259112394,
+            "get_resume_metadata": 0.6225762770737313,
+            "draft_resume_tailoring": 0.5874904303440942,
+            "get_resume_tailoring_draft": 0.5751143266209126,
+            "revise_resume_tailoring": 0.5702455743732732
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "简历给我列一下",
+          "assistant_message": "当前没有找到任何简历。您需要先创建或导入简历后才能列出。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "c12ec6718c0bc5409a01d9197914ae1b924b07b7afd72c1a4e1721b447a2639a",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。您需要先创建或导入简历后才能列出。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "c12ec6718c0bc5409a01d9197914ae1b924b07b7afd72c1a4e1721b447a2639a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "简历给我列一下": {
+            "list_resumes": 0.6804195259112394,
+            "get_resume_metadata": 0.6225762770737313,
+            "draft_resume_tailoring": 0.5874904303440942,
+            "get_resume_tailoring_draft": 0.5751143266209126,
+            "revise_resume_tailoring": 0.5702455743732732
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "简历给我列一下",
+          "assistant_message": "当前没有找到任何简历。如果您需要管理或创建简历，请告诉我您的具体需求，例如是否需要创建新简历或导入现有简历。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "c12ec6718c0bc5409a01d9197914ae1b924b07b7afd72c1a4e1721b447a2639a",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。如果您需要管理或创建简历，请告诉我您的具体需求，例如是否需要创建新简历或导入现有简历。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "c12ec6718c0bc5409a01d9197914ae1b924b07b7afd72c1a4e1721b447a2639a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "简历给我列一下": {
+            "list_resumes": 0.6804195259112394,
+            "get_resume_metadata": 0.6225762770737313,
+            "draft_resume_tailoring": 0.5874904303440942,
+            "get_resume_tailoring_draft": 0.5751143266209126,
+            "revise_resume_tailoring": 0.5702455743732732
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "简历给我列一下",
+          "assistant_message": "当前没有找到任何简历。您可以先创建或上传一份简历，之后我可以帮您列出和管理。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "c12ec6718c0bc5409a01d9197914ae1b924b07b7afd72c1a4e1721b447a2639a",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。您可以先创建或上传一份简历，之后我可以帮您列出和管理。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "c12ec6718c0bc5409a01d9197914ae1b924b07b7afd72c1a4e1721b447a2639a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

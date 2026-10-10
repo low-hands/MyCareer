@@ -1,0 +1,111 @@
+{
+  "scenario": "a_stale_note_is_reviewed_before_reuse",
+  "policy": "When working_notes includes stale_days, review whether each note still holds before carrying it forward, and use update_working_notes to remove outdated material.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "ad8babe2658166dd736b4ecf3eae55c16a8da4e928ccdba9a1e8b9175cf3a7f2",
+  "context_shape_fingerprint": "9861cd4ddcd7cabe495311bb491bf981775e82b7334ac346af733f0ff66d278e",
+  "recorded_at": "2026-10-09T18:16:55.725881+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"请问您想找什么岗位的职位？另外，工作地点是哪个城市？\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "0cb92b279005264b60663a4d40154061a30b0bf6deae53b738d1bb42e4ef3606",
+      "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "open_job_search",
+        "find_saved_jobs",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3529.4,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-09T18:16:55.670537+00:00",
+      "elapsed_ms": 3533.0,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问您想找什么岗位的职位？另外，工作地点是哪个城市？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "0cb92b279005264b60663a4d40154061a30b0bf6deae53b738d1bb42e4ef3606",
+          "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3529.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-09T18:16:57.171948+00:00",
+      "elapsed_ms": 4940.0,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问您想搜索什么岗位的关键词？例如\\\"Rust工程师\\\"、\\\"后端开发\\\"等。另外，您希望在哪个城市搜索？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "0cb92b279005264b60663a4d40154061a30b0bf6deae53b738d1bb42e4ef3606",
+          "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4938.2,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-09T18:16:55.725881+00:00",
+      "elapsed_ms": 2600.6,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问您希望在哪个城市找工作？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "0cb92b279005264b60663a4d40154061a30b0bf6deae53b738d1bb42e4ef3606",
+          "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2598.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

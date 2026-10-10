@@ -1,0 +1,123 @@
+{
+  "scenario": "an_unavailable_span_does_not_supply_an_unmentioned_company",
+  "policy": "A failed read supplies no missing company name. Decide from the visible history and observation without guessing.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "f4d8aeafb38cd19034849164f10815de9114fc08e6d446a00c0aa1b970f23cb2",
+  "context_shape_fingerprint": "d5a03093a638d2e25feb0e65cef260effd1f74287f055887a6dcf3f836a29dab",
+  "recorded_at": "2026-10-10T00:54:26.789841+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "search_career_memory",
+        "arguments": {
+          "query": "美团 目标公司",
+          "limit": 5
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "4c3d83a5303414cc6244fed3ff11a7ad7ce30eb21501910af6a1faceac1f729d",
+      "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_target_roles",
+        "propose_job_intent",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2764.6,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T00:54:24.981353+00:00",
+      "elapsed_ms": 2767.3,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_career_memory",
+            "arguments": {
+              "query": "美团 目标公司",
+              "limit": 5
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "4c3d83a5303414cc6244fed3ff11a7ad7ce30eb21501910af6a1faceac1f729d",
+          "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2764.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:54:26.569725+00:00",
+      "elapsed_ms": 3266.7,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你刚才提到的美团JD，是在哪个招聘网站或渠道看到的？我需要知道具体的岗位链接或完整职位名称才能帮你分析。另外，你的目标公司就是美团吗？还是有其他心仪的公司？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "4c3d83a5303414cc6244fed3ff11a7ad7ce30eb21501910af6a1faceac1f729d",
+          "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3264.2,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:54:26.789841+00:00",
+      "elapsed_ms": 2833.4,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前会话中没有记录你提到的美团 JD 或目标公司信息。请告诉我你的目标公司全名是什么？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "4c3d83a5303414cc6244fed3ff11a7ad7ce30eb21501910af6a1faceac1f729d",
+          "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2830.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,660 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "interview_schedule",
+  "suite_fingerprint": "2e6f0be4b604ada29d4f6e80703a6bdb2eead67513229626147ba42fa42c7abc",
+  "recorded_at": "2026-10-10T01:26:00.774085+00:00",
+  "k": 10,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "面试日程给我调出来。": {
+            "list_interviews": 0.8279408320525342,
+            "get_interview": 0.7788932906248649,
+            "create_interview": 0.769697500529223,
+            "update_interview": 0.7613647804026153,
+            "prepare_interview_calendar_sync": 0.760739885896072,
+            "list_calendar_links": 0.7216510598776247,
+            "complete_interview": 0.7000447391087787,
+            "list_calendar_accounts": 0.6672587484239513,
+            "record_interview_retro": 0.6576047746351874,
+            "prepare_interview": 0.6406836766933428
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "面试日程给我调出来。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "面试日程给我调出来。": {
+            "list_interviews": 0.827982049164153,
+            "get_interview": 0.7789620484475207,
+            "create_interview": 0.7697657863531389,
+            "update_interview": 0.7614319114832835,
+            "prepare_interview_calendar_sync": 0.7607917811386846,
+            "list_calendar_links": 0.7217105763432443,
+            "complete_interview": 0.7000924566605559,
+            "list_calendar_accounts": 0.6672886549304127,
+            "record_interview_retro": 0.6576458766820326,
+            "prepare_interview": 0.6406672015956812
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "面试日程给我调出来。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "面试日程给我调出来。": {
+            "list_interviews": 0.8279479289546819,
+            "get_interview": 0.7788878973586862,
+            "create_interview": 0.7697627532741907,
+            "update_interview": 0.7614831020452807,
+            "prepare_interview_calendar_sync": 0.7609097237615474,
+            "list_calendar_links": 0.7218236884022967,
+            "complete_interview": 0.7000159486675048,
+            "list_calendar_accounts": 0.6673777662078577,
+            "record_interview_retro": 0.6575634745637274,
+            "prepare_interview": 0.6407284339388225
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "面试日程给我调出来。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "面试日程给我调出来。": {
+            "list_interviews": 0.8279479289546819,
+            "get_interview": 0.7788878973586862,
+            "create_interview": 0.7697627532741907,
+            "update_interview": 0.7614831020452807,
+            "prepare_interview_calendar_sync": 0.7609097237615474,
+            "list_calendar_links": 0.7218236884022967,
+            "complete_interview": 0.7000159486675048,
+            "list_calendar_accounts": 0.6673777662078577,
+            "record_interview_retro": 0.6575634745637274,
+            "prepare_interview": 0.6407284339388225
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "面试日程给我调出来。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "面试日程给我调出来。": {
+            "list_interviews": 0.827982049164153,
+            "get_interview": 0.7789620484475207,
+            "create_interview": 0.7697657863531389,
+            "update_interview": 0.7614319114832835,
+            "prepare_interview_calendar_sync": 0.7607917811386846,
+            "list_calendar_links": 0.7217105763432443,
+            "complete_interview": 0.7000924566605559,
+            "list_calendar_accounts": 0.6672886549304127,
+            "record_interview_retro": 0.6576458766820326,
+            "prepare_interview": 0.6406672015956812
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "面试日程给我调出来。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "面试日程给我调出来。": {
+            "list_interviews": 0.827982049164153,
+            "get_interview": 0.7789620484475207,
+            "create_interview": 0.7697657863531389,
+            "update_interview": 0.7614319114832835,
+            "prepare_interview_calendar_sync": 0.7607917811386846,
+            "list_calendar_links": 0.7217105763432443,
+            "complete_interview": 0.7000924566605559,
+            "list_calendar_accounts": 0.6672886549304127,
+            "record_interview_retro": 0.6576458766820326,
+            "prepare_interview": 0.6406672015956812
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "面试日程给我调出来。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "面试日程给我调出来。": {
+            "list_interviews": 0.827982049164153,
+            "get_interview": 0.7789620484475207,
+            "create_interview": 0.7697657863531389,
+            "update_interview": 0.7614319114832835,
+            "prepare_interview_calendar_sync": 0.7607917811386846,
+            "list_calendar_links": 0.7217105763432443,
+            "complete_interview": 0.7000924566605559,
+            "list_calendar_accounts": 0.6672886549304127,
+            "record_interview_retro": 0.6576458766820326,
+            "prepare_interview": 0.6406672015956812
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "面试日程给我调出来。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "面试日程给我调出来。": {
+            "list_interviews": 0.827982049164153,
+            "get_interview": 0.7789620484475207,
+            "create_interview": 0.7697657863531389,
+            "update_interview": 0.7614319114832835,
+            "prepare_interview_calendar_sync": 0.7607917811386846,
+            "list_calendar_links": 0.7217105763432443,
+            "complete_interview": 0.7000924566605559,
+            "list_calendar_accounts": 0.6672886549304127,
+            "record_interview_retro": 0.6576458766820326,
+            "prepare_interview": 0.6406672015956812
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "面试日程给我调出来。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "面试日程给我调出来。": {
+            "list_interviews": 0.8279479289546819,
+            "get_interview": 0.7788878973586862,
+            "create_interview": 0.7697627532741907,
+            "update_interview": 0.7614831020452807,
+            "prepare_interview_calendar_sync": 0.7609097237615474,
+            "list_calendar_links": 0.7218236884022967,
+            "complete_interview": 0.7000159486675048,
+            "list_calendar_accounts": 0.6673777662078577,
+            "record_interview_retro": 0.6575634745637274,
+            "prepare_interview": 0.6407284339388225
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "面试日程给我调出来。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "面试日程给我调出来。": {
+            "list_interviews": 0.8279918745495859,
+            "get_interview": 0.7789963314631756,
+            "create_interview": 0.7697228952047789,
+            "update_interview": 0.7614058527617956,
+            "prepare_interview_calendar_sync": 0.7608299465309731,
+            "list_calendar_links": 0.7217741533332802,
+            "complete_interview": 0.7000324532661575,
+            "list_calendar_accounts": 0.6673804288633919,
+            "record_interview_retro": 0.6575694595282946,
+            "prepare_interview": 0.6406641690391266
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "面试日程给我调出来。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

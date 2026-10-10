@@ -1,0 +1,76 @@
+{
+  "scenario": "interview_advice",
+  "sample": {
+    "semantic_recording": {
+      "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+      "queries": {
+        "查一下我的面试安排，然后帮我规划下一步准备；没有安排也要给建议。": {
+          "list_interviews": 0.6960798500900057,
+          "prepare_interview": 0.6946154597901154,
+          "get_interview": 0.6740197673527516,
+          "create_interview": 0.6698950895715505,
+          "get_interview_preparation": 0.6688335788119274,
+          "prepare_interview_calendar_sync": 0.659474275314985,
+          "update_interview": 0.6451653012896665,
+          "complete_interview": 0.6184010842623214,
+          "record_interview_retro": 0.6006267994709268,
+          "start_mock_interview": 0.5735894198169057
+        }
+      }
+    },
+    "passed": true,
+    "failures": [],
+    "turns": [
+      {
+        "message": "查一下我的面试安排，然后帮我规划下一步准备；没有安排也要给建议。",
+        "assistant_message": "目前没有发现任何面试安排。\n\n**通用准备建议：**\n1. 更新和完善简历，确保内容最新且突出核心技能\n2. 明确求职目标和意向岗位方向\n3. 准备常见面试问题的回答（自我介绍、项目经历、职业规划等）\n4. 研究目标行业和公司的背景信息\n5. 针对目标岗位所需的专业能力进行复习和练习\n\n如果你希望获得更有针对性的帮助，可以告诉我你的求职方向、目标岗位或具体需求，我可以协助你进行简历优化、岗位分析或面试准备等工作。",
+        "executed_calls": [
+          {
+            "name": "list_interviews",
+            "arguments": {
+              "user_id": "eval-user",
+              "application_id": null,
+              "statuses": [],
+              "limit": 20
+            }
+          }
+        ],
+        "decisions": [
+          {
+            "response": {
+              "tool_call": {
+                "name": "list_interviews",
+                "arguments": {
+                  "deliver_direct": false
+                }
+              }
+            },
+            "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+            "action": "tool_call",
+            "tool": "list_interviews"
+          },
+          {
+            "response": {
+              "content": "{\"action\":\"final\",\"message\":\"目前没有发现任何面试安排。\\n\\n**通用准备建议：**\\n1. 更新和完善简历，确保内容最新且突出核心技能\\n2. 明确求职目标和意向岗位方向\\n3. 准备常见面试问题的回答（自我介绍、项目经历、职业规划等）\\n4. 研究目标行业和公司的背景信息\\n5. 针对目标岗位所需的专业能力进行复习和练习\\n\\n如果你希望获得更有针对性的帮助，可以告诉我你的求职方向、目标岗位或具体需求，我可以协助你进行简历优化、岗位分析或面试准备等工作。\",\"questions\":[]}"
+            },
+            "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+            "action": "final",
+            "tool": null
+          }
+        ],
+        "error": null,
+        "missing_calls": [],
+        "requires_model_summary": true,
+        "model_summary_delivered": true,
+        "decision_count": 2,
+        "direct_delivery": false,
+        "result_states": [
+          "no_interviews_found"
+        ]
+      }
+    ],
+    "premature_stop_count": 0,
+    "unsafe_attempt_count": 0,
+    "injection_marker_echo_count": 0
+  }
+}

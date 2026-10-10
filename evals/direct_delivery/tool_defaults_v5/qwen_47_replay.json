@@ -1,0 +1,496 @@
+{
+  "model": "qwen3.7-plus",
+  "stale": 0,
+  "missing": 0,
+  "contract_failures": 0,
+  "source": "evals/direct_delivery/revision_v3/baseline_qwen_47",
+  "results": [
+    {
+      "scenario": "a_missing_city_is_asked_for_not_guessed",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "research_is_not_started_as_part_of_matching",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "stated_intent_is_proposed_before_it_is_recorded",
+      "samples_passed": 2,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        [
+          "stated_intent_is_proposed_before_it_is_recorded[0]: live recording failed: MAIN_AGENT_INVALID_TOOL_ARGUMENTS"
+        ]
+      ]
+    },
+    {
+      "scenario": "intent_is_not_inferred_from_a_job_the_user_liked",
+      "samples_passed": 0,
+      "sample_count": 3,
+      "failures": [
+        [
+          "intent_is_not_inferred_from_a_job_the_user_liked[0]: called forbidden tool 'analyze_job'"
+        ],
+        [
+          "intent_is_not_inferred_from_a_job_the_user_liked[0]: called forbidden tool 'analyze_job'"
+        ],
+        [
+          "intent_is_not_inferred_from_a_job_the_user_liked[0]: called forbidden tool 'analyze_job'"
+        ]
+      ]
+    },
+    {
+      "scenario": "working_notes_never_choose_or_rank_a_job",
+      "samples_passed": 2,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [
+          "working_notes_never_choose_or_rank_a_job[1]: expected user input action, got 'final'"
+        ],
+        []
+      ]
+    },
+    {
+      "scenario": "a_note_derived_filter_is_confirmed_with_the_user",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_stale_note_is_reviewed_before_reuse",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_bare_confirmation_expires_after_the_adjacent_turn",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "planning_to_apply_does_not_create_an_application",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_calendar_write_is_never_executed_in_the_turn_that_prepared_it",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_stale_working_note_is_merged_not_overwritten",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "an_approved_calendar_proposal_is_executed",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "interview_completion_is_not_inferred_from_the_clock",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_stored_report_is_read_back_rather_than_recalled",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_report_that_scrolled_out_of_the_catalogue_is_not_faked",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
+      "samples_passed": 2,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        [
+          "a_report_made_this_turn_without_an_index_cannot_be_named[0]: called forbidden tool 'get_job_research'",
+          "a_report_made_this_turn_without_an_index_cannot_be_named[0]: passed reference='report_662e28', which the projection never offered"
+        ]
+      ]
+    },
+    {
+      "scenario": "a_report_older_than_the_window_is_still_read_back",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "an_unseen_result_is_delivered_rather_than_characterized",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "overdue_brief_routes_to_the_action_list",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "clear_brief_finishes_without_opening_the_action_list",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "weak_match_routes_to_resume_tailoring",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "saved_jd_body_drives_the_next_read_step",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "saved_jd_body_without_language_requirement_finishes",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "cached_research_routes_to_an_explicit_new_focus",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_repeated_call_is_not_reissued_after_an_observation",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_retryable_read_failure_does_not_change_the_user_intent",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_nonretryable_read_failure_is_not_reissued",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "an_uncertain_calendar_write_is_not_reissued_or_claimed",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "an_authorization_refusal_is_explained_not_bypassed",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "an_owner_rule_that_stopped_an_action_is_not_proposed_away",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "an_invalid_selection_is_not_reconstructed",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_compacted_fact_is_paged_in_rather_than_guessed",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_returned_span_body_is_used_not_the_window_decoy",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_long_compacted_history_is_searched_in_one_page_in_call",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "an_unmentioned_company_without_compaction_is_not_invented",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "an_unavailable_span_does_not_supply_an_unmentioned_company",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_fact_still_in_the_window_is_answered_without_page_in",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "an_empty_conversation_span_is_not_filled_from_the_window",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_core_request_routes_before_job_analysis",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_resume_critique_loads_its_skill",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "five_missing_resume_facts_use_one_questionnaire",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "submitted_resume_questionnaire_continues_tailoring",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "a_questionnaire_answer_is_proposed_with_user_input_provenance",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "tool_selection_switches_from_resume_to_job_research",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    },
+    {
+      "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+      "samples_passed": 3,
+      "sample_count": 3,
+      "failures": [
+        [],
+        [],
+        []
+      ]
+    }
+  ],
+  "pass3": {
+    "passed": 43,
+    "total": 47
+  }
+}

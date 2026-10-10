@@ -1,0 +1,198 @@
+{
+  "scenario": "a_bare_confirmation_expires_after_the_adjacent_turn",
+  "policy": "A bare confirmation authorizes a pending career fact, job intent, or free-text preference only on the immediately adjacent user turn and only when task.bare_confirmation_target names that type.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "329a6a6baa043156b156fa14b0e4db9f00a18c2be7a946baefaec0addac4f97a",
+  "context_shape_fingerprint": "689602ed95dd0a57a9d5a4844f3b033e6663bb6d60aa9b43c2792b1dcefefd89",
+  "recorded_at": "2026-10-10T00:51:58.995707+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "search_capabilities",
+        "arguments": {
+          "names": [
+            "open_job_search"
+          ]
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "0d84144f6e8edfdb0e50777372edbeaa9c9cffc140bd084889773567621b1c13",
+      "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "confirm_job_intent",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2153.0,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "tool_call": {
+        "name": "open_job_search",
+        "arguments": {
+          "keyword": "新岗位"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "8572d2638a74e7fca8239c912096e7ab6c7086af0f7ec3f6b1f4b68b8e30e50b",
+      "decision_shape_fingerprint": "0c560dc62f6a531200b004b0bd649db2b9fceaff98459c1deb681a5d65bd3ce3",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "open_job_search",
+        "confirm_job_intent",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 1940.6,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T00:51:59.433559+00:00",
+      "elapsed_ms": 4098.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "open_job_search"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "0d84144f6e8edfdb0e50777372edbeaa9c9cffc140bd084889773567621b1c13",
+          "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2153.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "open_job_search",
+            "arguments": {
+              "keyword": "新岗位"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "8572d2638a74e7fca8239c912096e7ab6c7086af0f7ec3f6b1f4b68b8e30e50b",
+          "decision_shape_fingerprint": "0c560dc62f6a531200b004b0bd649db2b9fceaff98459c1deb681a5d65bd3ce3",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1940.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:52:01.124896+00:00",
+      "elapsed_ms": 4645.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "open_job_search"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "0d84144f6e8edfdb0e50777372edbeaa9c9cffc140bd084889773567621b1c13",
+          "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2454.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你想搜索什么岗位关键词？另外，在哪个城市找工作？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "8572d2638a74e7fca8239c912096e7ab6c7086af0f7ec3f6b1f4b68b8e30e50b",
+          "decision_shape_fingerprint": "0c560dc62f6a531200b004b0bd649db2b9fceaff98459c1deb681a5d65bd3ce3",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2187.2,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:51:58.995707+00:00",
+      "elapsed_ms": 2087.1,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你想看哪个城市或岗位方向？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "0d84144f6e8edfdb0e50777372edbeaa9c9cffc140bd084889773567621b1c13",
+          "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2085.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

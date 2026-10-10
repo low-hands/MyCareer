@@ -1,0 +1,524 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "colloquial_empty_resume_receipt",
+  "suite_fingerprint": "43dc152f7b3e255546cbad0181e63bb7307ed89cf6cb921dd997363f8f8c0fe3",
+  "recorded_at": "2026-10-10T00:28:51.633859+00:00",
+  "k": 10,
+  "samples": [
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "帮我瞅瞅简历",
+          "assistant_message": "当前没有找到任何简历。如果您有简历文件，可以先上传或创建一份简历，然后我才能帮您查看。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。如果您有简历文件，可以先上传或创建一份简历，然后我才能帮您查看。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "帮我瞅瞅简历",
+          "assistant_message": "目前没有找到任何简历。您需要先创建或上传一份简历，我才能帮您查看。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有找到任何简历。您需要先创建或上传一份简历，我才能帮您查看。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "帮我瞅瞅简历",
+          "assistant_message": "当前没有找到任何简历。如果您有简历文件，可以上传或创建一份新简历，我才能帮您查看和分析。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。如果您有简历文件，可以上传或创建一份新简历，我才能帮您查看和分析。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "帮我瞅瞅简历",
+          "assistant_message": "当前没有找到任何简历。您需要先创建或上传一份简历，我才能帮您查看。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。您需要先创建或上传一份简历，我才能帮您查看。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "帮我瞅瞅简历",
+          "assistant_message": "当前没有找到任何简历。您需要先上传或创建一份简历，我才能帮您查看。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。您需要先上传或创建一份简历，我才能帮您查看。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "帮我瞅瞅简历",
+          "assistant_message": "当前没有找到任何简历。您需要先创建或上传简历，我才能帮您查看。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。您需要先创建或上传简历，我才能帮您查看。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "帮我瞅瞅简历",
+          "assistant_message": "当前没有找到任何简历。您可以先上传或创建一份简历，然后我再帮您查看。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。您可以先上传或创建一份简历，然后我再帮您查看。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "帮我瞅瞅简历",
+          "assistant_message": "当前没有找到任何简历。你需要先上传或创建一份简历，我才能帮你查看。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。你需要先上传或创建一份简历，我才能帮你查看。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "帮我瞅瞅简历",
+          "assistant_message": "当前没有找到任何简历。你需要先创建或上传一份简历，我才能帮你查看。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。你需要先创建或上传一份简历，我才能帮你查看。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "帮我瞅瞅简历",
+          "assistant_message": "当前没有找到任何简历。请问您是想创建一份新简历，还是上传已有的简历文件？",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。请问您是想创建一份新简历，还是上传已有的简历文件？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

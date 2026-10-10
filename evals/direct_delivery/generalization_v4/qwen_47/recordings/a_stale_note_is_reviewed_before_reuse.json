@@ -1,0 +1,258 @@
+{
+  "scenario": "a_stale_note_is_reviewed_before_reuse",
+  "policy": "When working_notes includes stale_days, review whether each note still holds before carrying it forward, and use update_working_notes to remove outdated material.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "073b078cffa7d4cd4830417fe180b0b852f162aff81ac2be9c160d5e8bc11be3",
+  "context_shape_fingerprint": "9861cd4ddcd7cabe495311bb491bf981775e82b7334ac346af733f0ff66d278e",
+  "recorded_at": "2026-10-10T01:19:38.036625+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "search_capabilities",
+        "arguments": {
+          "names": [
+            "list_target_roles"
+          ]
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "879ba41db0e79aa683e4eaf51698bb88e3a013ac07ba63a1a1a788f74e4c10ae",
+      "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "open_job_search",
+        "find_saved_jobs",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3253.5,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "implicit_capability_load",
+          "retried": true,
+          "raw_output": {
+            "content": "用户要求找岗位，我需要先了解搜索条件。根据工具说明，如果用户没有提供城市信息，我需要询问城市而不是猜测。\n\n让我先检查是否有已保存的目标岗位方向或偏好可以提供线索。\n\n",
+            "tool_calls": [
+              {
+                "name": "list_target_roles",
+                "arguments": "{}"
+              }
+            ]
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "tool_call": {
+        "name": "list_target_roles",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "bcce45c63413b34f47189fdd99812d022c99b6227080c649f2fff45678ed04b2",
+      "decision_shape_fingerprint": "eac530fdcacc1b1fe57a2b1fcd49a782a808385531b645c5e4d1b5bac7010efe",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "open_job_search",
+        "find_saved_jobs",
+        "list_target_roles",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2453.8,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T01:19:33.550088+00:00",
+      "elapsed_ms": 5714.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "list_target_roles"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "879ba41db0e79aa683e4eaf51698bb88e3a013ac07ba63a1a1a788f74e4c10ae",
+          "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3253.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "implicit_capability_load",
+              "retried": true,
+              "raw_output": {
+                "content": "用户要求找岗位，我需要先了解搜索条件。根据工具说明，如果用户没有提供城市信息，我需要询问城市而不是猜测。\n\n让我先检查是否有已保存的目标岗位方向或偏好可以提供线索。\n\n",
+                "tool_calls": [
+                  {
+                    "name": "list_target_roles",
+                    "arguments": "{}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "bcce45c63413b34f47189fdd99812d022c99b6227080c649f2fff45678ed04b2",
+          "decision_shape_fingerprint": "eac530fdcacc1b1fe57a2b1fcd49a782a808385531b645c5e4d1b5bac7010efe",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2453.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:19:41.685060+00:00",
+      "elapsed_ms": 10114.8,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问您想在哪个城市找工作？另外，您想找什么类型的岗位（例如：Rust开发、后端工程师等）？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "879ba41db0e79aa683e4eaf51698bb88e3a013ac07ba63a1a1a788f74e4c10ae",
+          "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 10110.3,
+          "model_request_count": 4,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "open_job_search",
+                    "arguments": "{\"keyword\": \"Rust\", \"job_type\": \"full_time\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "要帮您搜索岗位，我需要知道您想找什么类型的岗位以及工作地点。\n\n请问：\n1. 您想找什么岗位的关键词？（例如：软件工程师、产品经理等）\n2. 您希望在哪个城市工作？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": false,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "open_job_search",
+                    "arguments": "{\"keyword\": \"Rust\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [
+            {
+              "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+              "decision_invocation": 1
+            }
+          ],
+          "decision_invocations": 2
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:19:38.036625+00:00",
+      "elapsed_ms": 4484.6,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问您想在哪个城市寻找岗位？另外，您想找什么类型的岗位（例如关键词或职位名称）？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "879ba41db0e79aa683e4eaf51698bb88e3a013ac07ba63a1a1a788f74e4c10ae",
+          "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4482.2,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "要帮你搜索岗位，我需要知道：\n\n1. **你想找什么类型的岗位？**（例如：Rust 开发、后端工程师等）\n2. **在哪个城市？**\n\n请告诉我这两个信息，我就可以为你打开 BOSS 直聘的搜索页面。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

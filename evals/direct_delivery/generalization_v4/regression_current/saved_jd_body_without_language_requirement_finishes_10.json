@@ -1,0 +1,38 @@
+{
+  "scenario": "saved_jd_body_without_language_requirement_finishes",
+  "sample": 10,
+  "started_at": "2026-10-10T01:20:15.215369+00:00",
+  "recording": {
+    "recorded_at": "2026-10-10T01:20:18.271682+00:00",
+    "elapsed_ms": 3055.7,
+    "steps": [
+      {
+        "content": "{\"action\":\"final\",\"message\":\"该岗位 JD 未明确要求 Rust，已停止后续匹配流程。\",\"questions\":[]}",
+        "scenario_step": 0,
+        "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+        "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+        "offered_tools": [
+          "load_skill",
+          "fetch_archived_constraints",
+          "search_career_memory",
+          "get_saved_job",
+          "analyze_job",
+          "create_interview",
+          "search_capabilities"
+        ],
+        "elapsed_ms": 3054.4,
+        "model_request_count": 1,
+        "decision_retry_telemetry_version": 1,
+        "decision_retry_events": [],
+        "recording_retry_events": [],
+        "decision_invocations": 1
+      }
+    ]
+  },
+  "passed": true,
+  "failures": [],
+  "quality_failures": [],
+  "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+  "model": "qwen3.7-plus",
+  "source_arm": "current"
+}

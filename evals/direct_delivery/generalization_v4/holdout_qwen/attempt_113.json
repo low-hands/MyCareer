@@ -1,0 +1,76 @@
+{
+  "scenario": "interview_advice",
+  "sample": {
+    "semantic_recording": {
+      "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+      "queries": {
+        "查一下我的面试安排，然后帮我规划下一步准备；没有安排也要给建议。": {
+          "list_interviews": 0.6960798500900057,
+          "prepare_interview": 0.6946154597901154,
+          "get_interview": 0.6740197673527516,
+          "create_interview": 0.6698950895715505,
+          "get_interview_preparation": 0.6688335788119274,
+          "prepare_interview_calendar_sync": 0.659474275314985,
+          "update_interview": 0.6451653012896665,
+          "complete_interview": 0.6184010842623214,
+          "record_interview_retro": 0.6006267994709268,
+          "start_mock_interview": 0.5735894198169057
+        }
+      }
+    },
+    "passed": true,
+    "failures": [],
+    "turns": [
+      {
+        "message": "查一下我的面试安排，然后帮我规划下一步准备；没有安排也要给建议。",
+        "assistant_message": "目前没有查到任何面试安排。\n\n既然没有待进行的面试，我为你提供以下求职准备建议：\n\n**1. 简历优化**\n- 检查简历是否针对目标岗位进行了定制\n- 确保突出与岗位要求匹配的核心技能和项目经验\n\n**2. 目标岗位梳理**\n- 明确你的求职方向和期望城市\n- 收藏感兴趣的岗位，便于后续分析和投递\n\n**3. 面试通用准备**\n- 准备自我介绍（1分钟/3分钟版本）\n- 梳理核心项目经历，用STAR法则整理\n- 练习常见行为面试题\n\n**4. 技能提升**\n- 根据目标岗位要求，补充相关技术或业务知识\n- 了解行业趋势和目标公司动态\n\n你希望我从哪个方面开始帮助你？比如：\n- 帮你查看和筛选已收藏的岗位\n- 协助优化简历\n- 或者你有具体的面试需要记录？",
+        "executed_calls": [
+          {
+            "name": "list_interviews",
+            "arguments": {
+              "user_id": "eval-user",
+              "application_id": null,
+              "statuses": [],
+              "limit": 20
+            }
+          }
+        ],
+        "decisions": [
+          {
+            "response": {
+              "tool_call": {
+                "name": "list_interviews",
+                "arguments": {
+                  "deliver_direct": false
+                }
+              }
+            },
+            "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+            "action": "tool_call",
+            "tool": "list_interviews"
+          },
+          {
+            "response": {
+              "content": "{\"action\":\"ask_user\",\"message\":\"目前没有查到任何面试安排。\\n\\n既然没有待进行的面试，我为你提供以下求职准备建议：\\n\\n**1. 简历优化**\\n- 检查简历是否针对目标岗位进行了定制\\n- 确保突出与岗位要求匹配的核心技能和项目经验\\n\\n**2. 目标岗位梳理**\\n- 明确你的求职方向和期望城市\\n- 收藏感兴趣的岗位，便于后续分析和投递\\n\\n**3. 面试通用准备**\\n- 准备自我介绍（1分钟/3分钟版本）\\n- 梳理核心项目经历，用STAR法则整理\\n- 练习常见行为面试题\\n\\n**4. 技能提升**\\n- 根据目标岗位要求，补充相关技术或业务知识\\n- 了解行业趋势和目标公司动态\\n\\n你希望我从哪个方面开始帮助你？比如：\\n- 帮你查看和筛选已收藏的岗位\\n- 协助优化简历\\n- 或者你有具体的面试需要记录？\",\"questions\":[]}"
+            },
+            "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+            "action": "ask_user",
+            "tool": null
+          }
+        ],
+        "error": null,
+        "missing_calls": [],
+        "requires_model_summary": true,
+        "model_summary_delivered": true,
+        "decision_count": 2,
+        "direct_delivery": false,
+        "result_states": [
+          "no_interviews_found"
+        ]
+      }
+    ],
+    "premature_stop_count": 0,
+    "unsafe_attempt_count": 0,
+    "injection_marker_echo_count": 0
+  }
+}

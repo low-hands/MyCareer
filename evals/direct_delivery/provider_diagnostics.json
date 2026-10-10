@@ -1,0 +1,7 @@
+{
+  "qwen_minimal_request": "success",
+  "qwen_request_with_current_tool_schemas": "success",
+  "batch_403_root_cause": "undetermined",
+  "batch_deepseek_transport_root_cause": "undetermined",
+  "notes": "Diagnostics were performed after the full batches. No secrets or endpoints recorded. These probes do not replace failed samples."
+}

@@ -1,0 +1,172 @@
+{
+  "scenario": "a_long_compacted_history_is_searched_in_one_page_in_call",
+  "policy": "When omitted history is longer than the bounded read-call budget can scan, call read_conversation_span with focused query terms inside sequence 1 through through_sequence instead of walking positional chunks or guessing.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "652d8926b90f6d2cdfff241640d9d6d4460a91750d18e2f9b9fd745d9c4b39c0",
+  "context_shape_fingerprint": "720c64c0e111845ac36282255287dc00fe96a9769230eb0da4bebf0e4e5c4f31",
+  "recorded_at": "2026-10-10T01:23:20.669929+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "read_conversation_span",
+        "arguments": {
+          "query": "目标公司 公司名"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "5b282afd3d9e914011cbc3d4351c58991da339c1a630df65aa82608eaeb24196",
+      "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_target_roles",
+        "propose_job_intent",
+        "search_career_episodes",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 9090.4,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "根据当前对话摘要和记忆状态，没有记录到你明确指定过的目标公司。\n\n摘要中只记录了：\n- 用户目标：找算法工程师岗位\n- 已确认决策：先从已保存岗位里挑，不全国盲搜\n- 未解决问题：城市还没定\n\n你之前提到过\"美团\"的JD，但那被描述为\"窗口里的对照，不是你一开始指定的目标\"。\n\n要查找你是否在其他对话中提及过目标公司，我可以搜索职业记忆或历史对话。你想让我查一下吗？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T01:23:17.226759+00:00",
+      "elapsed_ms": 9094.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "read_conversation_span",
+            "arguments": {
+              "query": "目标公司 公司名"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "5b282afd3d9e914011cbc3d4351c58991da339c1a630df65aa82608eaeb24196",
+          "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 9090.4,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "根据当前对话摘要和记忆状态，没有记录到你明确指定过的目标公司。\n\n摘要中只记录了：\n- 用户目标：找算法工程师岗位\n- 已确认决策：先从已保存岗位里挑，不全国盲搜\n- 未解决问题：城市还没定\n\n你之前提到过\"美团\"的JD，但那被描述为\"窗口里的对照，不是你一开始指定的目标\"。\n\n要查找你是否在其他对话中提及过目标公司，我可以搜索职业记忆或历史对话。你想让我查一下吗？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:23:16.177784+00:00",
+      "elapsed_ms": 6710.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "read_conversation_span",
+            "arguments": {
+              "query": "目标公司"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "5b282afd3d9e914011cbc3d4351c58991da339c1a630df65aa82608eaeb24196",
+          "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6706.8,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "根据当前对话摘要和记忆，我没有看到你明确指定过具体的\"目标公司\"。\n\n摘要中显示你的目标是\"找算法工程师岗位\"，并且有一个未解决的问题是\"城市还没定\"。确认的决策是\"先从已保存岗位里挑，不全国盲搜\"。\n\n但我没有看到具体的目标公司名称被记录。你之前提到过哪些公司吗？或者你希望我帮你查找一下之前的对话记录？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:23:20.669929+00:00",
+      "elapsed_ms": 4490.0,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "read_conversation_span",
+            "arguments": {
+              "query": "目标公司"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "5b282afd3d9e914011cbc3d4351c58991da339c1a630df65aa82608eaeb24196",
+          "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4481.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

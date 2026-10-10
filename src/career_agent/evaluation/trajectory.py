@@ -365,13 +365,14 @@ def cassette_path(name: str, *, root: Path | None = None) -> Path:
 def prompt_fingerprint(tool_specs: tuple[dict[str, Any], ...]) -> str:
     """Hash the exact system prompt and schemas sent for one decision."""
     from career_agent.agent.capabilities.selection_strategy import SearchStrategy
+    from career_agent.agent.providers.main_agent import _normalize_tool_specs
     prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt(
         SearchStrategy().tool_policy()
     )
     encoded = json.dumps(
         {
             "system_prompt": prompt,
-            "tool_specs": tool_specs + interaction_schemas(continuation=True),
+            "tool_specs": _normalize_tool_specs(tool_specs) + interaction_schemas(continuation=True),
             "tool_selection_mode": "search",
         },
         ensure_ascii=False,

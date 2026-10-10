@@ -1,0 +1,199 @@
+{
+  "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+  "policy": "Reports, cards and files are delivered by the runtime alongside your reply, so summarize and point to them instead of restating their contents.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "e1caa42beb663567bbbadc14ea8c1297f73db4f1a2aae5a21660045c8b5ef727",
+  "context_shape_fingerprint": "a39727da5a28b29365a8b6a9c41c001fee1492d345f38ae2735af631d6cf67d3",
+  "recorded_at": "2026-10-10T00:53:21.182757+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"调研已完成：示例科技在2026年Q2将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "a748123b4be60adbbb574ff0a739876ab55e3fad253dccc20c2b3cde8ec2f6ce",
+      "decision_shape_fingerprint": "3c75c203afcddc667e4a42152aec89f8f32962282bcb47c6c346bec9ddb9bc96",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "research_job",
+        "get_job_research",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 9476.7,
+      "model_request_count": 3,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "示例科技在2026年第二季度将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        },
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": true,
+          "raw_output": {
+            "content": "调研已完成，示例科技今年将检索业务独立拆分，招聘规模扩大约四成。",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T00:53:22.774351+00:00",
+      "elapsed_ms": 9481.4,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"调研已完成：示例科技在2026年Q2将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "a748123b4be60adbbb574ff0a739876ab55e3fad253dccc20c2b3cde8ec2f6ce",
+          "decision_shape_fingerprint": "3c75c203afcddc667e4a42152aec89f8f32962282bcb47c6c346bec9ddb9bc96",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 9476.7,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "示例科技在2026年第二季度将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "调研已完成，示例科技今年将检索业务独立拆分，招聘规模扩大约四成。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:53:21.216715+00:00",
+      "elapsed_ms": 6927.5,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"调研结论：示例科技在2026年Q2将检索业务拆分为独立事业部，招聘规模扩大约40%，且主要竞争对手尚未推出同类产品。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "a748123b4be60adbbb574ff0a739876ab55e3fad253dccc20c2b3cde8ec2f6ce",
+          "decision_shape_fingerprint": "3c75c203afcddc667e4a42152aec89f8f32962282bcb47c6c346bec9ddb9bc96",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6925.4,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "调研已完成：该公司2026年Q2将检索业务拆分为独立事业部，招聘规模扩大约四成，主要竞争对手尚未公开同类产品。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "调研已完成：该公司2026年Q2将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:53:21.182757+00:00",
+      "elapsed_ms": 6361.9,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"调研已完成：示例科技在2026年第二季度将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "a748123b4be60adbbb574ff0a739876ab55e3fad253dccc20c2b3cde8ec2f6ce",
+          "decision_shape_fingerprint": "3c75c203afcddc667e4a42152aec89f8f32962282bcb47c6c346bec9ddb9bc96",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6359.3,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "示例科技在2026年第二季度将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "示例科技在2026年第二季度将检索业务独立成事业部，招聘规模扩大约四成，且主要竞争对手尚未推出同类产品。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

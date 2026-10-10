@@ -1,0 +1,152 @@
+{
+  "scenario": "an_unmentioned_company_without_compaction_is_not_invented",
+  "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "a78cb35a2f7a114bfac738fcf9687f4f0de9179be07ffeb5c7354243346500ef",
+  "context_shape_fingerprint": "50fe34d484f6fd66869bc1ab8ded0fe6df1901306ded2c5eea550a3075bba81a",
+  "recorded_at": "2026-10-10T01:23:25.990238+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "list_target_roles",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "10588b8e45a7301b463e57cea57243a2ecf40166d11aa040dc7843e04e2d6f91",
+      "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_target_roles",
+        "propose_job_intent",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3035.8,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T01:23:20.267400+00:00",
+      "elapsed_ms": 3038.4,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "10588b8e45a7301b463e57cea57243a2ecf40166d11aa040dc7843e04e2d6f91",
+          "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3035.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:23:29.710068+00:00",
+      "elapsed_ms": 9441.9,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你还没有在系统中记录任何目标公司或岗位方向。\\n\\n请问你想把哪家公司设为目标？请告诉我公司全称，以及你感兴趣的具体岗位（如果有的话）。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "10588b8e45a7301b463e57cea57243a2ecf40166d11aa040dc7843e04e2d6f91",
+          "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 9438.9,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "当前没有已记录的目标岗位方向，也没有已收藏的岗位或简历版本。\n\n要回答\"目标公司全名叫什么\"，我需要先了解你设定的求职意向。请问：\n\n1. 你是否有明确想要加入的公司？\n2. 或者你希望我帮你列出可能的目标岗位方向供选择？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "目前你的目标岗位列表是空的，所以我无法直接告诉你“目标公司”的名称。\n\n你需要先明确你想投递的具体岗位方向（例如：后端开发、产品经理等），我才能帮你记录目标并进一步讨论具体的公司或 JD。\n\n请问你目前的求职目标岗位是什么？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:23:25.990238+00:00",
+      "elapsed_ms": 5316.0,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "10588b8e45a7301b463e57cea57243a2ecf40166d11aa040dc7843e04e2d6f91",
+          "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 5312.7,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "根据当前对话记录，你还没有明确告知我你的目标公司具体是哪一家。\n\n在之前的对话中，你提到了一份“美团”的 JD，并询问其看起来如何，但我当时指出你尚未告诉我目标公司。目前系统中也没有记录任何已确认的目标岗位或公司信息。\n\n请问你的目标公司全名是什么？或者你希望将哪家公司作为主要求职目标？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

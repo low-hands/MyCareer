@@ -1,0 +1,616 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "brief_advice",
+  "suite_fingerprint": "2e6f0be4b604ada29d4f6e80703a6bdb2eead67513229626147ba42fa42c7abc",
+  "recorded_at": "2026-10-10T01:26:00.782607+00:00",
+  "k": 10,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "拿到职业简报后，再根据内容说说我这一天怎么安排。": {
+            "get_daily_brief": 0.6383992644820485
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+          "assistant_message": "今日职业简报显示，目前没有任何待办事项。\n\n这意味着你今天没有需要跟进的投递、面试或简历定制任务。你可以根据个人计划自由安排时间，例如：\n\n- **主动求职**：浏览招聘网站，寻找新的目标岗位并收藏。\n- **技能提升**：学习与目标职位相关的技术或业务知识。\n- **简历优化**：如果有目标方向，可以提前准备或更新通用版简历。\n- **休息调整**：保持良好状态，为接下来的求职活动做准备。\n\n如果你希望开始新的求职任务（如搜索岗位、创建投递记录或准备面试），请告诉我你的具体需求。\n\n# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"今日职业简报显示，目前没有任何待办事项。\\n\\n这意味着你今天没有需要跟进的投递、面试或简历定制任务。你可以根据个人计划自由安排时间，例如：\\n\\n- **主动求职**：浏览招聘网站，寻找新的目标岗位并收藏。\\n- **技能提升**：学习与目标职位相关的技术或业务知识。\\n- **简历优化**：如果有目标方向，可以提前准备或更新通用版简历。\\n- **休息调整**：保持良好状态，为接下来的求职活动做准备。\\n\\n如果你希望开始新的求职任务（如搜索岗位、创建投递记录或准备面试），请告诉我你的具体需求。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "拿到职业简报后，再根据内容说说我这一天怎么安排。": {
+            "get_daily_brief": 0.6383718037234616
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+          "assistant_message": "今日职业简报显示今天没有待办事项。\n\n根据这份简报，您今天的安排可以这样规划：\n\n1. **主动推进求职**：既然系统没有自动生成的待办，您可以主动检查是否有需要跟进的投递、面试或简历定制工作。\n\n2. **探索机会**：可以考虑浏览招聘网站，寻找新的岗位机会，或者查看已收藏的岗位是否有更新。\n\n3. **完善材料**：如果没有紧急事项，可以利用时间优化简历、准备面试材料，或记录您的求职目标和偏好。\n\n4. **休息与调整**：如果近期求职节奏较快，今天也可以适当放松，为后续的申请做准备。\n\n如果您希望我帮您查看具体的投递记录、面试安排或已收藏的岗位，请告诉我您想从哪个方面开始。\n\n# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"今日职业简报显示今天没有待办事项。\\n\\n根据这份简报，您今天的安排可以这样规划：\\n\\n1. **主动推进求职**：既然系统没有自动生成的待办，您可以主动检查是否有需要跟进的投递、面试或简历定制工作。\\n\\n2. **探索机会**：可以考虑浏览招聘网站，寻找新的岗位机会，或者查看已收藏的岗位是否有更新。\\n\\n3. **完善材料**：如果没有紧急事项，可以利用时间优化简历、准备面试材料，或记录您的求职目标和偏好。\\n\\n4. **休息与调整**：如果近期求职节奏较快，今天也可以适当放松，为后续的申请做准备。\\n\\n如果您希望我帮您查看具体的投递记录、面试安排或已收藏的岗位，请告诉我您想从哪个方面开始。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "拿到职业简报后，再根据内容说说我这一天怎么安排。": {
+            "get_daily_brief": 0.6383718037234616
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+          "assistant_message": "根据今日职业简报，今天没有待办事项。这意味着您目前没有需要跟进的投递、面试或简历定制任务。\n\n您可以考虑：\n1. 主动寻找新的工作机会\n2. 更新或优化您的简历\n3. 设定求职目标\n\n请问您希望我帮您做些什么？例如搜索岗位、准备简历或设定求职方向？\n\n# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"根据今日职业简报，今天没有待办事项。这意味着您目前没有需要跟进的投递、面试或简历定制任务。\\n\\n您可以考虑：\\n1. 主动寻找新的工作机会\\n2. 更新或优化您的简历\\n3. 设定求职目标\\n\\n请问您希望我帮您做些什么？例如搜索岗位、准备简历或设定求职方向？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "拿到职业简报后，再根据内容说说我这一天怎么安排。": {
+            "get_daily_brief": 0.6383718037234616
+          }
+        }
+      },
+      "passed": false,
+      "failures": [
+        "turn 1: requested model summary missing"
+      ],
+      "turns": [
+        {
+          "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+          "assistant_message": "# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "拿到职业简报后，再根据内容说说我这一天怎么安排。": {
+            "get_daily_brief": 0.6383718037234616
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+          "assistant_message": "今天的职业简报显示目前没有任何待办事项。这意味着你今天没有预定的面试、需要跟进的投递记录，也没有待处理的简历定制任务。\n\n基于这个状态，你的一天可以这样安排：\n\n1. **主动求职**：既然没有既定任务，你可以利用这段时间主动寻找新的工作机会。我可以帮你打开招聘网站进行搜索，或者查看你之前收藏的岗位。\n\n2. **完善资料**：检查并更新你的简历和目标岗位方向，确保求职材料保持最新状态。\n\n3. **技能提升**：如果没有紧急的求职任务，可以考虑学习新技能或准备面试常见问题。\n\n4. **休息调整**：如果近期求职压力较大，今天也可以适当放松，为接下来的求职活动储备精力。\n\n你想从哪个方向开始？比如搜索新岗位、查看已收藏的职位，或者其他安排？\n\n# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"今天的职业简报显示目前没有任何待办事项。这意味着你今天没有预定的面试、需要跟进的投递记录，也没有待处理的简历定制任务。\\n\\n基于这个状态，你的一天可以这样安排：\\n\\n1. **主动求职**：既然没有既定任务，你可以利用这段时间主动寻找新的工作机会。我可以帮你打开招聘网站进行搜索，或者查看你之前收藏的岗位。\\n\\n2. **完善资料**：检查并更新你的简历和目标岗位方向，确保求职材料保持最新状态。\\n\\n3. **技能提升**：如果没有紧急的求职任务，可以考虑学习新技能或准备面试常见问题。\\n\\n4. **休息调整**：如果近期求职压力较大，今天也可以适当放松，为接下来的求职活动储备精力。\\n\\n你想从哪个方向开始？比如搜索新岗位、查看已收藏的职位，或者其他安排？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "拿到职业简报后，再根据内容说说我这一天怎么安排。": {
+            "get_daily_brief": 0.6383992644820485
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+          "assistant_message": "根据今日职业简报，今天没有待办事项。这意味着您目前没有被系统追踪的投递、面试或简历定制任务。\n\n您可以考虑：\n1. 如果有目标岗位，可以开始搜索并收藏感兴趣的职位\n2. 如果需要更新简历，可以准备简历版本\n3. 如果已有投递但未被追踪，可以同步相关邮件事件\n\n请问您今天希望进行哪方面的求职活动？\n\n# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"根据今日职业简报，今天没有待办事项。这意味着您目前没有被系统追踪的投递、面试或简历定制任务。\\n\\n您可以考虑：\\n1. 如果有目标岗位，可以开始搜索并收藏感兴趣的职位\\n2. 如果需要更新简历，可以准备简历版本\\n3. 如果已有投递但未被追踪，可以同步相关邮件事件\\n\\n请问您今天希望进行哪方面的求职活动？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "拿到职业简报后，再根据内容说说我这一天怎么安排。": {
+            "get_daily_brief": 0.6383118262992085
+          }
+        }
+      },
+      "passed": false,
+      "failures": [
+        "turn 1: requested model summary missing"
+      ],
+      "turns": [
+        {
+          "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+          "assistant_message": "# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "拿到职业简报后，再根据内容说说我这一天怎么安排。": {
+            "get_daily_brief": 0.6383718037234616
+          }
+        }
+      },
+      "passed": false,
+      "failures": [
+        "turn 1: requested model summary missing"
+      ],
+      "turns": [
+        {
+          "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+          "assistant_message": "# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "拿到职业简报后，再根据内容说说我这一天怎么安排。": {
+            "get_daily_brief": 0.6383992644820485
+          }
+        }
+      },
+      "passed": false,
+      "failures": [
+        "turn 1: requested model summary missing"
+      ],
+      "turns": [
+        {
+          "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+          "assistant_message": "# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "拿到职业简报后，再根据内容说说我这一天怎么安排。": {
+            "get_daily_brief": 0.6383718037234616
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+          "assistant_message": "今天的职业简报显示目前没有任何待办事项。这意味着你今天没有需要立即跟进的投递、面试或简历定制任务。\n\n建议你利用这段空闲时间：\n1. **明确求职方向**：目前系统中没有记录活跃的目标岗位，你可以思考并确认自己想申请的城市和职位类型。\n2. **准备简历**：如果还没有准备好通用简历，可以开始整理基础信息。\n3. **主动搜索**：如果你有明确的意向，可以告诉我你想看哪类岗位，我可以帮你打开招聘网站进行搜索。\n\n你希望先从哪一步开始？或者你有其他具体的求职计划吗？\n\n# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"今天的职业简报显示目前没有任何待办事项。这意味着你今天没有需要立即跟进的投递、面试或简历定制任务。\\n\\n建议你利用这段空闲时间：\\n1. **明确求职方向**：目前系统中没有记录活跃的目标岗位，你可以思考并确认自己想申请的城市和职位类型。\\n2. **准备简历**：如果还没有准备好通用简历，可以开始整理基础信息。\\n3. **主动搜索**：如果你有明确的意向，可以告诉我你想看哪类岗位，我可以帮你打开招聘网站进行搜索。\\n\\n你希望先从哪一步开始？或者你有其他具体的求职计划吗？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

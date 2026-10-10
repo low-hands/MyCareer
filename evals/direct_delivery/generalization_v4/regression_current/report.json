@@ -1,0 +1,4792 @@
+{
+  "arm": "current",
+  "model": "qwen3.7-plus",
+  "sample_count": 90,
+  "cases": {
+    "research_is_not_started_as_part_of_matching": [
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 1,
+        "started_at": "2026-10-10T01:17:50.970747+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:17:55.875234+00:00",
+          "elapsed_ms": 4903.4,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4900.1,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 2,
+        "started_at": "2026-10-10T01:18:08.601260+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:18:13.234228+00:00",
+          "elapsed_ms": 4632.3,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4629.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 3,
+        "started_at": "2026-10-10T01:18:19.521735+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:18:22.588128+00:00",
+          "elapsed_ms": 3065.0,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {
+                  "job_selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3062.2,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 4,
+        "started_at": "2026-10-10T01:18:45.456124+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:18:50.447533+00:00",
+          "elapsed_ms": 4990.2,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4988.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 5,
+        "started_at": "2026-10-10T01:18:52.981367+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:18:57.841906+00:00",
+          "elapsed_ms": 4859.7,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4856.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 6,
+        "started_at": "2026-10-10T01:19:08.866449+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:19:13.086495+00:00",
+          "elapsed_ms": 4218.9,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4215.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 7,
+        "started_at": "2026-10-10T01:19:19.371629+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:19:24.673297+00:00",
+          "elapsed_ms": 5300.6,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 5297.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 8,
+        "started_at": "2026-10-10T01:19:37.888136+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:19:41.258556+00:00",
+          "elapsed_ms": 3369.4,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "get_saved_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3365.7,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "research_is_not_started_as_part_of_matching[0]: expected tool 'match_resume_to_job', got 'get_saved_job'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 9,
+        "started_at": "2026-10-10T01:19:50.370628+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:19:56.159497+00:00",
+          "elapsed_ms": 5788.2,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 5787.2,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 10,
+        "started_at": "2026-10-10T01:20:09.718273+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:20:15.211261+00:00",
+          "elapsed_ms": 5492.3,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 5491.3,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 11,
+        "started_at": "2026-10-10T01:20:30.745905+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:20:33.747217+00:00",
+          "elapsed_ms": 3000.3,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2995.7,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "research_is_not_started_as_part_of_matching[0]: expected tool 'match_resume_to_job', got 'analyze_job'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 12,
+        "started_at": "2026-10-10T01:20:40.508221+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:20:45.617366+00:00",
+          "elapsed_ms": 5108.5,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 5107.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 13,
+        "started_at": "2026-10-10T01:20:52.224408+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:20:55.072036+00:00",
+          "elapsed_ms": 2847.0,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2846.0,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "research_is_not_started_as_part_of_matching[0]: expected tool 'match_resume_to_job', got 'analyze_job'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 14,
+        "started_at": "2026-10-10T01:21:20.388471+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:21:26.548423+00:00",
+          "elapsed_ms": 6158.5,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 6156.4,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "research_is_not_started_as_part_of_matching[0]: expected tool 'match_resume_to_job', got 'analyze_job'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 15,
+        "started_at": "2026-10-10T01:21:30.420164+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:21:33.580786+00:00",
+          "elapsed_ms": 3159.3,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {
+                  "job_selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3155.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 16,
+        "started_at": "2026-10-10T01:21:46.759396+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:21:50.557640+00:00",
+          "elapsed_ms": 3797.5,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {
+                  "job_selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3794.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 17,
+        "started_at": "2026-10-10T01:22:03.761031+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:22:09.732084+00:00",
+          "elapsed_ms": 5969.9,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 5968.2,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 18,
+        "started_at": "2026-10-10T01:22:14.057871+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:22:17.052787+00:00",
+          "elapsed_ms": 2993.5,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2989.9,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "research_is_not_started_as_part_of_matching[0]: expected tool 'match_resume_to_job', got 'analyze_job'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 19,
+        "started_at": "2026-10-10T01:22:23.443557+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:22:28.430892+00:00",
+          "elapsed_ms": 4986.7,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4983.3,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 20,
+        "started_at": "2026-10-10T01:22:42.203406+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:22:45.078260+00:00",
+          "elapsed_ms": 2873.8,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2870.4,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "research_is_not_started_as_part_of_matching[0]: expected tool 'match_resume_to_job', got 'analyze_job'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 21,
+        "started_at": "2026-10-10T01:22:52.345310+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:22:59.252041+00:00",
+          "elapsed_ms": 6906.0,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {
+                  "job_selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 6903.3,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 22,
+        "started_at": "2026-10-10T01:23:19.669437+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:23:22.727537+00:00",
+          "elapsed_ms": 3056.9,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {
+                  "job_selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3054.0,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 23,
+        "started_at": "2026-10-10T01:23:26.268866+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:23:30.868158+00:00",
+          "elapsed_ms": 4597.8,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4596.2,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 24,
+        "started_at": "2026-10-10T01:23:43.351326+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:23:49.362323+00:00",
+          "elapsed_ms": 6010.1,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 6007.3,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 25,
+        "started_at": "2026-10-10T01:23:58.034620+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:24:00.647539+00:00",
+          "elapsed_ms": 2611.5,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "get_saved_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2607.9,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "research_is_not_started_as_part_of_matching[0]: expected tool 'match_resume_to_job', got 'get_saved_job'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 26,
+        "started_at": "2026-10-10T01:24:12.594908+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:24:16.784542+00:00",
+          "elapsed_ms": 4188.2,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4182.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 27,
+        "started_at": "2026-10-10T01:24:38.462600+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:24:42.406921+00:00",
+          "elapsed_ms": 3943.2,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3939.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 28,
+        "started_at": "2026-10-10T01:24:45.821019+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:24:50.663210+00:00",
+          "elapsed_ms": 4841.1,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4837.0,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 29,
+        "started_at": "2026-10-10T01:25:03.130007+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:25:05.659147+00:00",
+          "elapsed_ms": 2528.0,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {
+                  "job_selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2524.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "research_is_not_started_as_part_of_matching",
+        "sample": 30,
+        "started_at": "2026-10-10T01:25:12.468458+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:25:17.144272+00:00",
+          "elapsed_ms": 4674.7,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4671.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "6b83f881e6100ee9449b6594fce4dd2dd94a4cc9b5242b1e8dc32b8d7a6c37d1",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      }
+    ],
+    "saved_jd_body_without_language_requirement_finishes": [
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 1,
+        "started_at": "2026-10-10T01:17:55.887562+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:17:59.476688+00:00",
+          "elapsed_ms": 3588.3,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取岗位 JD，其中未明确要求 Rust，因此按你的指示停止，不进行简历匹配。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3584.1,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 2,
+        "started_at": "2026-10-10T01:18:13.246442+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:18:19.507636+00:00",
+          "elapsed_ms": 6259.4,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取岗位“算法工程师（示例科技）”的完整 JD，其中未明确要求 Rust。按照你的指示，不再继续匹配简历，流程已结束。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 6256.3,
+              "model_request_count": 2,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [
+                {
+                  "reason": "text_rejected",
+                  "retried": true,
+                  "forced_interaction": false,
+                  "raw_output": {
+                    "content": "已读取该岗位的完整 JD，内容如下：\n\n**岗位要求：** 具备分布式系统设计和生产环境异步服务经验。\n\nJD 中**没有明确要求 Rust**。按照你的指示，到这里为止，不再继续匹配简历。",
+                    "tool_calls": []
+                  },
+                  "decision_invocation": 1
+                }
+              ],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 3,
+        "started_at": "2026-10-10T01:18:22.600351+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:18:26.014246+00:00",
+          "elapsed_ms": 3412.7,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"当前岗位 JD 未明确要求 Rust，因此不进行简历匹配，流程到此结束。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3409.0,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 4,
+        "started_at": "2026-10-10T01:18:42.353772+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:18:45.436880+00:00",
+          "elapsed_ms": 3081.9,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"该岗位 JD 未明确要求 Rust，按您的指示不进行简历匹配。如需进一步分析岗位要求或调整目标，请告知。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3077.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 5,
+        "started_at": "2026-10-10T01:18:50.452819+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:18:52.975295+00:00",
+          "elapsed_ms": 2521.6,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2520.1,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "saved_jd_body_without_language_requirement_finishes[0]: expected action 'final', got 'tool_call' calling 'analyze_job'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 6,
+        "started_at": "2026-10-10T01:19:13.100953+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:19:15.869565+00:00",
+          "elapsed_ms": 2767.2,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"该岗位 JD 未明确要求 Rust，已按你的要求停止后续匹配流程。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2762.6,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 7,
+        "started_at": "2026-10-10T01:19:15.887816+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:19:19.356279+00:00",
+          "elapsed_ms": 3467.3,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取算法工程师（示例科技）的完整 JD。JD 内容为：\\\"岗位要求：具备分布式系统设计和生产环境异步服务经验。\\\"\\n\\nJD 中没有明确要求 Rust。根据你的指示，匹配流程到此结束。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3463.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 8,
+        "started_at": "2026-10-10T01:19:41.273083+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:19:44.007618+00:00",
+          "elapsed_ms": 2733.3,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取该岗位的完整 JD，其中未明确要求 Rust。按照你的指示，匹配到此结束。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2731.9,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 9,
+        "started_at": "2026-10-10T01:19:56.163497+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:20:01.119456+00:00",
+          "elapsed_ms": 4955.3,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"该岗位的完整 JD 并未明确要求 Rust，只要求具备分布式系统设计和生产环境异步服务经验。按你的规则，到这里即可，不进行简历匹配。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4954.2,
+              "model_request_count": 2,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [
+                {
+                  "reason": "text_rejected",
+                  "retried": true,
+                  "forced_interaction": false,
+                  "raw_output": {
+                    "content": "当前 JD 只提到“具备分布式系统设计和生产环境异步服务经验”，并未明确要求 Rust。\n\n按照你的要求，既然没有明确要求 Rust，就到这里为止，不再继续匹配简历。",
+                    "tool_calls": []
+                  },
+                  "decision_invocation": 1
+                }
+              ],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 10,
+        "started_at": "2026-10-10T01:20:15.215369+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:20:18.271682+00:00",
+          "elapsed_ms": 3055.7,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"该岗位 JD 未明确要求 Rust，已停止后续匹配流程。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3054.4,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 11,
+        "started_at": "2026-10-10T01:20:18.276367+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:20:24.675609+00:00",
+          "elapsed_ms": 6398.5,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取“算法工程师（示例科技）”的完整 JD，其中未明确要求 Rust。根据你的要求，不再继续简历匹配。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 6395.2,
+              "model_request_count": 2,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [
+                {
+                  "reason": "text_rejected",
+                  "retried": true,
+                  "forced_interaction": false,
+                  "raw_output": {
+                    "content": "该岗位的完整 JD 内容为：“岗位要求：具备分布式系统设计和生产环境异步服务经验。”\n\nJD 中**没有明确要求 Rust**。按照你的指示，到这里为止，不进行简历匹配。",
+                    "tool_calls": []
+                  },
+                  "decision_invocation": 1
+                }
+              ],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 12,
+        "started_at": "2026-10-10T01:20:33.764403+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:20:40.503651+00:00",
+          "elapsed_ms": 6738.0,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取\\\"算法工程师（示例科技）\\\"岗位的完整JD，其要求为\\\"具备分布式系统设计和生产环境异步服务经验\\\"，其中**没有明确要求Rust**。\\n\\n按照您的指示，既然JD未明确要求Rust，匹配流程到此结束，不再进行简历匹配。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 6736.6,
+              "model_request_count": 2,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [
+                {
+                  "reason": "text_rejected",
+                  "retried": true,
+                  "forced_interaction": false,
+                  "raw_output": {
+                    "content": "已读取该岗位的完整 JD。岗位要求为：“具备分布式系统设计和生产环境异步服务经验。”\n\nJD 中**没有明确要求 Rust**。按照你的指示，到这里为止，不进行简历匹配。",
+                    "tool_calls": []
+                  },
+                  "decision_invocation": 1
+                }
+              ],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 13,
+        "started_at": "2026-10-10T01:21:02.112840+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:21:05.260902+00:00",
+          "elapsed_ms": 3147.0,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取岗位“算法工程师（示例科技）”的完整 JD，其中并未明确要求 Rust。根据你的指示，流程到此结束。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3145.0,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 14,
+        "started_at": "2026-10-10T01:21:14.097492+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:21:20.373362+00:00",
+          "elapsed_ms": 6275.0,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取算法工程师（示例科技）的完整 JD。JD 内容为：\\\"岗位要求：具备分布式系统设计和生产环境异步服务经验。\\\"\\n\\nJD 中**没有明确要求 Rust**。根据你的指示，流程到此结束。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 6271.0,
+              "model_request_count": 2,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [
+                {
+                  "reason": "text_rejected",
+                  "retried": true,
+                  "forced_interaction": false,
+                  "raw_output": {
+                    "content": "当前岗位的 JD 中并未明确要求 Rust。根据你的要求，到这里即可。\n\n如果你后续需要针对该岗位进行简历匹配或定制，请告诉我。",
+                    "tool_calls": []
+                  },
+                  "decision_invocation": 1
+                }
+              ],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 15,
+        "started_at": "2026-10-10T01:21:26.556450+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:21:30.404181+00:00",
+          "elapsed_ms": 3846.8,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取算法工程师（示例科技）的完整 JD。岗位要求为\\\"具备分布式系统设计和生产环境异步服务经验\\\"，并未明确要求 Rust。根据你的指示，没有明确要求 Rust 就不继续匹配简历，流程到此结束。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3842.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 16,
+        "started_at": "2026-10-10T01:21:50.567160+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:21:54.212398+00:00",
+          "elapsed_ms": 3644.0,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取岗位“算法工程师（示例科技）”的完整 JD。JD 中未明确要求 Rust，因此按你的要求停止后续匹配操作。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3639.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 17,
+        "started_at": "2026-10-10T01:21:54.222398+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:21:56.267546+00:00",
+          "elapsed_ms": 2044.0,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2039.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "saved_jd_body_without_language_requirement_finishes[0]: expected action 'final', got 'tool_call' calling 'analyze_job'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 18,
+        "started_at": "2026-10-10T01:22:09.739012+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:22:14.045710+00:00",
+          "elapsed_ms": 4305.8,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取算法工程师（示例科技）的完整 JD。JD 内容为：\\\"岗位要求：具备分布式系统设计和生产环境异步服务经验。\\\"\\n\\nJD 中没有明确要求 Rust，按照您的指示，流程到此结束。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4301.6,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 19,
+        "started_at": "2026-10-10T01:22:28.444984+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:22:31.202215+00:00",
+          "elapsed_ms": 2756.2,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2754.7,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "saved_jd_body_without_language_requirement_finishes[0]: expected action 'final', got 'tool_call' calling 'analyze_job'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 20,
+        "started_at": "2026-10-10T01:22:38.426748+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:22:42.193397+00:00",
+          "elapsed_ms": 3766.0,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取岗位\\\"算法工程师（示例科技）\\\"的完整 JD。JD 内容为：\\\"岗位要求：具备分布式系统设计和生产环境异步服务经验。\\\"\\n\\n该 JD **没有明确要求 Rust**。根据您的指示，简历匹配流程到此结束。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3762.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 21,
+        "started_at": "2026-10-10T01:23:08.622143+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:23:12.615919+00:00",
+          "elapsed_ms": 3992.7,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取岗位“算法工程师（示例科技）”的完整 JD。JD 内容为：“岗位要求：具备分布式系统设计和生产环境异步服务经验。”\\n\\nJD 中**没有明确要求 Rust**。根据你的指示，不进行简历匹配，流程到此结束。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3989.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 22,
+        "started_at": "2026-10-10T01:23:22.743575+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:23:26.254255+00:00",
+          "elapsed_ms": 3509.4,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已查看岗位 JD，其中未明确要求 Rust，因此按你的要求停止，不进行简历匹配。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3506.2,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 23,
+        "started_at": "2026-10-10T01:23:40.025163+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:23:43.341123+00:00",
+          "elapsed_ms": 3315.2,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取算法工程师（示例科技）的完整 JD，其中未明确要求 Rust。根据你的指示，简历匹配流程在此停止，不再继续执行 match_resume_to_job。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3312.1,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 24,
+        "started_at": "2026-10-10T01:23:55.350659+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:23:58.024972+00:00",
+          "elapsed_ms": 2673.6,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取岗位 JD，其中未明确要求 Rust，因此不进行简历匹配。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2670.2,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 25,
+        "started_at": "2026-10-10T01:24:08.650096+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:24:12.576501+00:00",
+          "elapsed_ms": 3925.4,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取算法工程师（示例科技）的完整 JD。JD 内容为：\\\"岗位要求：具备分布式系统设计和生产环境异步服务经验。\\\"\\n\\nJD 中**没有明确要求 Rust**。根据你的指示，既然没有明确要求 Rust，流程到此结束，不进行简历匹配。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3921.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 26,
+        "started_at": "2026-10-10T01:24:28.859078+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:24:31.755860+00:00",
+          "elapsed_ms": 2895.8,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取“算法工程师（示例科技）”的完整 JD，其中并未明确要求 Rust。按照你的指示，不再继续匹配简历，流程到此结束。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2892.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 27,
+        "started_at": "2026-10-10T01:24:42.420897+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:24:45.806402+00:00",
+          "elapsed_ms": 3384.1,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已检查岗位 JD，其中未明确要求 Rust，因此不进行简历匹配。如需进一步分析该岗位或执行其他操作，请告诉我。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3379.9,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 28,
+        "started_at": "2026-10-10T01:24:55.941608+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:24:59.605849+00:00",
+          "elapsed_ms": 3663.2,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已查看该算法工程师岗位的完整 JD，其中并未明确要求 Rust 技能（仅要求分布式系统设计和生产环境异步服务经验）。按照你的指示，此处停止，不进行后续的简历匹配。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3658.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 29,
+        "started_at": "2026-10-10T01:24:59.622573+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:25:03.111295+00:00",
+          "elapsed_ms": 3487.3,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已检查算法工程师（示例科技）的完整 JD。岗位要求为\\\"具备分布式系统设计和生产环境异步服务经验\\\"，**未明确要求 Rust**。按您的指示，流程到此结束，不进行简历匹配。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3483.7,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "saved_jd_body_without_language_requirement_finishes",
+        "sample": 30,
+        "started_at": "2026-10-10T01:25:17.157971+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:25:20.579528+00:00",
+          "elapsed_ms": 3420.3,
+          "steps": [
+            {
+              "content": "{\"action\":\"final\",\"message\":\"已读取岗位 JD，内容为：\\\"岗位要求：具备分布式系统设计和生产环境异步服务经验。\\\"\\n\\nJD 中没有明确要求 Rust，因此按你的指示停止，不进行简历匹配。\",\"questions\":[]}",
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "1fcaa689e5e2bf6a302e8cc57ba55605dbeb1d6b41615afefcc3d6f24868bace",
+              "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "create_interview",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3416.7,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "d80f1858a7fc860b6635944595da394acde62325bfc24886ded64bd843f605aa",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      }
+    ],
+    "tool_selection_combines_job_analysis_and_resume_match": [
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 1,
+        "started_at": "2026-10-10T01:17:41.984385+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:17:50.957520+00:00",
+          "elapsed_ms": 8942.0,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 6643.2,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2294.7,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 2,
+        "started_at": "2026-10-10T01:17:59.490490+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:18:08.583448+00:00",
+          "elapsed_ms": 9092.0,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 5891.6,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3194.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 3,
+        "started_at": "2026-10-10T01:18:26.028176+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:18:34.962983+00:00",
+          "elapsed_ms": 8933.1,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4704.4,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "search_capabilities",
+                "arguments": {
+                  "names": [
+                    "list_resumes"
+                  ]
+                }
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2168.0,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [
+                {
+                  "reason": "implicit_capability_load",
+                  "retried": true,
+                  "raw_output": {
+                    "content": "岗位分析已完成。现在需要匹配简历与岗位，但当前没有可用的简历版本（`resume_versions` 为空）。\n\n",
+                    "tool_calls": [
+                      {
+                        "name": "list_resumes",
+                        "arguments": "{}"
+                      }
+                    ]
+                  },
+                  "decision_invocation": 1
+                }
+              ],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "list_resumes",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "b0310935a7b9719ed5ec442a4baa709bbff7a91f3fd3ddb2ebad08b04b8f7ae5",
+              "decision_shape_fingerprint": "6cac45e6c6a94d280e474139718d89b4f35764d5de7a0334f7b438d71a2b53df",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "list_resumes",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2050.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "tool_selection_combines_job_analysis_and_resume_match[1]: expected tool 'match_resume_to_job', got 'list_resumes'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 4,
+        "started_at": "2026-10-10T01:18:34.979743+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:18:42.334245+00:00",
+          "elapsed_ms": 7353.6,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4804.3,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2542.0,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 5,
+        "started_at": "2026-10-10T01:18:57.854816+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:19:04.318519+00:00",
+          "elapsed_ms": 6462.2,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4480.2,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 1974.6,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 6,
+        "started_at": "2026-10-10T01:19:04.339245+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:19:08.839290+00:00",
+          "elapsed_ms": 4499.2,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2842.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 1648.6,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 7,
+        "started_at": "2026-10-10T01:19:24.685585+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:19:30.698735+00:00",
+          "elapsed_ms": 6012.1,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3535.3,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "content": "{\"action\":\"ask_user\",\"message\":\"当前没有可用的简历版本。请上传或提供一份简历，以便进行匹配分析。\",\"questions\":[]}",
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2469.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "tool_selection_combines_job_analysis_and_resume_match[1]: expected tool 'match_resume_to_job', got 'ask_user'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 8,
+        "started_at": "2026-10-10T01:19:30.719656+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:19:37.867908+00:00",
+          "elapsed_ms": 7147.1,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4752.6,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2389.4,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 9,
+        "started_at": "2026-10-10T01:19:44.012033+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:19:50.362652+00:00",
+          "elapsed_ms": 6350.0,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4719.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 1628.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 10,
+        "started_at": "2026-10-10T01:20:01.123741+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:20:09.706941+00:00",
+          "elapsed_ms": 8582.5,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4765.4,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "search_capabilities",
+                "arguments": {
+                  "names": [
+                    "list_resumes"
+                  ]
+                }
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2154.1,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [
+                {
+                  "reason": "implicit_capability_load",
+                  "retried": true,
+                  "raw_output": {
+                    "content": "岗位分析已完成。现在需要匹配简历，但当前没有已绑定的简历版本（resume_versions 为空）。我需要先确认是否有简历可供使用。\n\n",
+                    "tool_calls": [
+                      {
+                        "name": "list_resumes",
+                        "arguments": "{}"
+                      }
+                    ]
+                  },
+                  "decision_invocation": 1
+                }
+              ],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "list_resumes",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "b0310935a7b9719ed5ec442a4baa709bbff7a91f3fd3ddb2ebad08b04b8f7ae5",
+              "decision_shape_fingerprint": "6cac45e6c6a94d280e474139718d89b4f35764d5de7a0334f7b438d71a2b53df",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "list_resumes",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 1659.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "tool_selection_combines_job_analysis_and_resume_match[1]: expected tool 'match_resume_to_job', got 'list_resumes'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 11,
+        "started_at": "2026-10-10T01:20:24.684815+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:20:30.726606+00:00",
+          "elapsed_ms": 6040.5,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4419.1,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 1616.3,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 12,
+        "started_at": "2026-10-10T01:20:45.621948+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:20:52.216363+00:00",
+          "elapsed_ms": 6593.7,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4628.6,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 1963.0,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 13,
+        "started_at": "2026-10-10T01:20:55.076098+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:21:02.093594+00:00",
+          "elapsed_ms": 7016.8,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 5130.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 1876.2,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 14,
+        "started_at": "2026-10-10T01:21:05.269602+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:21:14.084226+00:00",
+          "elapsed_ms": 8813.6,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 6208.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2598.4,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 15,
+        "started_at": "2026-10-10T01:21:33.593875+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:21:39.430919+00:00",
+          "elapsed_ms": 5835.7,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4090.4,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 1739.2,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 16,
+        "started_at": "2026-10-10T01:21:39.444571+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:21:46.738533+00:00",
+          "elapsed_ms": 7293.0,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 5501.1,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 1783.9,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 17,
+        "started_at": "2026-10-10T01:21:56.282442+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:22:03.742558+00:00",
+          "elapsed_ms": 7458.6,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 5046.3,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2405.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 18,
+        "started_at": "2026-10-10T01:22:17.063625+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:22:23.431055+00:00",
+          "elapsed_ms": 6366.0,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4307.1,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2052.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 19,
+        "started_at": "2026-10-10T01:22:31.207504+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:22:38.410213+00:00",
+          "elapsed_ms": 7202.0,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4790.7,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2404.0,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 20,
+        "started_at": "2026-10-10T01:22:45.094219+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:22:52.327319+00:00",
+          "elapsed_ms": 7229.8,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4349.1,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "content": "{\"action\":\"ask_user\",\"message\":\"当前没有可用的简历版本。请上传或提供一份简历，以便进行匹配分析。\",\"questions\":[]}",
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2874.1,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "tool_selection_combines_job_analysis_and_resume_match[1]: expected tool 'match_resume_to_job', got 'ask_user'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 21,
+        "started_at": "2026-10-10T01:22:59.267379+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:23:08.595823+00:00",
+          "elapsed_ms": 9327.1,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4530.1,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "search_capabilities",
+                "arguments": {
+                  "names": [
+                    "list_resumes"
+                  ]
+                }
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2698.6,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [
+                {
+                  "reason": "implicit_capability_load",
+                  "retried": true,
+                  "raw_output": {
+                    "content": "岗位分析已完成。现在需要读取简历版本来进行匹配比较。\n\n",
+                    "tool_calls": [
+                      {
+                        "name": "list_resumes",
+                        "arguments": "{}"
+                      }
+                    ]
+                  },
+                  "decision_invocation": 1
+                }
+              ],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "list_resumes",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "b0310935a7b9719ed5ec442a4baa709bbff7a91f3fd3ddb2ebad08b04b8f7ae5",
+              "decision_shape_fingerprint": "6cac45e6c6a94d280e474139718d89b4f35764d5de7a0334f7b438d71a2b53df",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "list_resumes",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2088.5,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "tool_selection_combines_job_analysis_and_resume_match[1]: expected tool 'match_resume_to_job', got 'list_resumes'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 22,
+        "started_at": "2026-10-10T01:23:12.629545+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:23:19.652263+00:00",
+          "elapsed_ms": 7021.1,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 5421.0,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 1593.7,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 23,
+        "started_at": "2026-10-10T01:23:30.876150+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:23:40.011210+00:00",
+          "elapsed_ms": 9134.1,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4647.3,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "search_capabilities",
+                "arguments": {
+                  "names": [
+                    "list_resumes"
+                  ]
+                }
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2473.2,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [
+                {
+                  "reason": "implicit_capability_load",
+                  "retried": true,
+                  "raw_output": {
+                    "content": "岗位分析已完成。接下来需要与你的简历进行匹配。当前没有绑定简历版本，需要先确认使用哪份简历。\n\n",
+                    "tool_calls": [
+                      {
+                        "name": "list_resumes",
+                        "arguments": "{}"
+                      }
+                    ]
+                  },
+                  "decision_invocation": 1
+                }
+              ],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "list_resumes",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "b0310935a7b9719ed5ec442a4baa709bbff7a91f3fd3ddb2ebad08b04b8f7ae5",
+              "decision_shape_fingerprint": "6cac45e6c6a94d280e474139718d89b4f35764d5de7a0334f7b438d71a2b53df",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "list_resumes",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2007.1,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "tool_selection_combines_job_analysis_and_resume_match[1]: expected tool 'match_resume_to_job', got 'list_resumes'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 24,
+        "started_at": "2026-10-10T01:23:49.375673+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:23:55.341671+00:00",
+          "elapsed_ms": 5964.6,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4744.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 1216.3,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 25,
+        "started_at": "2026-10-10T01:24:00.663587+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:24:08.622945+00:00",
+          "elapsed_ms": 7957.9,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4825.6,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3120.1,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 26,
+        "started_at": "2026-10-10T01:24:16.793165+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:24:28.834982+00:00",
+          "elapsed_ms": 12040.5,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {}
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4882.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "search_capabilities",
+                "arguments": {
+                  "names": [
+                    "list_resumes"
+                  ]
+                }
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 5890.0,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [
+                {
+                  "reason": "implicit_capability_load",
+                  "retried": true,
+                  "raw_output": {
+                    "content": "岗位分析已完成。现在需要读取当前简历版本来进行匹配比较。\n\n",
+                    "tool_calls": [
+                      {
+                        "name": "list_resumes",
+                        "arguments": "{}"
+                      }
+                    ]
+                  },
+                  "decision_invocation": 1
+                }
+              ],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "list_resumes",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "b0310935a7b9719ed5ec442a4baa709bbff7a91f3fd3ddb2ebad08b04b8f7ae5",
+              "decision_shape_fingerprint": "6cac45e6c6a94d280e474139718d89b4f35764d5de7a0334f7b438d71a2b53df",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "list_resumes",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 1257.9,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": false,
+        "failures": [
+          "tool_selection_combines_job_analysis_and_resume_match[1]: expected tool 'match_resume_to_job', got 'list_resumes'"
+        ],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 27,
+        "started_at": "2026-10-10T01:24:31.768915+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:24:38.442688+00:00",
+          "elapsed_ms": 6672.3,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4782.6,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 1882.7,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 28,
+        "started_at": "2026-10-10T01:24:50.673914+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:24:55.924785+00:00",
+          "elapsed_ms": 5249.9,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2786.6,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2455.6,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 29,
+        "started_at": "2026-10-10T01:25:05.672694+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:25:12.441969+00:00",
+          "elapsed_ms": 6767.9,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 4629.4,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 2130.7,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      },
+      {
+        "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+        "sample": 30,
+        "started_at": "2026-10-10T01:25:20.595407+00:00",
+        "recording": {
+          "recorded_at": "2026-10-10T01:25:25.903659+00:00",
+          "elapsed_ms": 5306.7,
+          "steps": [
+            {
+              "tool_call": {
+                "name": "analyze_job",
+                "arguments": {
+                  "selection_index": 1
+                }
+              },
+              "scenario_step": 0,
+              "selected_schema_fingerprint": "48abc7599d26ab01299eb3a97c909841829b811307fbde63e1bb772bba49ea82",
+              "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 3783.8,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            },
+            {
+              "tool_call": {
+                "name": "match_resume_to_job",
+                "arguments": {}
+              },
+              "scenario_step": 1,
+              "selected_schema_fingerprint": "af0ba2cb530aa35e1a51388ca660fe06802f2fda17cea658aa999ff018898eb6",
+              "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+              "offered_tools": [
+                "load_skill",
+                "fetch_archived_constraints",
+                "search_career_memory",
+                "get_saved_job",
+                "analyze_job",
+                "compare_saved_jobs",
+                "match_resume_to_job",
+                "search_capabilities"
+              ],
+              "elapsed_ms": 1513.7,
+              "model_request_count": 1,
+              "decision_retry_telemetry_version": 1,
+              "decision_retry_events": [],
+              "recording_retry_events": [],
+              "decision_invocations": 1
+            }
+          ]
+        },
+        "passed": true,
+        "failures": [],
+        "quality_failures": [],
+        "prompt_fingerprint": "55a0cb49889aac41ea2bc387e1a5946de66d04b87a838b7c86a32a8c20a7c24a",
+        "model": "qwen3.7-plus",
+        "source_arm": "current"
+      }
+    ]
+  }
+}

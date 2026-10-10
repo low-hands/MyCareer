@@ -123,3 +123,89 @@ def test_setup_failure_is_retained_for_every_attempted_sample(tmp_path, monkeypa
     assert report["results"][0]["sample_count"] == 3
     assert report["results"][0]["samples_passed"] == 0
     assert report["results"][0]["status"] == "failed"
+
+
+def test_summary_guard_rejects_a_receipt_even_after_all_requested_tools_ran(tmp_path, monkeypatch):
+    import career_agent.harness.graph_routing as routing
+    case = next(case for case in load_cases() if case["name"] == "empty_receipt_still_needs_interpretation")
+    # Simulate an overly broad receipt shortcut: one requested read completes,
+    # but the explicit interpretation is never written by the model.
+    monkeypatch.setattr(routing, "completes_tool_delivery", lambda state: True)
+    result = run_sample(case, _maker([{"tool_call": {"name": "list_interviews", "arguments": {}}}]), root=tmp_path)
+    assert result["turns"][0]["missing_calls"] == []
+    assert not result["passed"]
+    assert "requested model summary missing" in result["failures"][0]
+
+
+def test_complete_brief_requires_a_final_model_call(tmp_path):
+    case = next(case for case in load_cases() if case["name"] == "single_brief_body_is_delivered")
+    result = run_sample(case, _maker(_responses(case)), root=tmp_path)
+    assert result["passed"]
+    assert result["turns"][0]["decisions"][-1]["action"] == "final"
+    assert result["turns"][0]["model_summary_delivered"]
+
+
+def test_summary_with_optional_followup_is_still_a_model_authored_reply(tmp_path):
+    case = next(case for case in load_cases() if case["name"] == "empty_receipt_still_needs_interpretation")
+    replies = _responses(case)
+    replies[-1] = {"content": json.dumps({"action": "ask_user", "message": "没有找到面试安排。你可以先整理自我介绍、复习目标岗位的核心技能，并通过模拟面试练习表达。你想先准备哪个方向？"})}
+    result = run_sample(case, _maker(replies), root=tmp_path)
+    assert result["passed"], result["failures"]
+    assert result["turns"][0]["model_summary_delivered"]
+
+
+def test_recorded_normal_completion_survives_replay(tmp_path):
+    case = next(c for c in load_cases() if c["name"] == "single_empty_resume_receipt")
+    sample = run_sample(case, _maker(_responses(case)), root=tmp_path / "live")
+    assert sample["passed"]
+    replies = [d["response"] for t in sample["turns"] for d in t["decisions"]]
+    assert "tool_call" not in replies[-1]
+    replay = run_sample(case, _maker(replies), root=tmp_path / "replay")
+    assert replay["passed"]
+    assert len(replay["turns"][0]["decisions"]) == len(sample["turns"][0]["decisions"])
+
+
+def test_paraphrased_answer_is_not_a_wording_failure(tmp_path):
+    case = next(c for c in load_cases() if c["name"] == "single_empty_resume_receipt")
+    responses = [
+        {"tool_call": {"name": "search_capabilities", "arguments": {"names": ["list_resumes"]}}},
+        {"tool_call": {"name": "list_resumes", "arguments": {}}},
+        {"content": json.dumps({"action": "final", "message": "当前没有找到任何简历。"})},
+    ]
+    sample = run_sample(case, _maker(responses), root=tmp_path)
+    assert sample["passed"], sample["failures"]
+    assert not sample["turns"][0]["direct_delivery"]
+
+
+def test_score_tape_replay_never_initializes_embedding(tmp_path, monkeypatch):
+    case = load_cases()[0]
+    sample = run_sample(case, _maker(_responses(case)), root=tmp_path / "live")
+    def forbidden():
+        raise AssertionError("offline replay attempted embedding initialization")
+    monkeypatch.setattr(runtime_quality, "default_capability_scorer", forbidden)
+    replay = run_sample(case, _maker(_responses(case)), root=tmp_path / "replay",
+                        semantic_recording=sample["semantic_recording"])
+    assert replay["passed"]
+    assert replay["semantic_recording"] == sample["semantic_recording"]
+
+
+def test_missing_semantic_query_cannot_silently_fallback(tmp_path):
+    from career_agent.evaluation.runtime_semantic import SemanticTape
+    case = load_cases()[0]
+    with pytest.raises(ValueError, match="missing from recording"):
+        run_sample(case, _maker(_responses(case)), root=tmp_path,
+                   semantic_recording=SemanticTape().snapshot())
+
+
+def test_actual_semantic_scores_are_replayed_as_selection_inputs(tmp_path, monkeypatch):
+    case = next(c for c in load_cases() if c["name"] == "single_empty_resume_receipt")
+    class Scorer:
+        def scores(self, query):
+            return {"list_resumes": 0.9123456789, "list_interviews": 0.01}
+    sample = run_sample(case, _maker(_responses(case)), root=tmp_path / "live", scorer=Scorer())
+    assert sample["semantic_recording"]["queries"][case["turns"][0]["message"]]["list_resumes"] == 0.9123456789
+    monkeypatch.setattr(runtime_quality, "default_capability_scorer", lambda: pytest.fail("embedding initialized"))
+    replay = run_sample(case, _maker(_responses(case)), root=tmp_path / "replay",
+                        semantic_recording=json.loads(json.dumps(sample["semantic_recording"])))
+    assert replay["passed"]
+    assert replay["turns"][0]["decisions"] == sample["turns"][0]["decisions"]

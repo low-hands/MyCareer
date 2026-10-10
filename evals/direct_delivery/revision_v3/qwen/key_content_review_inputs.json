@@ -1,0 +1,302 @@
+[
+  {
+    "scenario": "single_empty_resume_receipt",
+    "sample": 1,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "single_empty_resume_receipt",
+    "sample": 2,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "single_empty_resume_receipt",
+    "sample": 3,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "single_empty_resume_receipt",
+    "sample": 4,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "single_empty_resume_receipt",
+    "sample": 5,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "single_empty_resume_receipt",
+    "sample": 6,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "single_empty_resume_receipt",
+    "sample": 7,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "single_empty_resume_receipt",
+    "sample": 8,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "single_empty_resume_receipt",
+    "sample": 9,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "single_empty_resume_receipt",
+    "sample": 10,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "single_empty_interview_receipt",
+    "sample": 1,
+    "assistant": "没有找到面试安排。"
+  },
+  {
+    "scenario": "single_empty_interview_receipt",
+    "sample": 2,
+    "assistant": "没有找到面试安排。"
+  },
+  {
+    "scenario": "single_empty_interview_receipt",
+    "sample": 3,
+    "assistant": "没有找到面试安排。"
+  },
+  {
+    "scenario": "single_empty_interview_receipt",
+    "sample": 4,
+    "assistant": "没有找到面试安排。"
+  },
+  {
+    "scenario": "single_empty_interview_receipt",
+    "sample": 5,
+    "assistant": "没有找到面试安排。"
+  },
+  {
+    "scenario": "single_empty_interview_receipt",
+    "sample": 6,
+    "assistant": "没有找到面试安排。"
+  },
+  {
+    "scenario": "single_empty_interview_receipt",
+    "sample": 7,
+    "assistant": "没有找到面试安排。"
+  },
+  {
+    "scenario": "single_empty_interview_receipt",
+    "sample": 8,
+    "assistant": "没有找到面试安排。"
+  },
+  {
+    "scenario": "single_empty_interview_receipt",
+    "sample": 9,
+    "assistant": "没有找到面试安排。"
+  },
+  {
+    "scenario": "single_empty_interview_receipt",
+    "sample": 10,
+    "assistant": "没有找到面试安排。"
+  },
+  {
+    "scenario": "single_brief_body_is_delivered",
+    "sample": 1,
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。"
+  },
+  {
+    "scenario": "single_brief_body_is_delivered",
+    "sample": 2,
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。"
+  },
+  {
+    "scenario": "single_brief_body_is_delivered",
+    "sample": 3,
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。"
+  },
+  {
+    "scenario": "single_brief_body_is_delivered",
+    "sample": 4,
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。"
+  },
+  {
+    "scenario": "single_brief_body_is_delivered",
+    "sample": 5,
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。"
+  },
+  {
+    "scenario": "single_brief_body_is_delivered",
+    "sample": 6,
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。"
+  },
+  {
+    "scenario": "single_brief_body_is_delivered",
+    "sample": 7,
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。"
+  },
+  {
+    "scenario": "single_brief_body_is_delivered",
+    "sample": 8,
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。"
+  },
+  {
+    "scenario": "single_brief_body_is_delivered",
+    "sample": 9,
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。"
+  },
+  {
+    "scenario": "single_brief_body_is_delivered",
+    "sample": 10,
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。"
+  },
+  {
+    "scenario": "colloquial_empty_resume_receipt",
+    "sample": 1,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "colloquial_empty_resume_receipt",
+    "sample": 2,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "colloquial_empty_resume_receipt",
+    "sample": 3,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "colloquial_empty_resume_receipt",
+    "sample": 4,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "colloquial_empty_resume_receipt",
+    "sample": 5,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "colloquial_empty_resume_receipt",
+    "sample": 6,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "colloquial_empty_resume_receipt",
+    "sample": 7,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "colloquial_empty_resume_receipt",
+    "sample": 8,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "colloquial_empty_resume_receipt",
+    "sample": 9,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "colloquial_empty_resume_receipt",
+    "sample": 10,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "count_empty_resume_receipt",
+    "sample": 1,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "count_empty_resume_receipt",
+    "sample": 2,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "count_empty_resume_receipt",
+    "sample": 3,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "count_empty_resume_receipt",
+    "sample": 4,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "count_empty_resume_receipt",
+    "sample": 5,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "count_empty_resume_receipt",
+    "sample": 6,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "count_empty_resume_receipt",
+    "sample": 7,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "count_empty_resume_receipt",
+    "sample": 8,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "count_empty_resume_receipt",
+    "sample": 9,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "count_empty_resume_receipt",
+    "sample": 10,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "english_empty_resume_receipt",
+    "sample": 1,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "english_empty_resume_receipt",
+    "sample": 2,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "english_empty_resume_receipt",
+    "sample": 3,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "english_empty_resume_receipt",
+    "sample": 4,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "english_empty_resume_receipt",
+    "sample": 5,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "english_empty_resume_receipt",
+    "sample": 6,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "english_empty_resume_receipt",
+    "sample": 7,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "english_empty_resume_receipt",
+    "sample": 8,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "english_empty_resume_receipt",
+    "sample": 9,
+    "assistant": "没有找到匹配的简历。"
+  },
+  {
+    "scenario": "english_empty_resume_receipt",
+    "sample": 10,
+    "assistant": "没有找到匹配的简历。"
+  }
+]

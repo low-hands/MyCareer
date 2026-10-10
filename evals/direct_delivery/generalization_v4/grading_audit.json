@@ -1,0 +1,38 @@
+{
+  "type": "posthoc grading correction, frozen fixture and model prompt unchanged",
+  "preregistered_ordered_score": 121,
+  "corrected_task_score": 123,
+  "total": 140,
+  "corrections": [
+    {
+      "scenario": "three_sources",
+      "sample": 8,
+      "original_failures": [
+        "turn 1: required work incomplete: ['list_applications', 'list_interviews']"
+      ],
+      "executed_business_order": [
+        "list_applications",
+        "list_resumes",
+        "list_interviews"
+      ],
+      "reason": "Frozen user message requests all three queries and a final overview, but imposes no execution order. All three were queried and semantically summarized; ordered subsequence grading falsely failed this sample.",
+      "corrected_passed": true
+    },
+    {
+      "scenario": "three_sources",
+      "sample": 9,
+      "original_failures": [
+        "turn 1: required work incomplete: ['list_applications', 'list_interviews']"
+      ],
+      "executed_business_order": [
+        "list_applications",
+        "list_resumes",
+        "list_interviews"
+      ],
+      "reason": "Frozen user message requests all three queries and a final overview, but imposes no execution order. All three were queried and semantically summarized; ordered subsequence grading falsely failed this sample.",
+      "corrected_passed": true
+    }
+  ],
+  "single_direct_rate_unchanged": "50/80",
+  "premature_direct_ends_unchanged": 4
+}

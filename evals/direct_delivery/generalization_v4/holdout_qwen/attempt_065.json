@@ -1,0 +1,69 @@
+{
+  "scenario": "resume_english",
+  "sample": {
+    "semantic_recording": {
+      "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+      "queries": {
+        "Could you pull up the CVs I have on file?": {
+          "list_resumes": 0.658989148081621,
+          "get_resume_metadata": 0.6126301336059512,
+          "get_resume_tailoring_draft": 0.5908648113827223,
+          "get_resume_job_match": 0.588919362526901,
+          "resolve_claim_source": 0.5704930278520525,
+          "export_resume_artifact": 0.5506178536299877
+        }
+      }
+    },
+    "passed": true,
+    "failures": [],
+    "turns": [
+      {
+        "message": "Could you pull up the CVs I have on file?",
+        "assistant_message": "目前没有找到任何简历。您还没有上传或创建过简历文件。如果您需要，我可以帮您了解如何开始创建简历。",
+        "executed_calls": [
+          {
+            "name": "list_resumes",
+            "arguments": {
+              "user_id": "eval-user",
+              "target_role_id": null,
+              "query": null
+            }
+          }
+        ],
+        "decisions": [
+          {
+            "response": {
+              "tool_call": {
+                "name": "list_resumes",
+                "arguments": {}
+              }
+            },
+            "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+            "action": "tool_call",
+            "tool": "list_resumes"
+          },
+          {
+            "response": {
+              "content": "{\"action\":\"final\",\"message\":\"目前没有找到任何简历。您还没有上传或创建过简历文件。如果您需要，我可以帮您了解如何开始创建简历。\",\"questions\":[]}"
+            },
+            "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+            "action": "final",
+            "tool": null
+          }
+        ],
+        "error": null,
+        "missing_calls": [],
+        "requires_model_summary": false,
+        "model_summary_delivered": true,
+        "decision_count": 2,
+        "direct_delivery": false,
+        "result_states": [
+          "no_resumes_found"
+        ]
+      }
+    ],
+    "premature_stop_count": 0,
+    "unsafe_attempt_count": 0,
+    "injection_marker_echo_count": 0
+  }
+}

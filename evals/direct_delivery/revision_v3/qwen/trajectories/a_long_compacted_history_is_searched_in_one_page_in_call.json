@@ -1,0 +1,139 @@
+{
+  "scenario": "a_long_compacted_history_is_searched_in_one_page_in_call",
+  "policy": "When omitted history is longer than the bounded read-call budget can scan, call read_conversation_span with focused query terms inside sequence 1 through through_sequence instead of walking positional chunks or guessing.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "d5e6e6fa0f74f988c44d1a3ada012e3803165db9ee17b1b268ad80240efa88d3",
+  "context_shape_fingerprint": "720c64c0e111845ac36282255287dc00fe96a9769230eb0da4bebf0e4e5c4f31",
+  "recorded_at": "2026-10-10T00:54:19.322074+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "read_conversation_span",
+        "arguments": {
+          "query": "目标公司 公司"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "c10cd52ef667e046647daa6170ba04105fd3dc7990ab4f4ac88980371fe4ca08",
+      "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_target_roles",
+        "propose_job_intent",
+        "search_career_episodes",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 4162.0,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T00:54:17.396465+00:00",
+      "elapsed_ms": 4164.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "read_conversation_span",
+            "arguments": {
+              "query": "目标公司 公司"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "c10cd52ef667e046647daa6170ba04105fd3dc7990ab4f4ac88980371fe4ca08",
+          "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4162.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:54:20.699665+00:00",
+      "elapsed_ms": 4611.3,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "read_conversation_span",
+            "arguments": {
+              "query": "目标公司"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "c10cd52ef667e046647daa6170ba04105fd3dc7990ab4f4ac88980371fe4ca08",
+          "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4606.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:54:19.322074+00:00",
+      "elapsed_ms": 3026.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "read_conversation_span",
+            "arguments": {
+              "query": "目标公司"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "c10cd52ef667e046647daa6170ba04105fd3dc7990ab4f4ac88980371fe4ca08",
+          "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3022.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

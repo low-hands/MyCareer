@@ -1,0 +1,313 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "english_empty_resume_receipt",
+  "suite_fingerprint": "43dc152f7b3e255546cbad0181e63bb7307ed89cf6cb921dd997363f8f8c0fe3",
+  "recorded_at": "2026-10-09T23:58:08.275385+00:00",
+  "k": 10,
+  "samples": [
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_REJECTED_403",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "show my resumes",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_REJECTED_403",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_REJECTED_403",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "show my resumes",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_REJECTED_403",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_REJECTED_403",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "show my resumes",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_REJECTED_403",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_REJECTED_403",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "show my resumes",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_REJECTED_403",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_REJECTED_403",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "show my resumes",
+          "assistant_message": "",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": "MAIN_AGENT_REJECTED_403",
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "show my resumes",
+          "assistant_message": "当前没有找到任何简历。如果您需要创建或上传简历，请告诉我具体需求，我可以帮您搜索相关功能。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。如果您需要创建或上传简历，请告诉我具体需求，我可以帮您搜索相关功能。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "4f1877823454e993bdbb97cd330683c99a2cd34f8b5c76c05d22b6fa5adcc6c7",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_REJECTED_403",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "show my resumes",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_REJECTED_403",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_REJECTED_403",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "show my resumes",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_REJECTED_403",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_REJECTED_403",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "show my resumes",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_REJECTED_403",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_REJECTED_403",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "show my resumes",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_REJECTED_403",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

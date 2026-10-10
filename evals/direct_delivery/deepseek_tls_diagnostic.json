@@ -1,0 +1,7 @@
+{
+  "type": "SSLError",
+  "reason": "SSLV3_ALERT_HANDSHAKE_FAILURE",
+  "library": "SSL",
+  "verify_code": null,
+  "verify_message": null
+}

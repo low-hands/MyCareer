@@ -1,0 +1,313 @@
+{
+  "scenario": "an_uncertain_calendar_write_is_not_reissued_or_claimed",
+  "policy": "A failed or uncertain Calendar execution requires reconciliation and then a new preview and approval. Never repeat execution or claim Calendar changed without calendar_sync_complete.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "dc4667aee88ea9b2bbff34d892d83997f6757221c649862d98857309c76641ec",
+  "context_shape_fingerprint": "f6207eee7850f1bcb080bab0968af0356b845eba1d89ec12178476d0c7f61563",
+  "recorded_at": "2026-10-10T01:22:25.175520+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "search_capabilities",
+        "arguments": {
+          "names": [
+            "list_interviews"
+          ]
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "eedb0a8326a7f24d6aaf6612bfb843e7e48474fbef261232a113e72ecf6f1b86",
+      "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_interview",
+        "list_calendar_accounts",
+        "prepare_interview_calendar_sync",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 4047.9,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "implicit_capability_load",
+          "retried": true,
+          "raw_output": {
+            "content": "日历写入操作未能成功执行，系统提示需要重新核对外部状态并生成新的预览。\n\n由于当前没有活跃的日历提案（has_active_calendar_proposal 为 false），我需要先了解您想要同步的是哪一个面试轮次以及使用哪个日历账户。\n\n让我先列出可用的面试轮次和日历账户，以便重新准备日历同步预览。\n\n",
+            "tool_calls": [
+              {
+                "name": "list_interviews",
+                "arguments": "{}"
+              }
+            ]
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "tool_call": {
+        "name": "list_interviews",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "31942774f25a4a57dab883bd00e2700db7f314825fc370c32821a5b8c133e80a",
+      "decision_shape_fingerprint": "8f86577360e2969585f0ea309d147fe24a1e9ab34e2f3532a35942bd1b0bd101",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_interviews",
+        "get_interview",
+        "list_calendar_accounts",
+        "prepare_interview_calendar_sync",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2127.8,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T01:22:19.803748+00:00",
+      "elapsed_ms": 6182.4,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "list_interviews"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "eedb0a8326a7f24d6aaf6612bfb843e7e48474fbef261232a113e72ecf6f1b86",
+          "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4047.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "implicit_capability_load",
+              "retried": true,
+              "raw_output": {
+                "content": "日历写入操作未能成功执行，系统提示需要重新核对外部状态并生成新的预览。\n\n由于当前没有活跃的日历提案（has_active_calendar_proposal 为 false），我需要先了解您想要同步的是哪一个面试轮次以及使用哪个日历账户。\n\n让我先列出可用的面试轮次和日历账户，以便重新准备日历同步预览。\n\n",
+                "tool_calls": [
+                  {
+                    "name": "list_interviews",
+                    "arguments": "{}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "list_interviews",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "31942774f25a4a57dab883bd00e2700db7f314825fc370c32821a5b8c133e80a",
+          "decision_shape_fingerprint": "8f86577360e2969585f0ea309d147fe24a1e9ab34e2f3532a35942bd1b0bd101",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_interviews",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2127.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:22:25.955253+00:00",
+      "elapsed_ms": 11150.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "list_interviews"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "eedb0a8326a7f24d6aaf6612bfb843e7e48474fbef261232a113e72ecf6f1b86",
+          "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 7730.1,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "日历写入操作未能成功执行，系统返回状态为 `calendar_write_failed`。\n\n根据工具反馈，目前无法确认变更是否已生效。建议先核对外部日历的实际状态，如果需要重新同步，可以再次生成预览并确认后尝试执行。\n\n请问您希望我帮您检查当前的面试安排或重新准备日历同步预览吗？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "implicit_capability_load",
+              "retried": true,
+              "raw_output": {
+                "content": "日历写入未能确认成功。根据工具返回，需要先核对外部状态，再生成新的预览并重新取得您的确认。\n\n目前我没有看到任何待执行的日历提案（`has_active_calendar_proposal: false`），也没有列出可用的日历账户。为了继续处理，我需要先了解：\n\n1. 您希望将哪个面试同步到日历？\n2. 使用哪个日历账户？\n\n让我先查看当前的面试列表和可用的日历账户：\n\n",
+                "tool_calls": [
+                  {
+                    "name": "list_interviews",
+                    "arguments": "{}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "list_interviews",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "31942774f25a4a57dab883bd00e2700db7f314825fc370c32821a5b8c133e80a",
+          "decision_shape_fingerprint": "8f86577360e2969585f0ea309d147fe24a1e9ab34e2f3532a35942bd1b0bd101",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_interviews",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3413.2,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:22:25.175520+00:00",
+      "elapsed_ms": 5369.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "list_interviews"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "eedb0a8326a7f24d6aaf6612bfb843e7e48474fbef261232a113e72ecf6f1b86",
+          "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3502.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "implicit_capability_load",
+              "retried": true,
+              "raw_output": {
+                "content": "日历写入操作未能确认成功。根据系统提示，需要先核对外部状态，然后重新生成预览并再次取得您的确认。\n\n目前我没有活跃的日历提案可以执行。要重新开始这个流程，我需要：\n\n1. 首先查看有哪些面试轮次\n2. 然后为特定的面试生成日历同步预览\n3. 等您确认后再执行\n\n让我先列出当前的面试轮次：\n\n",
+                "tool_calls": [
+                  {
+                    "name": "list_interviews",
+                    "arguments": "{}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "list_interviews",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "31942774f25a4a57dab883bd00e2700db7f314825fc370c32821a5b8c133e80a",
+          "decision_shape_fingerprint": "8f86577360e2969585f0ea309d147fe24a1e9ab34e2f3532a35942bd1b0bd101",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_interviews",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1861.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

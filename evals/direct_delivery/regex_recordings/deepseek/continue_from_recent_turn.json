@@ -1,0 +1,560 @@
+{
+  "version": 1,
+  "model": "deepseek-flash",
+  "scenario": "continue_from_recent_turn",
+  "suite_fingerprint": "b981a232bd71df98f8543c9b4865086b6ca4ff0382f24403708d75fdedd96e9d",
+  "recorded_at": "2026-10-09T22:12:16.231581+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查我的简历。下一轮我会让你接着查看投递和面试。",
+          "assistant_message": "我先查了你的简历库，结果是：**目前没有找到任何简历记录**（简历库为空）。\n\n所以暂时没有版本或元数据可看。如果之后你要做匹配、定制或导出简历，需要先有一份简历；后续你可以在需要时导入或添加。\n\n下一轮你说要接着看投递和面试——我到时候会先列出投递记录和面试轮次（目前运行时状态显示这两类也都没有活跃记录，届时以实际查询结果为准）。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes",
+                  "get_resume_metadata"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes",
+                      "get_resume_metadata"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "482637e89114a579aa7fc3ed3a087acc874c4e3a53c18b7a8ed887d85836efa8",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "532b7f6ef5ce8c507c6c60424ebc782ec5b54ad6e27c144ababda75ee6bb7df9",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"我先查了你的简历库，结果是：**目前没有找到任何简历记录**（简历库为空）。\\n\\n所以暂时没有版本或元数据可看。如果之后你要做匹配、定制或导出简历，需要先有一份简历；后续你可以在需要时导入或添加。\\n\\n下一轮你说要接着看投递和面试——我到时候会先列出投递记录和面试轮次（目前运行时状态显示这两类也都没有活跃记录，届时以实际查询结果为准）。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "532b7f6ef5ce8c507c6c60424ebc782ec5b54ad6e27c144ababda75ee6bb7df9",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 3
+        },
+        {
+          "message": "继续刚才说的，先看投递，再看面试，然后汇总。",
+          "assistant_message": "三块汇总（均为刚查询的结果）：\n\n**1. 简历**：简历库为空，没有简历记录，因此没有版本/元数据可读。\n\n**2. 投递**：没有找到投递记录（投递列表为空）。\n\n**3. 面试**：没有找到面试安排（面试列表为空）。\n\n也就是说，目前跟踪体系里「简历 → 投递 → 面试」这条链路都还是空的。\n\n接下来可选的方向（你挑一个我就继续）：\n- 有简历文件的话，添加/导入一份简历，后续才能做岗位匹配、定制、导出；\n- 想投的岗位可以先做搜索/收藏，再建立投递记录并跟踪状态；\n- 如果你已经有面试安排（比如刚收到面试通知），告诉我**公司、岗位、时间（含时区）、形式**，我可以直接帮你安排一轮面试并给出准备计划——这一步不要求你先有投递记录。\n\n要我先打开招聘搜索看岗位，还是先处理简历？",
+          "executed_calls": [
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"三块汇总（均为刚查询的结果）：\\n\\n**1. 简历**：简历库为空，没有简历记录，因此没有版本/元数据可读。\\n\\n**2. 投递**：没有找到投递记录（投递列表为空）。\\n\\n**3. 面试**：没有找到面试安排（面试列表为空）。\\n\\n也就是说，目前跟踪体系里「简历 → 投递 → 面试」这条链路都还是空的。\\n\\n接下来可选的方向（你挑一个我就继续）：\\n- 有简历文件的话，添加/导入一份简历，后续才能做岗位匹配、定制、导出；\\n- 想投的岗位可以先做搜索/收藏，再建立投递记录并跟踪状态；\\n- 如果你已经有面试安排（比如刚收到面试通知），告诉我**公司、岗位、时间（含时区）、形式**，我可以直接帮你安排一轮面试并给出准备计划——这一步不要求你先有投递记录。\\n\\n要我先打开招聘搜索看岗位，还是先处理简历？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查我的简历。下一轮我会让你接着查看投递和面试。",
+          "assistant_message": "我查了你的简历库，目前**没有找到任何简历**（返回结果是“没有找到匹配的简历”）。\n\n也就是说，现在没有可用的简历版本，暂时无法查看版本/元数据，也无法在后续步骤里做简历与岗位的匹配或定制。\n\n可能的原因：\n- 简历还没有上传/录入到这个账号；\n- 或者简历属于其他账号/其他标签，本次未匹配到。\n\n你可以这样继续：\n1. 如果你是在别的名称或标签下存的简历，告诉我你用的名称或方向，我再按它查一次；\n2. 如果确实还没录入，先上传/录入一份简历，我再帮你列出并读取版本信息；\n3. 也可以先跳过简历，下一轮直接看投递和面试——目前你的账号里也没有处于活跃状态的投递记录，届时我会先列出记录再让你选。\n\n下一轮你打算先看投递还是面试？",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes",
+                  "get_resume_metadata"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes",
+                      "get_resume_metadata"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "482637e89114a579aa7fc3ed3a087acc874c4e3a53c18b7a8ed887d85836efa8",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "532b7f6ef5ce8c507c6c60424ebc782ec5b54ad6e27c144ababda75ee6bb7df9",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"我查了你的简历库，目前**没有找到任何简历**（返回结果是“没有找到匹配的简历”）。\\n\\n也就是说，现在没有可用的简历版本，暂时无法查看版本/元数据，也无法在后续步骤里做简历与岗位的匹配或定制。\\n\\n可能的原因：\\n- 简历还没有上传/录入到这个账号；\\n- 或者简历属于其他账号/其他标签，本次未匹配到。\\n\\n你可以这样继续：\\n1. 如果你是在别的名称或标签下存的简历，告诉我你用的名称或方向，我再按它查一次；\\n2. 如果确实还没录入，先上传/录入一份简历，我再帮你列出并读取版本信息；\\n3. 也可以先跳过简历，下一轮直接看投递和面试——目前你的账号里也没有处于活跃状态的投递记录，届时我会先列出记录再让你选。\\n\\n下一轮你打算先看投递还是面试？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "532b7f6ef5ce8c507c6c60424ebc782ec5b54ad6e27c144ababda75ee6bb7df9",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 3
+        },
+        {
+          "message": "继续刚才说的，先看投递，再看面试，然后汇总。",
+          "assistant_message": "按你的顺序查完了三块，汇总如下：\n\n**1. 简历**\n- 结果：没有找到任何简历。\n- 影响：没有可用的简历版本，暂时无法读取版本/元数据，也无法做简历与岗位的匹配或定制。\n\n**2. 投递记录**\n- 结果：没有找到投递记录。\n- 影响：目前没有可跟踪或可更新的投递状态（提交、面试中、Offer、淘汰等）。\n\n**3. 面试安排**\n- 结果：没有找到面试安排。\n- 影响：没有可读取、可修改或可复盘的面试轮次，也无法为某轮面试生成日历/准备材料。\n\n**整体状态**：账号里目前是空的（简历、投递、面试均为零）。这说明系统尚未录入任何记录，而不是“记录存在但查不到”。\n\n**你可以这样往下走（任选）**：\n1. 先录入/上传一份简历，我再列出并读取版本信息；\n2. 告诉我你实际在投的岗位（公司 + 岗位名），我可以帮你建立投递记录；\n3. 如果你已有确定时间的面试，把公司、岗位、时间（含时区）、形式告诉我，我可以建一轮面试安排，并顺带做面试准备；\n4. 如果你的记录其实存在（例如在别的标签/账号下），告诉我用于识别的名称或方向，我重新按条件查一次。\n\n需要我先做哪一项？",
+          "executed_calls": [
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"按你的顺序查完了三块，汇总如下：\\n\\n**1. 简历**\\n- 结果：没有找到任何简历。\\n- 影响：没有可用的简历版本，暂时无法读取版本/元数据，也无法做简历与岗位的匹配或定制。\\n\\n**2. 投递记录**\\n- 结果：没有找到投递记录。\\n- 影响：目前没有可跟踪或可更新的投递状态（提交、面试中、Offer、淘汰等）。\\n\\n**3. 面试安排**\\n- 结果：没有找到面试安排。\\n- 影响：没有可读取、可修改或可复盘的面试轮次，也无法为某轮面试生成日历/准备材料。\\n\\n**整体状态**：账号里目前是空的（简历、投递、面试均为零）。这说明系统尚未录入任何记录，而不是“记录存在但查不到”。\\n\\n**你可以这样往下走（任选）**：\\n1. 先录入/上传一份简历，我再列出并读取版本信息；\\n2. 告诉我你实际在投的岗位（公司 + 岗位名），我可以帮你建立投递记录；\\n3. 如果你已有确定时间的面试，把公司、岗位、时间（含时区）、形式告诉我，我可以建一轮面试安排，并顺带做面试准备；\\n4. 如果你的记录其实存在（例如在别的标签/账号下），告诉我用于识别的名称或方向，我重新按条件查一次。\\n\\n需要我先做哪一项？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查我的简历。下一轮我会让你接着查看投递和面试。",
+          "assistant_message": "已查询你的简历库：目前**没有找到任何简历**（未返回任何匹配项）。\n\n可能的原因：\n- 还没有上传/导入过简历；\n- 简历没带上名称、方向或标签，所以按当前条件没匹配到。\n\n下一步（下一轮你说了算）：你说要接着看**投递记录**和**面试轮次**，这两项我下轮直接帮你查。\n\n另外，如果你希望我先帮你把简历补进来，请告诉我它大概是什么方向/名称，或者直接提供文件，我再帮你入库并列出候选。要现在先补简历，还是按原计划下轮先看投递和面试？",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "482637e89114a579aa7fc3ed3a087acc874c4e3a53c18b7a8ed887d85836efa8",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "532b7f6ef5ce8c507c6c60424ebc782ec5b54ad6e27c144ababda75ee6bb7df9",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已查询你的简历库：目前**没有找到任何简历**（未返回任何匹配项）。\\n\\n可能的原因：\\n- 还没有上传/导入过简历；\\n- 简历没带上名称、方向或标签，所以按当前条件没匹配到。\\n\\n下一步（下一轮你说了算）：你说要接着看**投递记录**和**面试轮次**，这两项我下轮直接帮你查。\\n\\n另外，如果你希望我先帮你把简历补进来，请告诉我它大概是什么方向/名称，或者直接提供文件，我再帮你入库并列出候选。要现在先补简历，还是按原计划下轮先看投递和面试？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "532b7f6ef5ce8c507c6c60424ebc782ec5b54ad6e27c144ababda75ee6bb7df9",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 3
+        },
+        {
+          "message": "继续刚才说的，先看投递，再看面试，然后汇总。",
+          "assistant_message": "查询完成，汇总如下（本次三块都已按你上一轮的顺序查过）：\n\n**1. 简历库** —— 无记录。未返回任何匹配项，可能还没导入过简历。\n\n**2. 投递记录** —— 无记录（系统返回“没有找到投递记录”）。当前没有任何已跟踪的投递。\n\n**3. 面试轮次** —— 无安排（系统返回“没有找到面试安排”）。当前没有任何已识别的面试。\n\n**整体状态：** 你的求职档案目前是空的——简历、投递、面试三项都没有数据。所以暂时无法做匹配分析、进度跟踪或面试准备。\n\n**接下来可以做的（你选）：**\n- 补简历：给我方向/名称，或直接提供文件，我帮你列出并入库；\n- 建投递：告诉我公司 + 岗位，我帮你创建投递记录（这也需要先有岗位信息）；\n- 有面试：如果其实已经约了面试，告诉我公司、岗位、时间，我帮你建面试轮次（简历不是必需的）；\n- 或者先做岗位调研/目标岗位方向梳理，我可以按你给的线索开始。\n\n想先从哪一项入手？",
+          "executed_calls": [
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"查询完成，汇总如下（本次三块都已按你上一轮的顺序查过）：\\n\\n**1. 简历库** —— 无记录。未返回任何匹配项，可能还没导入过简历。\\n\\n**2. 投递记录** —— 无记录（系统返回“没有找到投递记录”）。当前没有任何已跟踪的投递。\\n\\n**3. 面试轮次** —— 无安排（系统返回“没有找到面试安排”）。当前没有任何已识别的面试。\\n\\n**整体状态：** 你的求职档案目前是空的——简历、投递、面试三项都没有数据。所以暂时无法做匹配分析、进度跟踪或面试准备。\\n\\n**接下来可以做的（你选）：**\\n- 补简历：给我方向/名称，或直接提供文件，我帮你列出并入库；\\n- 建投递：告诉我公司 + 岗位，我帮你创建投递记录（这也需要先有岗位信息）；\\n- 有面试：如果其实已经约了面试，告诉我公司、岗位、时间，我帮你建面试轮次（简历不是必需的）；\\n- 或者先做岗位调研/目标岗位方向梳理，我可以按你给的线索开始。\\n\\n想先从哪一项入手？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

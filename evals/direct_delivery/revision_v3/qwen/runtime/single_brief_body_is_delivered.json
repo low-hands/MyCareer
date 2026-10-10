@@ -1,0 +1,560 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "single_brief_body_is_delivered",
+  "suite_fingerprint": "81d7bec4e347fab7fee2f885634bf023cf6e2ead0e8e4b0defdda98455316793",
+  "recorded_at": "2026-10-10T01:05:19.054690+00:00",
+  "k": 10,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看今日简报": {
+            "get_daily_brief": 0.8178294288880115
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看今日简报",
+          "assistant_message": "# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "39404b16550e7de9b63cb0ab6b2416b38100d0ba34057c17d6695aaf8cc05182",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看今日简报": {
+            "get_daily_brief": 0.8178294288880115
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看今日简报",
+          "assistant_message": "# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "39404b16550e7de9b63cb0ab6b2416b38100d0ba34057c17d6695aaf8cc05182",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看今日简报": {
+            "get_daily_brief": 0.8178294288880115
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看今日简报",
+          "assistant_message": "# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "39404b16550e7de9b63cb0ab6b2416b38100d0ba34057c17d6695aaf8cc05182",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看今日简报": {
+            "get_daily_brief": 0.8178294288880115
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看今日简报",
+          "assistant_message": "# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "39404b16550e7de9b63cb0ab6b2416b38100d0ba34057c17d6695aaf8cc05182",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看今日简报": {
+            "get_daily_brief": 0.8177500503296666
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看今日简报",
+          "assistant_message": "# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "39404b16550e7de9b63cb0ab6b2416b38100d0ba34057c17d6695aaf8cc05182",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看今日简报": {
+            "get_daily_brief": 0.8177500503296666
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看今日简报",
+          "assistant_message": "# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "39404b16550e7de9b63cb0ab6b2416b38100d0ba34057c17d6695aaf8cc05182",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看今日简报": {
+            "get_daily_brief": 0.8178294288880115
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看今日简报",
+          "assistant_message": "# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "39404b16550e7de9b63cb0ab6b2416b38100d0ba34057c17d6695aaf8cc05182",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看今日简报": {
+            "get_daily_brief": 0.8177500503296666
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看今日简报",
+          "assistant_message": "# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "39404b16550e7de9b63cb0ab6b2416b38100d0ba34057c17d6695aaf8cc05182",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看今日简报": {
+            "get_daily_brief": 0.8178294288880115
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看今日简报",
+          "assistant_message": "# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "39404b16550e7de9b63cb0ab6b2416b38100d0ba34057c17d6695aaf8cc05182",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看今日简报": {
+            "get_daily_brief": 0.8177500503296666
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看今日简报",
+          "assistant_message": "# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai",
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "39404b16550e7de9b63cb0ab6b2416b38100d0ba34057c17d6695aaf8cc05182",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

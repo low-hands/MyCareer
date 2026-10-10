@@ -1,0 +1,11 @@
+{
+  "previous_sequential_replay": "interrupted_after_live_batch_saved_due_to_repeated_catalogue_warmup_cost",
+  "completed_scenarios": 19,
+  "jobs": 4,
+  "embedding_counts": {
+    "actual_embedding_requests": 25,
+    "cache_hits": 964
+  },
+  "embedding_errors": {},
+  "production_code_or_grading_changed": false
+}

@@ -1,0 +1,1304 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "resume_then_interview",
+  "suite_fingerprint": "2e6f0be4b604ada29d4f6e80703a6bdb2eead67513229626147ba42fa42c7abc",
+  "recorded_at": "2026-10-10T01:26:00.784234+00:00",
+  "k": 10,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先让我看一下已存的简历。": {
+            "list_resumes": 0.7483833282439939,
+            "get_resume_metadata": 0.6670864109378096,
+            "get_resume_tailoring_draft": 0.6434400619168291,
+            "export_resume_artifact": 0.6226759277476768,
+            "get_resume_job_match": 0.6221543375018015,
+            "list_applications": 0.6068448454805412,
+            "find_saved_jobs": 0.5953702404361672,
+            "search_career_history": 0.5824101128822714,
+            "search_career_episodes": 0.5733084458270115,
+            "resolve_claim_source": 0.5692807384745483
+          },
+          "另外面试也给我查一下。": {
+            "get_interview": 0.6105172875747763,
+            "list_interviews": 0.6086748629665564,
+            "create_interview": 0.6004494213918082,
+            "update_interview": 0.5960980398070131,
+            "prepare_interview": 0.5882727026143558,
+            "complete_interview": 0.5826613976992532,
+            "get_interview_preparation": 0.5663454957888008,
+            "record_interview_retro": 0.5636738408160498,
+            "search_career_episodes": 0.5580935770623278,
+            "start_mock_interview": 0.5527046189262246
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先让我看一下已存的简历。",
+          "assistant_message": "当前没有找到任何已保存的简历。如果你需要创建或导入简历，可以告诉我你的求职方向、目标岗位或相关经历，我可以帮你开始准备。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何已保存的简历。如果你需要创建或导入简历，可以告诉我你的求职方向、目标岗位或相关经历，我可以帮你开始准备。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "另外面试也给我查一下。",
+          "assistant_message": "目前没有找到任何面试安排。如果你需要创建或查看面试信息，可以告诉我具体的公司、岗位或面试时间，我可以帮你记录或准备相关材料。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有找到任何面试安排。如果你需要创建或查看面试信息，可以告诉我具体的公司、岗位或面试时间，我可以帮你记录或准备相关材料。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先让我看一下已存的简历。": {
+            "list_resumes": 0.7484637840369679,
+            "get_resume_metadata": 0.6671732545726162,
+            "get_resume_tailoring_draft": 0.643510298025414,
+            "export_resume_artifact": 0.6227787970863597,
+            "get_resume_job_match": 0.6221930232189756,
+            "list_applications": 0.6068970680699147,
+            "find_saved_jobs": 0.595340656852329,
+            "search_career_history": 0.5824403078835337,
+            "search_career_episodes": 0.5733252654270032,
+            "resolve_claim_source": 0.5693036568039016
+          },
+          "另外面试也给我查一下。": {
+            "get_interview": 0.6104737338330902,
+            "list_interviews": 0.6086649179349854,
+            "create_interview": 0.6004890718459438,
+            "update_interview": 0.5961359633548108,
+            "prepare_interview": 0.5883570841597273,
+            "complete_interview": 0.5826245700151975,
+            "get_interview_preparation": 0.5664495154241546,
+            "record_interview_retro": 0.5637554444462238,
+            "search_career_episodes": 0.558130221035465,
+            "start_mock_interview": 0.5527471760095926
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先让我看一下已存的简历。",
+          "assistant_message": "当前没有找到已存的简历。您可以上传或创建一份新的简历，或者告诉我您希望针对什么岗位方向准备简历，我可以协助您进行后续操作。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到已存的简历。您可以上传或创建一份新的简历，或者告诉我您希望针对什么岗位方向准备简历，我可以协助您进行后续操作。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "另外面试也给我查一下。",
+          "assistant_message": "目前没有找到已存的简历，也没有任何面试安排。\n\n如果您需要开始准备求职，可以：\n1. 上传或创建一份新的简历\n2. 告诉我您希望针对什么岗位方向准备简历\n3. 如果有具体的面试安排，可以提供相关信息以便我帮您记录和准备",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有找到已存的简历，也没有任何面试安排。\\n\\n如果您需要开始准备求职，可以：\\n1. 上传或创建一份新的简历\\n2. 告诉我您希望针对什么岗位方向准备简历\\n3. 如果有具体的面试安排，可以提供相关信息以便我帮您记录和准备\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先让我看一下已存的简历。": {
+            "list_resumes": 0.7484637840369679,
+            "get_resume_metadata": 0.6671732545726162,
+            "get_resume_tailoring_draft": 0.643510298025414,
+            "export_resume_artifact": 0.6227787970863597,
+            "get_resume_job_match": 0.6221930232189756,
+            "list_applications": 0.6068970680699147,
+            "find_saved_jobs": 0.595340656852329,
+            "search_career_history": 0.5824403078835337,
+            "search_career_episodes": 0.5733252654270032,
+            "resolve_claim_source": 0.5693036568039016
+          },
+          "另外面试也给我查一下。": {
+            "get_interview": 0.6105172875747763,
+            "list_interviews": 0.6086748629665564,
+            "create_interview": 0.6004494213918082,
+            "update_interview": 0.5960980398070131,
+            "prepare_interview": 0.5882727026143558,
+            "complete_interview": 0.5826613976992532,
+            "get_interview_preparation": 0.5663454957888008,
+            "record_interview_retro": 0.5636738408160498,
+            "search_career_episodes": 0.5580935770623278,
+            "start_mock_interview": 0.5527046189262246
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先让我看一下已存的简历。",
+          "assistant_message": "当前没有找到已存的简历。如果你需要创建或导入简历，可以告诉我你的求职方向、目标岗位以及工作经历等信息，我可以帮你开始准备。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到已存的简历。如果你需要创建或导入简历，可以告诉我你的求职方向、目标岗位以及工作经历等信息，我可以帮你开始准备。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "另外面试也给我查一下。",
+          "assistant_message": "目前没有找到已存的简历，也没有面试安排。如果你需要创建简历或准备面试，可以告诉我你的求职方向、目标岗位以及工作经历等信息，我可以帮你开始准备。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有找到已存的简历，也没有面试安排。如果你需要创建简历或准备面试，可以告诉我你的求职方向、目标岗位以及工作经历等信息，我可以帮你开始准备。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先让我看一下已存的简历。": {
+            "list_resumes": 0.7484637840369679,
+            "get_resume_metadata": 0.6671732545726162,
+            "get_resume_tailoring_draft": 0.643510298025414,
+            "export_resume_artifact": 0.6227787970863597,
+            "get_resume_job_match": 0.6221930232189756,
+            "list_applications": 0.6068970680699147,
+            "find_saved_jobs": 0.595340656852329,
+            "search_career_history": 0.5824403078835337,
+            "search_career_episodes": 0.5733252654270032,
+            "resolve_claim_source": 0.5693036568039016
+          },
+          "另外面试也给我查一下。": {
+            "get_interview": 0.6104187231438674,
+            "list_interviews": 0.6085987716584801,
+            "create_interview": 0.6004166473290433,
+            "update_interview": 0.5960653674970556,
+            "prepare_interview": 0.5882060725985883,
+            "complete_interview": 0.5826055348755966,
+            "get_interview_preparation": 0.5662509413364222,
+            "record_interview_retro": 0.5636486203156632,
+            "search_career_episodes": 0.557951669682394,
+            "start_mock_interview": 0.5526785324413456
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先让我看一下已存的简历。",
+          "assistant_message": "当前没有找到已保存的简历。\n\n如果你需要创建或上传简历，可以告诉我你的目标岗位方向、工作经验和技能背景，我可以帮你准备简历内容。或者如果你有现成的简历文件，也可以告诉我如何获取它。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到已保存的简历。\\n\\n如果你需要创建或上传简历，可以告诉我你的目标岗位方向、工作经验和技能背景，我可以帮你准备简历内容。或者如果你有现成的简历文件，也可以告诉我如何获取它。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "另外面试也给我查一下。",
+          "assistant_message": "目前没有已保存的简历，也没有面试安排。\n\n如果你需要创建简历，可以告诉我你的目标岗位方向、工作经验和技能背景，我可以帮你准备简历内容。或者如果你有现成的简历文件，也可以上传或提供相关信息。\n\n关于面试，目前没有任何面试记录。如果你有即将进行的面试，可以告诉我公司名称、岗位、面试时间等信息，我可以帮你记录并准备面试材料。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有已保存的简历，也没有面试安排。\\n\\n如果你需要创建简历，可以告诉我你的目标岗位方向、工作经验和技能背景，我可以帮你准备简历内容。或者如果你有现成的简历文件，也可以上传或提供相关信息。\\n\\n关于面试，目前没有任何面试记录。如果你有即将进行的面试，可以告诉我公司名称、岗位、面试时间等信息，我可以帮你记录并准备面试材料。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found",
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先让我看一下已存的简历。": {
+            "list_resumes": 0.7483833282439939,
+            "get_resume_metadata": 0.6670864109378096,
+            "get_resume_tailoring_draft": 0.6434400619168291,
+            "export_resume_artifact": 0.6226759277476768,
+            "get_resume_job_match": 0.6221543375018015,
+            "list_applications": 0.6068448454805412,
+            "find_saved_jobs": 0.5953702404361672,
+            "search_career_history": 0.5824101128822714,
+            "search_career_episodes": 0.5733084458270115,
+            "resolve_claim_source": 0.5692807384745483
+          },
+          "另外面试也给我查一下。": {
+            "get_interview": 0.6105172875747763,
+            "list_interviews": 0.6086748629665564,
+            "create_interview": 0.6004494213918082,
+            "update_interview": 0.5960980398070131,
+            "prepare_interview": 0.5882727026143558,
+            "complete_interview": 0.5826613976992532,
+            "get_interview_preparation": 0.5663454957888008,
+            "record_interview_retro": 0.5636738408160498,
+            "search_career_episodes": 0.5580935770623278,
+            "start_mock_interview": 0.5527046189262246
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先让我看一下已存的简历。",
+          "assistant_message": "当前没有找到已存的简历。\n\n你可以：\n- 上传或创建一份新简历\n- 如果需要，我可以帮你搜索相关能力来了解如何导入或管理简历\n\n请问你希望下一步做什么？",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到已存的简历。\\n\\n你可以：\\n- 上传或创建一份新简历\\n- 如果需要，我可以帮你搜索相关能力来了解如何导入或管理简历\\n\\n请问你希望下一步做什么？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "另外面试也给我查一下。",
+          "assistant_message": "已查询完成：\n\n**简历情况：** 当前没有找到已存的简历。\n\n**面试安排：** 当前没有面试安排。\n\n如果你需要创建简历、添加面试记录或进行其他操作，请告诉我具体需求。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已查询完成：\\n\\n**简历情况：** 当前没有找到已存的简历。\\n\\n**面试安排：** 当前没有面试安排。\\n\\n如果你需要创建简历、添加面试记录或进行其他操作，请告诉我具体需求。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先让我看一下已存的简历。": {
+            "list_resumes": 0.7483833282439939,
+            "get_resume_metadata": 0.6670864109378096,
+            "get_resume_tailoring_draft": 0.6434400619168291,
+            "export_resume_artifact": 0.6226759277476768,
+            "get_resume_job_match": 0.6221543375018015,
+            "list_applications": 0.6068448454805412,
+            "find_saved_jobs": 0.5953702404361672,
+            "search_career_history": 0.5824101128822714,
+            "search_career_episodes": 0.5733084458270115,
+            "resolve_claim_source": 0.5692807384745483
+          },
+          "另外面试也给我查一下。": {
+            "get_interview": 0.6104187231438674,
+            "list_interviews": 0.6085987716584801,
+            "create_interview": 0.6004166473290433,
+            "update_interview": 0.5960653674970556,
+            "prepare_interview": 0.5882060725985883,
+            "complete_interview": 0.5826055348755966,
+            "get_interview_preparation": 0.5662509413364222,
+            "record_interview_retro": 0.5636486203156632,
+            "search_career_episodes": 0.557951669682394,
+            "start_mock_interview": 0.5526785324413456
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先让我看一下已存的简历。",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "另外面试也给我查一下。",
+          "assistant_message": "已为您查询，目前系统中没有保存的简历，也没有安排的面试。\n\n如果您需要创建简历或安排面试，请告诉我具体需求，我可以协助您进行下一步操作。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已为您查询，目前系统中没有保存的简历，也没有安排的面试。\\n\\n如果您需要创建简历或安排面试，请告诉我具体需求，我可以协助您进行下一步操作。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先让我看一下已存的简历。": {
+            "list_resumes": 0.7483833282439939,
+            "get_resume_metadata": 0.6670864109378096,
+            "get_resume_tailoring_draft": 0.6434400619168291,
+            "export_resume_artifact": 0.6226759277476768,
+            "get_resume_job_match": 0.6221543375018015,
+            "list_applications": 0.6068448454805412,
+            "find_saved_jobs": 0.5953702404361672,
+            "search_career_history": 0.5824101128822714,
+            "search_career_episodes": 0.5733084458270115,
+            "resolve_claim_source": 0.5692807384745483
+          },
+          "另外面试也给我查一下。": {
+            "get_interview": 0.6105172875747763,
+            "list_interviews": 0.6086748629665564,
+            "create_interview": 0.6004494213918082,
+            "update_interview": 0.5960980398070131,
+            "prepare_interview": 0.5882727026143558,
+            "complete_interview": 0.5826613976992532,
+            "get_interview_preparation": 0.5663454957888008,
+            "record_interview_retro": 0.5636738408160498,
+            "search_career_episodes": 0.5580935770623278,
+            "start_mock_interview": 0.5527046189262246
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先让我看一下已存的简历。",
+          "assistant_message": "目前没有找到已保存的简历。您需要先创建或上传一份简历吗？",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"ask_user\",\"message\":\"目前没有找到已保存的简历。您需要先创建或上传一份简历吗？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "ask_user",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "另外面试也给我查一下。",
+          "assistant_message": "已为您查询：\n\n1. **简历**：目前没有已保存的简历。您需要先创建或上传一份简历。\n2. **面试**：没有找到任何面试安排。\n\n如果您需要开始求职流程，建议先上传或创建一份简历，然后我们可以帮您进行岗位搜索、简历定制等操作。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已为您查询：\\n\\n1. **简历**：目前没有已保存的简历。您需要先创建或上传一份简历。\\n2. **面试**：没有找到任何面试安排。\\n\\n如果您需要开始求职流程，建议先上传或创建一份简历，然后我们可以帮您进行岗位搜索、简历定制等操作。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先让我看一下已存的简历。": {
+            "list_resumes": 0.7483833282439939,
+            "get_resume_metadata": 0.6670864109378096,
+            "get_resume_tailoring_draft": 0.6434400619168291,
+            "export_resume_artifact": 0.6226759277476768,
+            "get_resume_job_match": 0.6221543375018015,
+            "list_applications": 0.6068448454805412,
+            "find_saved_jobs": 0.5953702404361672,
+            "search_career_history": 0.5824101128822714,
+            "search_career_episodes": 0.5733084458270115,
+            "resolve_claim_source": 0.5692807384745483
+          },
+          "另外面试也给我查一下。": {
+            "get_interview": 0.6105172875747763,
+            "list_interviews": 0.6086748629665564,
+            "create_interview": 0.6004494213918082,
+            "update_interview": 0.5960980398070131,
+            "prepare_interview": 0.5882727026143558,
+            "complete_interview": 0.5826613976992532,
+            "get_interview_preparation": 0.5663454957888008,
+            "record_interview_retro": 0.5636738408160498,
+            "search_career_episodes": 0.5580935770623278,
+            "start_mock_interview": 0.5527046189262246
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先让我看一下已存的简历。",
+          "assistant_message": "当前没有找到已存的简历。如果您需要创建或上传简历，请告诉我具体需求。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到已存的简历。如果您需要创建或上传简历，请告诉我具体需求。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "另外面试也给我查一下。",
+          "assistant_message": "目前没有找到已存的简历，也没有面试安排。如果您需要创建简历或添加面试信息，请告诉我具体需求。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有找到已存的简历，也没有面试安排。如果您需要创建简历或添加面试信息，请告诉我具体需求。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先让我看一下已存的简历。": {
+            "list_resumes": 0.7485071429335479,
+            "get_resume_metadata": 0.6672182850254463,
+            "get_resume_tailoring_draft": 0.6434510776522319,
+            "export_resume_artifact": 0.6227956840532242,
+            "get_resume_job_match": 0.6220740951437556,
+            "list_applications": 0.6068357913731208,
+            "find_saved_jobs": 0.5954408354436338,
+            "search_career_history": 0.5823983463372349,
+            "search_career_episodes": 0.5732548425014825,
+            "resolve_claim_source": 0.5691977091034005
+          },
+          "另外面试也给我查一下。": {
+            "get_interview": 0.6104187231438674,
+            "list_interviews": 0.6085987716584801,
+            "create_interview": 0.6004166473290433,
+            "update_interview": 0.5960653674970556,
+            "prepare_interview": 0.5882060725985883,
+            "complete_interview": 0.5826055348755966,
+            "get_interview_preparation": 0.5662509413364222,
+            "record_interview_retro": 0.5636486203156632,
+            "search_career_episodes": 0.557951669682394,
+            "start_mock_interview": 0.5526785324413456
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先让我看一下已存的简历。",
+          "assistant_message": "当前没有找到已存的简历。您需要先创建或上传一份简历，之后才能在这里查看和管理。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到已存的简历。您需要先创建或上传一份简历，之后才能在这里查看和管理。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "另外面试也给我查一下。",
+          "assistant_message": "已为您查询：\n\n1. **简历**：当前没有找到已存的简历。您需要先创建或上传一份简历，之后才能在这里查看和管理。\n2. **面试**：目前没有找到任何面试安排。\n\n如果您需要创建简历、添加面试记录或进行其他操作，请告诉我您的具体需求。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"ask_user\",\"message\":\"已为您查询：\\n\\n1. **简历**：当前没有找到已存的简历。您需要先创建或上传一份简历，之后才能在这里查看和管理。\\n2. **面试**：目前没有找到任何面试安排。\\n\\n如果您需要创建简历、添加面试记录或进行其他操作，请告诉我您的具体需求。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "ask_user",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先让我看一下已存的简历。": {
+            "list_resumes": 0.7483833282439939,
+            "get_resume_metadata": 0.6670864109378096,
+            "get_resume_tailoring_draft": 0.6434400619168291,
+            "export_resume_artifact": 0.6226759277476768,
+            "get_resume_job_match": 0.6221543375018015,
+            "list_applications": 0.6068448454805412,
+            "find_saved_jobs": 0.5953702404361672,
+            "search_career_history": 0.5824101128822714,
+            "search_career_episodes": 0.5733084458270115,
+            "resolve_claim_source": 0.5692807384745483
+          },
+          "另外面试也给我查一下。": {
+            "get_interview": 0.6104187231438674,
+            "list_interviews": 0.6085987716584801,
+            "create_interview": 0.6004166473290433,
+            "update_interview": 0.5960653674970556,
+            "prepare_interview": 0.5882060725985883,
+            "complete_interview": 0.5826055348755966,
+            "get_interview_preparation": 0.5662509413364222,
+            "record_interview_retro": 0.5636486203156632,
+            "search_career_episodes": 0.557951669682394,
+            "start_mock_interview": 0.5526785324413456
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先让我看一下已存的简历。",
+          "assistant_message": "当前没有找到已存的简历。您需要先创建或导入一份简历，之后才能进行查看、定制或投递等操作。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到已存的简历。您需要先创建或导入一份简历，之后才能进行查看、定制或投递等操作。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "另外面试也给我查一下。",
+          "assistant_message": "已为您查询：\n\n1. **简历**：当前没有找到已存的简历。您需要先创建或导入一份简历，之后才能进行查看、定制或投递等操作。\n2. **面试**：没有找到任何面试安排。\n\n如果您需要开始求职流程，建议先从创建或上传简历开始。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已为您查询：\\n\\n1. **简历**：当前没有找到已存的简历。您需要先创建或导入一份简历，之后才能进行查看、定制或投递等操作。\\n2. **面试**：没有找到任何面试安排。\\n\\n如果您需要开始求职流程，建议先从创建或上传简历开始。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "fa777ae271d63f0e65f83ce32a052de0c2dc855afd3e4e3fcef49fded2396393",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

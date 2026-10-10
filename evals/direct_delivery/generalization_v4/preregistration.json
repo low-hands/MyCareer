@@ -1,0 +1,21 @@
+{
+  "frozen_at": "2026-10-10T01:17:27.121750+00:00",
+  "fixture_sha256": "73039361229a8df5eb547ea89737b6c563683e0d579a1e1a8c42c34f6d75c29e",
+  "runtime_suite_fingerprint": "2e6f0be4b604ada29d4f6e80703a6bdb2eead67513229626147ba42fa42c7abc",
+  "prompt_fingerprint": "1042bec42a43ba54f138af73247f2afb590669457c9d1f9c4ba4c57beeb2220c",
+  "holdout_k": 10,
+  "holdout_scenarios": 14,
+  "regression_cases": [
+    "research_is_not_started_as_part_of_matching",
+    "saved_jd_body_without_language_requirement_finishes",
+    "tool_selection_combines_job_analysis_and_resume_match"
+  ],
+  "samples_per_regression_case_per_arm": 30,
+  "baseline_ref": "18158e1",
+  "schedule_seed": 3110,
+  "regression_workers_per_arm": 1,
+  "holdout_workers": 2,
+  "model": "qwen3.7-plus",
+  "prompt_contains_test_utterances": false,
+  "policy": "One frozen prompt and one complete batch. No selective retries, no tuning on holdout. Report provider errors separately and retain them in end-to-end denominator."
+}

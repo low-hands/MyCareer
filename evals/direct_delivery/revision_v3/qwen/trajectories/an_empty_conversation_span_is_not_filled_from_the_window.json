@@ -1,0 +1,136 @@
+{
+  "scenario": "an_empty_conversation_span_is_not_filled_from_the_window",
+  "policy": "It never searches another conversation or substitutes nearby rows when the requested span is empty. If the requested resource has no matching handle, say it is not currently reachable or ask the user to identify it.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "59ec8977f51586bda78b4e0bc258c66127eaf7869fc11d610363a3de18e904b8",
+  "context_shape_fingerprint": "40991f20c8ddbd06faa3fc2a3d01083b600b9f1e046ece1f6d3085177f1b2b24",
+  "recorded_at": "2026-10-10T00:54:44.505780+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"会话序号 100–110 之间没有消息，返回 0 条。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "9111a372560d488ec485cd400973ef7fa819fa842cfd8321d740e3a3a916cef9",
+      "decision_shape_fingerprint": "17622268be5160785a45cae4197383bb74e43c9f0b0ad79c99d5aec0dc43d8b7",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "search_career_episodes",
+        "propose_constraint_retirement",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 4062.4,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T00:54:37.210348+00:00",
+      "elapsed_ms": 4066.0,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"会话序号 100–110 之间没有消息，返回 0 条。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9111a372560d488ec485cd400973ef7fa819fa842cfd8321d740e3a3a916cef9",
+          "decision_shape_fingerprint": "17622268be5160785a45cae4197383bb74e43c9f0b0ad79c99d5aec0dc43d8b7",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_career_episodes",
+            "propose_constraint_retirement",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4062.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:54:38.485722+00:00",
+      "elapsed_ms": 3775.0,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"会话序号 100–110 区间内没有任何消息（返回 0/0 条）。目前对话只进行到第 10 条左右，所以这个范围是空的。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9111a372560d488ec485cd400973ef7fa819fa842cfd8321d740e3a3a916cef9",
+          "decision_shape_fingerprint": "17622268be5160785a45cae4197383bb74e43c9f0b0ad79c99d5aec0dc43d8b7",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_career_episodes",
+            "propose_constraint_retirement",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3770.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:54:44.505780+00:00",
+      "elapsed_ms": 9556.1,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"会话序号 100–110 范围内没有消息，该区间为空。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9111a372560d488ec485cd400973ef7fa819fa842cfd8321d740e3a3a916cef9",
+          "decision_shape_fingerprint": "17622268be5160785a45cae4197383bb74e43c9f0b0ad79c99d5aec0dc43d8b7",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_career_episodes",
+            "propose_constraint_retirement",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 9552.0,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "会话序号 100–110 之间没有消息，返回了 0/0 条。\n\n目前对话只进行到第 10 条消息（你刚才问美团 JD 怎么样），所以 100–110 这个范围还没有产生任何内容。如果你是想查看更早的某段对话，请告诉我具体的序号范围，或者描述你想找的内容，我可以帮你检索。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "序号 100 到 110 的对话目前是空的，还没有这些记录。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

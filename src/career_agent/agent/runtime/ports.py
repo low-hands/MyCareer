@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from career_agent.agent.capabilities.search import SemanticCapabilityIndex
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.contracts.decisions import DecisionMaker
 from career_agent.agent.contracts.observations import ToolObservation
@@ -123,6 +124,9 @@ def update_atomic_task(
 @dataclass(frozen=True)
 class RuntimePorts:
     """Supported runtime substitutions, supplied explicitly at construction."""
+
+    # An explicit factory bypasses environment-based embedding initialization.
+    capability_scorer_factory: Callable[[], SemanticCapabilityIndex | None] | None = None
 
     project_atomic_tool_arguments: AtomicArgumentProjector = (
         project_atomic_tool_arguments

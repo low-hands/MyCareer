@@ -96,6 +96,25 @@ class RuntimeComponents:
     confirmation_coordinator: CapabilityConfirmationCoordinator
 
 
+def default_capability_scorer() -> SemanticCapabilityIndex | None:
+    semantic_index = None
+    try:
+        embedding_config = CareerEmbeddingConfig.optional_from_env()
+        if embedding_config is not None:
+            semantic_index = SemanticCapabilityIndex(
+                client=OpenAICompatibleEmbeddingClient(embedding_config),
+                query_client=OpenAICompatibleEmbeddingClient(
+                    embedding_config, timeout_seconds=3.0,
+                ),
+            )
+            semantic_index.warm()
+    except Exception:
+        _LOGGER.exception("capability index warmup failed; lexical search remains available")
+        semantic_index = None
+
+    return semantic_index
+
+
 def build_main_runtime_components(
     *,
     context_manager: ContextManager,
@@ -121,21 +140,11 @@ def build_main_runtime_components(
 ) -> RuntimeComponents:
     """Build every collaborator from explicit dependencies."""
 
-    semantic_index = None
-    try:
-        embedding_config = CareerEmbeddingConfig.optional_from_env()
-        if embedding_config is not None:
-            semantic_index = SemanticCapabilityIndex(
-                client=OpenAICompatibleEmbeddingClient(embedding_config),
-                query_client=OpenAICompatibleEmbeddingClient(
-                    embedding_config, timeout_seconds=3.0,
-                ),
-            )
-            semantic_index.warm()
-            tools.configure_capability_search(semantic_index)
-    except Exception:
-        _LOGGER.exception("capability index warmup failed; lexical search remains available")
-        semantic_index = None
+    semantic_index = (ports.capability_scorer_factory()
+                      if ports.capability_scorer_factory is not None
+                      else default_capability_scorer())
+    if semantic_index is not None:
+        tools.configure_capability_search(semantic_index)
 
     selection_strategy = SearchStrategy(semantic_index=semantic_index)
     decision_maker_slot.configure_selection(selection_strategy)

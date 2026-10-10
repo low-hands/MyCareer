@@ -75,6 +75,17 @@ def _emitted_states() -> set[str]:
     """
     source = _TOOLS_SOURCE.read_text(encoding="utf-8")
     states = set(re.findall(r'state="([a-z_]+)"', source))
+    # Both branches of conditional state expressions are real emitters.
+    # The previous literal-only regex missed all four empty-list states.
+    def literal_branches(node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return {node.value}
+        if isinstance(node, ast.IfExp):
+            return literal_branches(node.body) | literal_branches(node.orelse)
+        return set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.keyword) and node.arg == "state":
+            states.update(literal_branches(node.value))
     # ``invalid_input`` is emitted by the runtime's projection-refusal path,
     # not spelled as a tool-layer state literal. It belongs to the same
     # single-source-of-truth check, so the runtime source joins the scan.

@@ -1,5 +1,7 @@
 # Runtime 质量评估
 
+运行频率与录制范围遵循 [分层评估流程](../README.md)：每次改动跑确定性检查与离线重放；实验只重录受影响场景，通常各 10–30 次；最终提示/schema 固定后，合并前统一完成两套全量一次。下面的全量录制命令用于合并验证，不是日常实验默认动作。
+
 这套评估补齐多步任务、跨轮续接、欠行动、提示词注入红队和重复采样稳定性。`scenarios.json` 是开发者编写的诊断集，不是盲测，也不属于已冻结的 catalog-search holdout。不要用这里的脚本重跑该 holdout。
 
 ## 测量边界
@@ -19,8 +21,8 @@
 从仓库根目录运行，使用现有 `.env` 的两组连接。录制只发送合成场景。
 
 ```bash
-.venv/bin/python -m career_agent.evaluation.runtime_quality --record --env-prefix RESUME_ANALYSIS_AGENT --vendor qwen --root evals/runtime_quality/qwen --output evals/evaluation_restoration/qwen_runtime_report.json --k 3 --jobs 4
-.venv/bin/python -m career_agent.evaluation.runtime_quality --record --env-prefix MAIN_AGENT --vendor deepseek --root evals/runtime_quality/deepseek --output evals/evaluation_restoration/deepseek_runtime_report.json --k 3 --jobs 4
+.venv/bin/python -m career_agent.evaluation.runtime_quality --record --env-prefix RESUME_ANALYSIS_AGENT --vendor qwen --root output/merge-evaluation/qwen-runtime --output output/merge-evaluation/qwen-runtime-report.json --k 3 --jobs 4
+.venv/bin/python -m career_agent.evaluation.runtime_quality --record --env-prefix MAIN_AGENT --vendor deepseek --root output/merge-evaluation/deepseek-runtime --output output/merge-evaluation/deepseek-runtime-report.json --k 3 --jobs 4
 ```
 
 离线回放不需要 API 密钥，显式传模型名：
@@ -30,7 +32,7 @@
 .venv/bin/python -m career_agent.evaluation.runtime_quality --model deepseek-flash --root evals/runtime_quality/deepseek --output /tmp/deepseek-runtime-replay.json --k 3
 ```
 
-失败退出码是 1。必须检查 `status`：`failed` 表示已经测到失败，`stale`/`unrecorded`/`incomplete` 表示尚无可用质量结论。终止异常保留为失败样本，不丢弃、不补采成功样本改变分母。
+失败退出码是 1。必须检查 `status`：`failed` 表示已经测到失败，`stale`/`unrecorded`/`incomplete`/`missing_semantic_recording` 表示尚无可用质量结论。终止异常保留为失败样本，不丢弃、不补采成功样本改变分母。
 
 ## 原 47 条决策轨迹
 

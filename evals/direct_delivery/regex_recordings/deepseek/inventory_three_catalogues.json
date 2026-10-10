@@ -1,0 +1,501 @@
+{
+  "version": 1,
+  "model": "deepseek-flash",
+  "scenario": "inventory_three_catalogues",
+  "suite_fingerprint": "b981a232bd71df98f8543c9b4865086b6ca4ff0382f24403708d75fdedd96e9d",
+  "recorded_at": "2026-10-09T22:12:16.230405+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查看我的简历，再查看投递记录，最后查看面试安排。三项都查完后再一起告诉我结果。",
+          "assistant_message": "三项都已按顺序查完，结果如下（截至 2026-10-10 06:10 Asia/Shanghai）：\n\n1. **简历**：没有找到匹配的简历。你当前账号下没有可列出的简历版本。\n2. **投递记录**：没有找到投递记录。目前没有任何已跟踪的投递（含已投递、沟通中、面试中、已拒绝等各状态）。\n3. **面试安排**：没有找到面试安排。目前没有任何已识别的面试轮次。\n\n也就是说，简历库、投递跟踪和面试日程三项目前都是空的，没有可汇总的实质内容。\n\n需要我接着做点什么吗？例如：\n- 帮你梳理/新建目标岗位方向，便于后续投递跟踪；\n- 从招聘网站打开一次搜索页面，由你自己浏览岗位（搜索页需要你明确要求才会打开）；\n- 如果你手上已经有面试，告诉我公司、岗位、时间和形式，我可以记录面试安排并给出临时的准备计划（JD 和简历相关的针对性建议需要你随后补充材料）。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes",
+                  "list_applications",
+                  "list_interviews"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            },
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes",
+                      "list_applications",
+                      "list_interviews"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "dcc831a9f6c3c8d7eb4397728ca2724ddf12e5e4e5511b9c51d15f8a54c70fef",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"三项都已按顺序查完，结果如下（截至 2026-10-10 06:10 Asia/Shanghai）：\\n\\n1. **简历**：没有找到匹配的简历。你当前账号下没有可列出的简历版本。\\n2. **投递记录**：没有找到投递记录。目前没有任何已跟踪的投递（含已投递、沟通中、面试中、已拒绝等各状态）。\\n3. **面试安排**：没有找到面试安排。目前没有任何已识别的面试轮次。\\n\\n也就是说，简历库、投递跟踪和面试日程三项目前都是空的，没有可汇总的实质内容。\\n\\n需要我接着做点什么吗？例如：\\n- 帮你梳理/新建目标岗位方向，便于后续投递跟踪；\\n- 从招聘网站打开一次搜索页面，由你自己浏览岗位（搜索页需要你明确要求才会打开）；\\n- 如果你手上已经有面试，告诉我公司、岗位、时间和形式，我可以记录面试安排并给出临时的准备计划（JD 和简历相关的针对性建议需要你随后补充材料）。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 5
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查看我的简历，再查看投递记录，最后查看面试安排。三项都查完后再一起告诉我结果。",
+          "assistant_message": "三项都已查询完毕，结果如下：\n\n1. **简历**：没有找到任何简历记录。\n2. **投递记录**：没有找到任何投递记录。\n3. **面试安排**：没有找到任何面试轮次。\n\n也就是说，目前在系统中这三块都是空的。\n\n需要注意，这些查询结果只是\"当前没有匹配记录\"的回执，并不代表你从未有过相关经历，只是系统里尚未保存。\n\n如果你希望开始建立这些记录，可以告诉我，例如：\n- 上传或告诉我你现有的简历内容，我可以帮你登记简历信息；\n- 告诉我你在投递或有意向的岗位（公司 + 职位），我可以帮你建立投递记录；\n- 如果你已有面试安排，告诉我公司、职位、时间和形式，我可以帮你登记面试轮次，并可选地准备面试材料。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes",
+                  "list_applications",
+                  "list_interviews"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            },
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes",
+                      "list_applications",
+                      "list_interviews"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "dcc831a9f6c3c8d7eb4397728ca2724ddf12e5e4e5511b9c51d15f8a54c70fef",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"三项都已查询完毕，结果如下：\\n\\n1. **简历**：没有找到任何简历记录。\\n2. **投递记录**：没有找到任何投递记录。\\n3. **面试安排**：没有找到任何面试轮次。\\n\\n也就是说，目前在系统中这三块都是空的。\\n\\n需要注意，这些查询结果只是\\\"当前没有匹配记录\\\"的回执，并不代表你从未有过相关经历，只是系统里尚未保存。\\n\\n如果你希望开始建立这些记录，可以告诉我，例如：\\n- 上传或告诉我你现有的简历内容，我可以帮你登记简历信息；\\n- 告诉我你在投递或有意向的岗位（公司 + 职位），我可以帮你建立投递记录；\\n- 如果你已有面试安排，告诉我公司、职位、时间和形式，我可以帮你登记面试轮次，并可选地准备面试材料。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 5
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查看我的简历，再查看投递记录，最后查看面试安排。三项都查完后再一起告诉我结果。",
+          "assistant_message": "三项都查完了，结果如下：\n\n1. **简历**：没有找到匹配的简历 —— 你的简历库目前是空的。\n2. **投递记录**：没有找到投递记录 —— 还没有任何在跟踪的岗位投递。\n3. **面试安排**：没有找到面试安排 —— 目前没有已记录的面试轮次。\n\n也就是说，简历、投递、面试三块目前都是空的，相互之间也没有可对应的信息。\n\n如果你希望开始建立这些记录，可以告诉我：\n- 想先添加/整理一份简历（可以说明方向或标签）；\n- 或者先从招聘网站找岗位、收藏后创建投递记录；\n- 如果你已经收到了面试通知，也可以直接告诉我公司、岗位和时间，我帮你建立面试记录（如需要，也可以顺便关联到对应投递）。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            },
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "dcc831a9f6c3c8d7eb4397728ca2724ddf12e5e4e5511b9c51d15f8a54c70fef",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"三项都查完了，结果如下：\\n\\n1. **简历**：没有找到匹配的简历 —— 你的简历库目前是空的。\\n2. **投递记录**：没有找到投递记录 —— 还没有任何在跟踪的岗位投递。\\n3. **面试安排**：没有找到面试安排 —— 目前没有已记录的面试轮次。\\n\\n也就是说，简历、投递、面试三块目前都是空的，相互之间也没有可对应的信息。\\n\\n如果你希望开始建立这些记录，可以告诉我：\\n- 想先添加/整理一份简历（可以说明方向或标签）；\\n- 或者先从招聘网站找岗位、收藏后创建投递记录；\\n- 如果你已经收到了面试通知，也可以直接告诉我公司、岗位和时间，我帮你建立面试记录（如需要，也可以顺便关联到对应投递）。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "beb980966cadcf3f02f7485b034890abf8b8ded58a0fb59c44cb9a89c22f47be",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 5
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

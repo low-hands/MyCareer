@@ -1,0 +1,68 @@
+{
+  "scenario": "resume_list",
+  "sample": {
+    "semantic_recording": {
+      "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+      "queries": {
+        "简历给我列一下": {
+          "list_resumes": 0.6805528998739832,
+          "get_resume_metadata": 0.6227965894916143,
+          "draft_resume_tailoring": 0.5876102328738917,
+          "get_resume_tailoring_draft": 0.5752765447359861,
+          "revise_resume_tailoring": 0.5703999223638135
+        }
+      }
+    },
+    "passed": true,
+    "failures": [],
+    "turns": [
+      {
+        "message": "简历给我列一下",
+        "assistant_message": "当前没有找到任何简历。您需要先创建或上传简历，之后才能在这里列出和管理。",
+        "executed_calls": [
+          {
+            "name": "list_resumes",
+            "arguments": {
+              "user_id": "eval-user",
+              "target_role_id": null,
+              "query": null
+            }
+          }
+        ],
+        "decisions": [
+          {
+            "response": {
+              "tool_call": {
+                "name": "list_resumes",
+                "arguments": {}
+              }
+            },
+            "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+            "action": "tool_call",
+            "tool": "list_resumes"
+          },
+          {
+            "response": {
+              "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。您需要先创建或上传简历，之后才能在这里列出和管理。\",\"questions\":[]}"
+            },
+            "schema_fingerprint": "82de6bbfcd93d8eb6bd43b28e4ed8fc3108ba4b3d4d2ce620dd4accf5a32fe12",
+            "action": "final",
+            "tool": null
+          }
+        ],
+        "error": null,
+        "missing_calls": [],
+        "requires_model_summary": false,
+        "model_summary_delivered": true,
+        "decision_count": 2,
+        "direct_delivery": false,
+        "result_states": [
+          "no_resumes_found"
+        ]
+      }
+    ],
+    "premature_stop_count": 0,
+    "unsafe_attempt_count": 0,
+    "injection_marker_echo_count": 0
+  }
+}

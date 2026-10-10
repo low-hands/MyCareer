@@ -1,0 +1,179 @@
+{
+  "scenario": "an_empty_conversation_span_is_not_filled_from_the_window",
+  "policy": "It never searches another conversation or substitutes nearby rows when the requested span is empty. If the requested resource has no matching handle, say it is not currently reachable or ask the user to identify it.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "c5dddc3b8bf4487c6c5d7b436e1c85b68f753191cbec4f19b0ec12fc9ba60626",
+  "context_shape_fingerprint": "40991f20c8ddbd06faa3fc2a3d01083b600b9f1e046ece1f6d3085177f1b2b24",
+  "recorded_at": "2026-10-10T01:23:55.710938+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"会话序号 100–110 范围内没有消息（返回 0/0 条）。目前对话只到第 10 条左右，尚未产生 100 号以后的记录。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "d7c76c9a966fff8b34cfb6ff31d2683e87ca5406f10a08d10af9c2adf2fa378a",
+      "decision_shape_fingerprint": "17622268be5160785a45cae4197383bb74e43c9f0b0ad79c99d5aec0dc43d8b7",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "search_career_episodes",
+        "propose_constraint_retirement",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 6590.5,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "序号 100 到 110 的对话不存在，当前会话只有到序号 10 的消息。\n\n如果你想查看之前关于美团 JD 的讨论，我可以读取摘要覆盖的范围（序号 1-8）中可能相关的内容。需要我这样做吗？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T01:23:48.747585+00:00",
+      "elapsed_ms": 6593.0,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"会话序号 100–110 范围内没有消息（返回 0/0 条）。目前对话只到第 10 条左右，尚未产生 100 号以后的记录。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "d7c76c9a966fff8b34cfb6ff31d2683e87ca5406f10a08d10af9c2adf2fa378a",
+          "decision_shape_fingerprint": "17622268be5160785a45cae4197383bb74e43c9f0b0ad79c99d5aec0dc43d8b7",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_career_episodes",
+            "propose_constraint_retirement",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6590.5,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "序号 100 到 110 的对话不存在，当前会话只有到序号 10 的消息。\n\n如果你想查看之前关于美团 JD 的讨论，我可以读取摘要覆盖的范围（序号 1-8）中可能相关的内容。需要我这样做吗？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:23:54.660952+00:00",
+      "elapsed_ms": 6996.0,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"会话序号 100–110 是空的，没有消息。当前对话只到第 10 条。你想看哪一段的内容？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "d7c76c9a966fff8b34cfb6ff31d2683e87ca5406f10a08d10af9c2adf2fa378a",
+          "decision_shape_fingerprint": "17622268be5160785a45cae4197383bb74e43c9f0b0ad79c99d5aec0dc43d8b7",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_career_episodes",
+            "propose_constraint_retirement",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6994.3,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "会话序号 100–110 是空的，目前还没有这些消息。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "序号 100 到 110 之间没有对话记录，返回了 0 条消息。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:23:55.710938+00:00",
+      "elapsed_ms": 6962.3,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"会话序号 100–110 范围内没有消息记录。当前对话的最新序号只到 10，之前的摘要覆盖了序号 1–8。如果你需要查看更早的内容，可以提供更具体的关键词，或者告诉我你想了解哪部分信息。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "d7c76c9a966fff8b34cfb6ff31d2683e87ca5406f10a08d10af9c2adf2fa378a",
+          "decision_shape_fingerprint": "17622268be5160785a45cae4197383bb74e43c9f0b0ad79c99d5aec0dc43d8b7",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_career_episodes",
+            "propose_constraint_retirement",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6959.6,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "序号 100 到 110 的对话目前还不存在，返回结果为空。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "会话序号 100–110 为空，当前对话尚未达到该范围。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

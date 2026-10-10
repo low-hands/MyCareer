@@ -1,0 +1,21 @@
+{
+  "status": "failed",
+  "exception_chain": [
+    {
+      "type": "AgentWorkerError",
+      "code": "MAIN_AGENT_TRANSPORT_ERROR"
+    },
+    {
+      "type": "APIConnectionError",
+      "code": null
+    },
+    {
+      "type": "ConnectError",
+      "code": null
+    },
+    {
+      "type": "ConnectError",
+      "code": null
+    }
+  ]
+}

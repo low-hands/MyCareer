@@ -1,0 +1,54 @@
+{
+  "scenario": "saved_jd_body_without_language_requirement_finishes",
+  "sample": 26,
+  "started_at": "2026-10-10T01:24:03.127888+00:00",
+  "recording": {
+    "recorded_at": "2026-10-10T01:24:08.016312+00:00",
+    "elapsed_ms": 4887.6,
+    "steps": [
+      {
+        "tool_call": {
+          "name": "analyze_job",
+          "arguments": {}
+        },
+        "scenario_step": 0,
+        "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
+        "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+        "offered_tools": [
+          "load_skill",
+          "fetch_archived_constraints",
+          "search_career_memory",
+          "get_saved_job",
+          "analyze_job",
+          "create_interview",
+          "search_capabilities"
+        ],
+        "elapsed_ms": 4884.9,
+        "model_request_count": 2,
+        "decision_retry_telemetry_version": 1,
+        "decision_retry_events": [
+          {
+            "reason": "text_rejected",
+            "retried": true,
+            "forced_interaction": false,
+            "raw_output": {
+              "content": "完整 JD 中没有明确要求 Rust。根据你的指示，到这里为止。",
+              "tool_calls": []
+            },
+            "decision_invocation": 1
+          }
+        ],
+        "recording_retry_events": [],
+        "decision_invocations": 1
+      }
+    ]
+  },
+  "passed": false,
+  "failures": [
+    "saved_jd_body_without_language_requirement_finishes[0]: expected action 'final', got 'tool_call' calling 'analyze_job'"
+  ],
+  "quality_failures": [],
+  "prompt_fingerprint": "63aedcc812e4259976611ee9a7da7414c1d3e1e7cc0abb0a10f4041d8b024e9b",
+  "model": "qwen3.7-plus",
+  "source_arm": "baseline"
+}

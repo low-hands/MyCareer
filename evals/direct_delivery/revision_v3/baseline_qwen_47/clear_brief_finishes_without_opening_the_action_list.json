@@ -1,0 +1,111 @@
+{
+  "scenario": "clear_brief_finishes_without_opening_the_action_list",
+  "policy": "Tool observation facts are approved decision values. When the user explicitly asks for a conditional follow-up, finish when the overdue count is zero instead of opening the action list.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "df54d2f2e0fe43dd61f644665324fda9380cefc8c5f284fecfa0378c079bd6fa",
+  "context_shape_fingerprint": "370de30aa7f9707dc24625fe093b1a985f6009feddd2a0b2431eb65d3d74908a",
+  "recorded_at": "2026-10-09T18:17:21.803560+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"今日简报显示有4项今日到期事项，但没有逾期事项。按照您的要求，无需打开行动清单选择处理顺序，本次任务已完成。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+      "decision_shape_fingerprint": "eea18c9d898b215f18115e888f60c2bcca4efadb3f5c53bac39e3ea916de1bbd",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_daily_brief",
+        "list_action_items",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3035.9,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-09T18:17:20.752776+00:00",
+      "elapsed_ms": 3039.7,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"今日简报显示有4项今日到期事项，但没有逾期事项。按照您的要求，无需打开行动清单选择处理顺序，本次任务已完成。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "decision_shape_fingerprint": "eea18c9d898b215f18115e888f60c2bcca4efadb3f5c53bac39e3ea916de1bbd",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3035.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-09T18:17:21.144933+00:00",
+      "elapsed_ms": 3121.0,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"今日简报显示没有逾期事项（0 个逾期，4 个今天到期，9 个等待中）。按照你的要求，无需打开行动清单，流程结束。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "decision_shape_fingerprint": "eea18c9d898b215f18115e888f60c2bcca4efadb3f5c53bac39e3ea916de1bbd",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3118.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-09T18:17:21.803560+00:00",
+      "elapsed_ms": 3277.3,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"今日简报显示有 4 个今日到期事项和 9 个等待中事项，但没有逾期项目。按照您的要求，无需打开行动清单，任务已完成。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "decision_shape_fingerprint": "eea18c9d898b215f18115e888f60c2bcca4efadb3f5c53bac39e3ea916de1bbd",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3273.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}
