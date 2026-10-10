@@ -169,6 +169,11 @@ def summarize(path: Path, *, since: str | None = None, until: str | None = None,
             by_phase["summary_compaction"].extend(e for e in group if e["event_type"] in
                                                  {"context_compacted", "context_compaction_failed"})
     phases = {name: _stats(group, ids) for name, group in by_phase.items()}
+    phases["summary_compaction"]["execution_mode"] = {
+        label: _stats([e for e in by_phase["summary_compaction"]
+            if bool(e["details"].get("background")) == background], ids)
+        for label, background in (("foreground_or_legacy", False), ("background", True))
+    }
     decision_requests = Counter()
     request_count_unknown = 0
     for event in by_phase["decision"]:
@@ -248,6 +253,12 @@ def markdown(report: dict[str, Any]) -> str:
         lines.append(f"| {name} | {stats['started_count'] if name in {'decision', 'specialist_worker'} else '—'} | {stats['completed_count']} | {stats['outcomes'].get('failed', 0)} | {stats['missing_duration_count']} | {number(stats['operation_duration_ms']['p50'])} | {number(stats['operation_duration_ms']['p95'])} | {number(stats['per_run_count']['mean'])} | {number(stats['per_run_duration_ms']['mean']) if stats['completed_count'] else '—'} | {number(stats['per_run_duration_ms']['p95'])} |")
     lines += ["", "首个决策上下文字符数：" + json.dumps(report["first_decision_context_chars"], ensure_ascii=False), ""]
     lines += [f"决策模型请求数（包含内部重试）：{number(report['phases']['decision']['provider_request_count'])}。", ""]
+    modes = report["phases"]["summary_compaction"].get("execution_mode", {})
+    if modes:
+        lines += ["摘要执行方式（后台耗时不能计作当前轮等待）：", "", "| 方式 | 次数 | 总耗时 ms |", "|---|---:|---:|"]
+        for label, stats in modes.items():
+            lines.append(f"| {label} | {stats['completed_count']} | {number(stats['operation_duration_ms']['total'])} |")
+        lines += ["", "后台事件可能晚于 turn_completed；trace 跨度不能替代整轮 wall time。", ""]
     tail = report["post_tool_reply"]
     lines += ["## 工具后模型动作（final 与 ask_user 分开）", "",
               "ask_user 次数及耗时（ms）：" + json.dumps(tail["ask_user_reply"]["operation_duration_ms"], ensure_ascii=False),

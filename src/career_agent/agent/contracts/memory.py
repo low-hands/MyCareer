@@ -178,10 +178,38 @@ class StoredConversationSummary(ConversationMemoryContract):
     updated_at: datetime
 
 
+class ConversationSummaryDelta(ConversationMemoryContract):
+    """Worker-only output. The harness owns preservation and the visible cap."""
+
+    new_facts: tuple[SummaryKeyFact, ...] = Field(default=(), max_length=12)
+    superseded_fact_ids: tuple[str, ...] = Field(default=(), max_length=12)
+    user_goals: tuple[str, ...] = Field(default=(), max_length=10)
+    confirmed_decisions: tuple[str, ...] = Field(default=(), max_length=20)
+    unresolved_questions: tuple[str, ...] = Field(default=(), max_length=10)
+    active_constraints: tuple[str, ...] = Field(default=(), max_length=ACTIVE_CONSTRAINT_MAX_ITEMS)
+    long_term_memory_candidates: tuple[DistilledFreeTextPreferenceCandidate, ...] = Field(default=(), max_length=8)
+
+    _discard_candidates = field_validator("long_term_memory_candidates", mode="before")(
+        ConversationSummaryContent.discard_invalid_memory_candidates.__func__
+    )
+
+    @model_validator(mode="after")
+    def bound_text(self) -> "ConversationSummaryDelta":
+        # Reuse the existing non-fact budgets without changing the main-agent
+        # summary schema. new_facts are independently bounded above.
+        ConversationSummaryContent(
+            key_facts=self.new_facts, user_goals=self.user_goals,
+            confirmed_decisions=self.confirmed_decisions,
+            unresolved_questions=self.unresolved_questions,
+            active_constraints=self.active_constraints,
+        )
+        return self
+
+
 class ConversationSummaryWorker(Protocol):
     def summarize(
         self,
         *,
         previous: ConversationSummaryContent | None,
         messages: tuple[SummaryMessage, ...],
-    ) -> ConversationSummaryContent: ...
+    ) -> ConversationSummaryContent | ConversationSummaryDelta: ...

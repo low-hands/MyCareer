@@ -10,7 +10,7 @@ from time import perf_counter
 
 from dotenv import load_dotenv
 from career_agent.agent.context.deployment import ConversationSummaryAgentConfig
-from career_agent.agent.contracts.memory import SummaryMessage
+from career_agent.agent.contracts.memory import SummaryMessage, ConversationSummaryDelta
 from career_agent.agent.providers.openai_client import OpenAICompatibleAgentConfig
 from career_agent.agent.providers.conversation_summary import OpenAIConversationSummaryWorker
 
@@ -50,15 +50,8 @@ def main():
               'model': config.provider.model, 'disable_thinking': config.disable_thinking,
               'timeout_seconds': config.provider.timeout_seconds, 'max_output_tokens': config.max_output_tokens,
               'attempts': []}
-    rounds = None
     if args.cumulative_fixture:
-        rounds = json.loads(args.cumulative_fixture.read_text())['rounds']
-        if len(rounds) != args.samples:
-            parser.error('fixed round count must equal samples')
-        report['measurement'] = 'one_chain_of_dependent_compactions'
-        report['cumulative_fixture_sha256'] = hashlib.sha256(args.cumulative_fixture.read_bytes()).hexdigest()
-    previous = None
-    pending = ()
+        parser.error('Legacy rolling probe is historical; use probe_incremental_summary.py for ledger-backed accumulation')
     diagnostics = []
     if args.diagnostic:
         from types import SimpleNamespace
@@ -74,12 +67,12 @@ def main():
                           'content_characters': len(choice.message.content or '') if choice else 0}
             try:
                 decoded = json.loads(choice.message.content or '')
-                required = set(ConversationSummaryContent.model_fields) - HARNESS_SUMMARY_COUNTER_FIELDS
+                required = set(ConversationSummaryDelta.model_fields)
                 diagnostic['missing_fields'] = sorted(required - set(decoded))
                 diagnostic['extra_field_count'] = len(set(decoded) - required)
-                diagnostic['overlong_fact_count'] = sum(isinstance(f, dict) and isinstance(f.get('fact'), str) and len(f['fact']) > 200 for f in decoded.get('key_facts', []))
+                diagnostic['overlong_fact_count'] = sum(isinstance(f, dict) and isinstance(f.get('fact'), str) and len(f['fact']) > 200 for f in decoded.get('new_facts', []))
                 try:
-                    ConversationSummaryContent.model_validate(decoded)
+                    ConversationSummaryDelta.model_validate(decoded)
                     diagnostic['raw_pydantic_valid'] = True
                 except Exception as error:
                     diagnostic['raw_pydantic_valid'] = False
@@ -93,17 +86,9 @@ def main():
     for index in range(report['fixed_samples']):
         start = perf_counter()
         row = {'sample': index + 1}
-        if rounds is not None:
-            pending += tuple(SummaryMessage.model_validate(m) for m in rounds[index])
-            row['previous_fact_count'] = len(previous.key_facts) if previous else 0
-            row['pending_message_count'] = len(pending)
-            row['previous_characters'] = len(previous.model_dump_json()) if previous else 0
         try:
-            result = worker.summarize(previous=previous, messages=pending if rounds is not None else messages)
-            row.update(status='succeeded', key_fact_count=len(result.key_facts), summary_characters=len(result.model_dump_json()))
-            if rounds is not None:
-                previous = result
-                pending = ()
+            result = worker.summarize(previous=None, messages=messages)
+            row.update(status='succeeded', new_fact_count=len(result.new_facts), summary_characters=len(result.model_dump_json()))
         except Exception as error:
             row.update(status='failed', error_code=getattr(error, 'code', type(error).__name__))
         row['wall_ms'] = round((perf_counter() - start) * 1000)

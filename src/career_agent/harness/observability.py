@@ -57,6 +57,7 @@ EventType = Literal[
     "write_outcome_unknown",
     "presentation_degraded",
     "context_compacted",
+    "context_compaction_scheduled",
     "summary_facts_dropped",
     # The complete-request estimate a load took, as numbers. Paired with the
     # run's first model_succeeded it gives estimator against provider count,
@@ -192,6 +193,9 @@ def record_active_trace(
         return
 
 
+BACKGROUND_PROVIDER_CALL: ContextVar[bool] = ContextVar("background_provider_call", default=False)
+
+
 TraceStage = str | Callable[..., str]
 
 
@@ -222,6 +226,7 @@ def traced_provider_call(stage: str):
                     "provider_request", stage, outcome=outcome,
                     duration_ms=int((perf_counter() - started) * 1000),
                     error_code=error_code,
+                    details={"background": True} if BACKGROUND_PROVIDER_CALL.get() else None,
                 )
         return wrapped
     return decorate

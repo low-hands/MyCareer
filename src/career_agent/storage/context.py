@@ -40,7 +40,9 @@ from career_agent.agent.contracts.memory import (
     SUMMARY_SOURCE_MAX_CHARS,
     StoredConversationSummary,
     SummaryMessage,
+    SummaryKeyFact,
 )
+from career_agent.storage.summary_facts import ensure_schema as ensure_fact_schema, reconcile as reconcile_facts
 from career_agent.agent.contracts.session import AgentSession
 from career_agent.domain.episodes import CareerEpisodeDraft
 from career_agent.domain.intent_memory import IntentMemoryVersion
@@ -257,7 +259,7 @@ class CareerContextStore:
             apply_schema(
                 connection,
                 "agent_context",
-                17,
+                18,
                 self._migrate,
                 {
                     2: self._upgrade_to_v2,
@@ -276,9 +278,11 @@ class CareerContextStore:
                     15: self._upgrade_to_v15,
                     16: self._upgrade_to_v16,
                     17: self._upgrade_to_v17,
+                    18: ensure_fact_schema,
                 },
             )
             apply_episode_schema(connection)
+            ensure_fact_schema(connection)
             self._adopt_legacy_preferences(connection)
         os.chmod(self.path, 0o600)
 
@@ -928,6 +932,7 @@ class CareerContextStore:
                 "conversation_message_memory_bindings",
                 "memory_deletion_message_suppressions",
                 "conversation_constraint_archive",
+                "conversation_fact_archive",
             ):
                 connection.execute(
                     f"DELETE FROM {table} WHERE user_id = ? AND conversation_id = ?",
@@ -2828,6 +2833,12 @@ class CareerContextStore:
                     """,
                     (user_id, *affected_conversations),
                 )
+            if affected_conversations:
+                connection.execute(
+                    f"DELETE FROM conversation_fact_archive WHERE user_id=? AND conversation_id IN ({placeholders}) "
+                    "AND NOT EXISTS (SELECT 1 FROM conversation_summaries AS kept WHERE kept.user_id=conversation_fact_archive.user_id AND kept.conversation_id=conversation_fact_archive.conversation_id)",
+                    (user_id, *affected_conversations),
+                )
             episode_count = sum(
                 SQLiteCareerEpisodeStore.delete_for_scope_on(
                     connection,
@@ -2996,6 +3007,17 @@ class CareerContextStore:
             )
         return True
 
+    def list_summary_facts(self, *, user_id: str, conversation_id: str, statuses=("active", "archived")) -> tuple[SummaryKeyFact, ...]:
+        if not statuses or any(status not in {"active", "archived", "superseded"} for status in statuses):
+            raise ValueError("Invalid fact ledger statuses")
+        placeholders = ",".join("?" for _ in statuses)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"SELECT fact,source_sequence FROM conversation_fact_archive WHERE user_id=? AND conversation_id=? AND status IN ({placeholders}) ORDER BY source_sequence,fact_id",
+                (user_id, conversation_id, *statuses),
+            ).fetchall()
+        return tuple(SummaryKeyFact(fact=row[0], source_sequence=row[1]) for row in rows)
+
     def compact_conversation_summary(
         self,
         *,
@@ -3008,6 +3030,9 @@ class CareerContextStore:
         preference_candidates: Sequence[
             DistilledFreeTextPreferenceCandidate
         ] = (),
+        all_facts: Sequence[SummaryKeyFact] | None = None,
+        superseded_fact_ids: Sequence[str] = (),
+        expected_messages: Sequence[SummaryMessage] | None = None,
     ) -> bool:
         """Store one summary and reconcile the constraint ledger with it.
 
@@ -3033,6 +3058,15 @@ class CareerContextStore:
             current_through = row[0] if row else 0
             if current_through != expected_previous_through_sequence:
                 return False
+            if expected_messages is not None:
+                if not connection.execute("SELECT 1 FROM sessions WHERE user_id=? AND session_id=?", (user_id, conversation_id)).fetchone():
+                    return False
+                # A background result may outlive deletion or suppression. CAS
+                # on the watermark alone cannot detect deletion back to zero.
+                actual = self.list_messages_after(user_id=user_id, conversation_id=conversation_id,
+                    after_sequence=expected_previous_through_sequence, limit=len(expected_messages))
+                if tuple(actual) != tuple(expected_messages):
+                    return False
             retired = {
                 str(retired_row[0])
                 for retired_row in connection.execute(
@@ -3086,6 +3120,9 @@ class CareerContextStore:
                 content = content.model_copy(
                     update={"active_constraints": tuple(visible)}
                 )
+            reconcile_facts(connection, user_id=user_id, conversation_id=conversation_id,
+                facts=all_facts if all_facts is not None else content.key_facts,
+                visible=content.key_facts, superseded=superseded_fact_ids)
             connection.execute(
                 """
                 INSERT INTO conversation_summaries(

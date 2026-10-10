@@ -65,7 +65,7 @@ def test_provider_probe_requires_valid_structured_content_not_just_http_200(
         if len(requests) < 3:
             return completion(minimal)
         return completion(json.dumps({
-            "key_facts": [],
+            "new_facts": [], "superseded_fact_ids": [],
             "user_goals": [], "confirmed_decisions": ["Use SQLite"],
             "unresolved_questions": [], "active_constraints": [],
             "long_term_memory_candidates": [],

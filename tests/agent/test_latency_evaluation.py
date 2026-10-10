@@ -233,3 +233,26 @@ def test_provider_trace_keeps_specific_worker_error_code():
     event = recorder.snapshot("run").events[0]
     assert event.error_code == "CONVERSATION_SUMMARY_TIMEOUT"
     assert "private body" not in str(event)
+
+
+def test_background_summary_timing_is_labelled_and_reported_separately(tmp_path):
+    from career_agent.harness.observability import BACKGROUND_PROVIDER_CALL
+    @traced_provider_call("conversation_summary")
+    def summarize_stub():
+        return "ok"
+    recorder = InMemoryTraceRecorder()
+    trace_token = ACTIVE_TRACE_CONTEXT.set((recorder, "background"))
+    mode_token = BACKGROUND_PROVIDER_CALL.set(True)
+    try:
+        assert summarize_stub() == "ok"
+    finally:
+        BACKGROUND_PROVIDER_CALL.reset(mode_token)
+        ACTIVE_TRACE_CONTEXT.reset(trace_token)
+    assert recorder.snapshot("background").events[0].details == {"background": True}
+    path = tmp_path / "trace.sqlite3"
+    trace = SQLiteTraceRecorder(path)
+    trace.record("r", "provider_request", "conversation_summary", outcome="succeeded", duration_ms=15000, details={"background": True})
+    trace.record("r", "provider_request", "conversation_summary", outcome="succeeded", duration_ms=20)
+    mode = summarize(path)["phases"]["summary_compaction"]["execution_mode"]
+    assert mode["background"]["operation_duration_ms"]["total"] == 15000
+    assert mode["foreground_or_legacy"]["operation_duration_ms"]["total"] == 20

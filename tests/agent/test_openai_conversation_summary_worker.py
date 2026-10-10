@@ -48,7 +48,8 @@ def test_summary_worker_merges_structured_previous_and_messages() -> None:
     client = Client(
         json.dumps(
             {
-                "key_facts": [{"fact": "Track my applications", "source_sequence": 9}],
+                "new_facts": [{"fact": "Track my applications", "source_sequence": 9}],
+                "superseded_fact_ids": [],
                 "user_goals": ["Track applications"],
                 "confirmed_decisions": ["Use SQLite"],
                 "unresolved_questions": ["When to send a follow-up?"],
@@ -82,7 +83,7 @@ def test_summary_worker_merges_structured_previous_and_messages() -> None:
     )
 
     assert result.user_goals == ("Track applications",)
-    assert result.key_facts[0].source_sequence == 9
+    assert result.new_facts[0].source_sequence == 9
     assert result.long_term_memory_candidates[0].topic_key == "application_tracking"
     request = json.loads(client.completions.kwargs["messages"][1]["content"])
     assert request["previous_summary"]["confirmed_decisions"] == ["Use SQLite"]
@@ -122,7 +123,8 @@ def test_summary_worker_drops_bad_optional_candidate_without_losing_summary() ->
     client = Client(
         json.dumps(
             {
-                "key_facts": [],
+                "new_facts": [],
+                "superseded_fact_ids": [],
                 "user_goals": ["Find a suitable role"],
                 "confirmed_decisions": ["Search this week"],
                 "unresolved_questions": [],
@@ -189,21 +191,21 @@ def test_summary_worker_client_does_not_retry(monkeypatch) -> None:
 def test_summary_fact_budget_drops_one_fact_and_preserves_the_others() -> None:
     from career_agent.harness.observability import ACTIVE_TRACE_CONTEXT, InMemoryTraceRecorder
     decoded = {name: [] for name in (
-        "key_facts", "user_goals", "confirmed_decisions",
+        "new_facts", "superseded_fact_ids", "user_goals", "confirmed_decisions",
         "unresolved_questions", "active_constraints", "long_term_memory_candidates",
     )}
-    decoded["key_facts"] = [{"fact": "x" * 194 + "薪资 300k", "source_sequence": 1}, {"fact": "Keep this", "source_sequence": 2}]
+    decoded["new_facts"] = [{"fact": "x" * 194 + "薪资 300k", "source_sequence": 1}, {"fact": "Keep this", "source_sequence": 2}]
     client = Client(json.dumps(decoded))
     worker = OpenAIConversationSummaryWorker(config(), client=client, disable_thinking=True)
     recorder = InMemoryTraceRecorder()
     token = ACTIVE_TRACE_CONTEXT.set((recorder, "summary"))
     try:
-        result = worker.summarize(previous=None, messages=(SummaryMessage(sequence=1, role="user", content="hello"),))
+        result = worker.summarize(previous=None, messages=(SummaryMessage(sequence=1, role="user", content="hello"), SummaryMessage(sequence=2, role="assistant", content="Keep this")))
     finally:
         ACTIVE_TRACE_CONTEXT.reset(token)
-    assert len(result.key_facts) == 1
-    assert result.key_facts[0].fact == "Keep this"
-    assert result.key_facts[0].source_sequence == 2
+    assert len(result.new_facts) == 1
+    assert result.new_facts[0].fact == "Keep this"
+    assert result.new_facts[0].source_sequence == 2
     events = [event for event in recorder.snapshot("summary").events if event.event_type == "summary_facts_dropped"]
     assert len(events) == 1
     assert events[0].details == {"overlong_fact_count": 1}
@@ -219,11 +221,30 @@ def test_summary_fact_budget_drops_one_fact_and_preserves_the_others() -> None:
 
 def test_fact_dropping_does_not_salvage_missing_provenance() -> None:
     decoded = {name: [] for name in (
-        "key_facts", "user_goals", "confirmed_decisions",
+        "new_facts", "superseded_fact_ids", "user_goals", "confirmed_decisions",
         "unresolved_questions", "active_constraints", "long_term_memory_candidates",
     )}
-    decoded["key_facts"] = [{"fact": "x" * 201}]
+    decoded["new_facts"] = [{"fact": "x" * 201}]
     worker = OpenAIConversationSummaryWorker(config(), client=Client(json.dumps(decoded)))
     with pytest.raises(AgentWorkerError) as error:
         worker.summarize(previous=None, messages=(SummaryMessage(sequence=1, role="user", content="hello"),))
     assert error.value.code == "CONVERSATION_SUMMARY_INVALID_RESPONSE"
+
+
+def test_discard_counter_is_not_recorded_when_the_whole_delta_is_invalid() -> None:
+    from career_agent.harness.observability import ACTIVE_TRACE_CONTEXT, InMemoryTraceRecorder
+    decoded = {name: [] for name in (
+        "new_facts", "superseded_fact_ids", "user_goals", "confirmed_decisions",
+        "unresolved_questions", "active_constraints", "long_term_memory_candidates",
+    )}
+    decoded["new_facts"] = [{"fact": "x" * 201, "source_sequence": 1}]
+    decoded["user_goals"] = ["x" * 501]
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "summary"))
+    try:
+        with pytest.raises(AgentWorkerError):
+            OpenAIConversationSummaryWorker(config(), client=Client(json.dumps(decoded))).summarize(
+                previous=None, messages=(SummaryMessage(sequence=1, role="user", content="hello"),))
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+    assert not any(event.event_type == "summary_facts_dropped" for event in recorder.snapshot("summary").events)
