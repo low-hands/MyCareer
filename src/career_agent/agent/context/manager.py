@@ -106,17 +106,23 @@ class WorkingNotesSource(Protocol):
 class _Pressure:
     """How full the next request is expected to be, and how that was known."""
 
-    occupancy: float | None
-    """``None`` when nothing was measured, which never triggers compaction."""
-
-    projection_overflow: bool
+    request_occupancy: float | None
+    """Unavailable without a complete-request estimator; recent pressure remains."""
+    recent_occupancy: float
+    through_sequence: int
     request_tokens: int | None
     max_input_tokens: int | None
     context: MainAgentContext | None
     """The context built to measure, so a load that does not compact can use it
     instead of building again. Only the estimated path builds one."""
 
-    source: Literal["estimated", "carried", "legacy", "seam", "overflow_only"]
+    source: Literal["estimated", "carried", "legacy"]
+
+    def exceeds(self, threshold: float) -> bool:
+        return (
+            self.request_occupancy is not None
+            and self.request_occupancy >= threshold
+        ) or self.recent_occupancy >= threshold
 
 
 CompactionPhase = Literal["load", "commit"]
@@ -388,6 +394,7 @@ class ContextManager:
                 conversation_id=conversation_id,
                 context=pressure.context,
                 measured=(pressure.request_tokens, pressure.max_input_tokens),
+                recent_occupancy=pressure.recent_occupancy,
             )
             return pressure.context
         context = self._build_context(
@@ -410,6 +417,7 @@ class ContextManager:
         conversation_id: str,
         context: MainAgentContext,
         measured: tuple[int, int] | None,
+        recent_occupancy: float | None = None,
     ) -> None:
         """Leave this load's complete-request estimate for the turn's commit.
 
@@ -429,6 +437,12 @@ class ContextManager:
         request_tokens, max_input_tokens = (
             measured if measured is not None else self._estimate_request(context)
         )
+        if recent_occupancy is None:
+            recent_occupancy = self._recent_token_occupancy(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                after_sequence=context.through_sequence,
+            )
         self._carried_request_tokens[(user_id, conversation_id)] = (
             request_tokens,
             max_input_tokens,
@@ -452,6 +466,8 @@ class ContextManager:
                 # they are on its short allowlist of cache metrics.
                 "input_occupancy_numerator": request_tokens,
                 "input_occupancy_denominator": max_input_tokens,
+                "request_occupancy": request_tokens / max_input_tokens,
+                "recent_occupancy": recent_occupancy,
             },
         )
 
@@ -1195,7 +1211,20 @@ class ContextManager:
             }
         )
 
-    def commit_turn(self, *, context: MainAgentContext, task: ConversationTaskState, assistant_message: str, assistant_resource_refs: tuple[ConversationResourceReference, ...] = (), assistant_bodies: tuple[DeliveredBodyDraft, ...] = (), compaction_trigger: Literal["occupancy", "seam"] = "occupancy", episode_drafts: tuple[CareerEpisodeDraft, ...] = (), memory_scope_keys: tuple[str, ...] = (), turn_id: str | None = None, user_resource_refs: tuple[ConversationResourceReference, ...] | None = None, user_message_at: datetime | None = None) -> None:
+    def commit_turn(
+        self,
+        *,
+        context: MainAgentContext,
+        task: ConversationTaskState,
+        assistant_message: str,
+        assistant_resource_refs: tuple[ConversationResourceReference, ...] = (),
+        assistant_bodies: tuple[DeliveredBodyDraft, ...] = (),
+        episode_drafts: tuple[CareerEpisodeDraft, ...] = (),
+        memory_scope_keys: tuple[str, ...] = (),
+        turn_id: str | None = None,
+        user_resource_refs: tuple[ConversationResourceReference, ...] | None = None,
+        user_message_at: datetime | None = None,
+    ) -> None:
         now = datetime.now(timezone.utc)
         if user_resource_refs is None:
             user_resource_refs = context.user_input_resource_refs()
@@ -1228,13 +1257,12 @@ class ContextManager:
         self._maybe_summarize(
             user_id=context.profile.user_id,
             conversation_id=context.conversation_id,
-            trigger=compaction_trigger,
+            trigger="occupancy",
             phase="commit",
             measure=lambda after_sequence: self._commit_pressure(
                 user_id=context.profile.user_id,
                 conversation_id=context.conversation_id,
                 after_sequence=after_sequence,
-                trigger=compaction_trigger,
                 carried=carried,
                 assistant_message=stored_assistant_message,
             ),
@@ -1339,7 +1367,6 @@ class ContextManager:
             assistant_message=assistant_message,
             assistant_resource_refs=assistant_resource_refs,
             assistant_bodies=assistant_bodies,
-            compaction_trigger="seam",
             episode_drafts=episode_drafts,
             turn_id=turn_id,
         )
@@ -1422,7 +1449,7 @@ class ContextManager:
         *,
         user_id: str,
         conversation_id: str,
-        trigger: Literal["occupancy", "seam"],
+        trigger: Literal["occupancy"],
         phase: CompactionPhase,
         measure: Callable[[int], _Pressure],
     ) -> _Pressure | None:
@@ -1439,37 +1466,24 @@ class ContextManager:
         """
         if self._summary_worker is None:
             return None
+        previous = self._store.get_conversation_summary(
+            user_id=user_id, conversation_id=conversation_id
+        )
+        pressure = measure(previous.through_sequence if previous else 0)
         if self._background_summary and phase == "commit":
-            previous = self._store.get_conversation_summary(
-                user_id=user_id, conversation_id=conversation_id
-            )
-            through_sequence = previous.through_sequence if previous else 0
-            pressure = measure(through_sequence)
-            if (
-                pressure.occupancy is not None
-                and pressure.occupancy >= self._compact_soft_threshold
-            ):
+            if pressure.exceeds(self._compact_soft_threshold):
                 self._schedule_summary(
                     user_id=user_id, conversation_id=conversation_id,
                     trigger="occupancy", phase=phase, pressure=pressure,
                 )
             return pressure
-        if self._background_summary:
-            previous = self._store.get_conversation_summary(
+        if not pressure.exceeds(self._compact_occupancy_threshold) or (
+            self._compaction_suspended(
                 user_id=user_id, conversation_id=conversation_id
             )
-            pressure = measure(previous.through_sequence if previous else 0)
-            hard_pressure = (
-                pressure.occupancy is not None
-                and pressure.occupancy >= self._compact_occupancy_threshold
-            )
-            if not hard_pressure or self._compaction_suspended(
-                user_id=user_id, conversation_id=conversation_id
-            ):
-                return pressure
-        if self._background_summary and not self._compaction_suspended(
-            user_id=user_id, conversation_id=conversation_id
         ):
+            return pressure
+        if self._background_summary:
             with self._summary_lock:
                 future = self._summary_jobs.get((user_id, conversation_id))
             if future is not None:
@@ -1486,10 +1500,16 @@ class ContextManager:
                     "context_compaction_waited", "conversation_summary",
                     outcome="succeeded" if outcome == "completed" else "failed",
                     duration_ms=round((monotonic() - started) * 1000),
-                    details={"phase": "load", "wait_result": outcome},
+                    details={
+                        "phase": "load",
+                        "wait_result": outcome,
+                        "request_occupancy": pressure.request_occupancy,
+                        "recent_occupancy": pressure.recent_occupancy,
+                    },
                 )
-        # Re-read the persisted watermark and remeasure after waiting, including
-        # failed/timed-out jobs. Never reuse a pre-wait context snapshot.
+                # Re-read the persisted watermark and remeasure after waiting,
+                # including failed/timed-out jobs. Never reuse a pre-wait context.
+                pressure = None
         return self._compact_one_batch(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -1497,6 +1517,7 @@ class ContextManager:
             phase=phase,
             require_occupancy=True,
             measure=measure,
+            pressure=pressure,
         )
 
     def _announce_compaction(self, phase: CompactionPhase) -> None:
@@ -1508,7 +1529,7 @@ class ContextManager:
 
     def _schedule_summary(
         self, *, user_id: str, conversation_id: str,
-        trigger: Literal["occupancy", "seam"], phase: CompactionPhase,
+        trigger: Literal["occupancy"], phase: CompactionPhase,
         pressure: _Pressure,
     ) -> None:
         key = (user_id, conversation_id)
@@ -1560,7 +1581,13 @@ class ContextManager:
         record_active_trace(
             "context_compaction_scheduled", "conversation_summary",
             outcome="started",
-            details={"background": True, "phase": phase, "trigger": trigger},
+            details={
+                "background": True,
+                "phase": phase,
+                "trigger": trigger,
+                "request_occupancy": pressure.request_occupancy,
+                "recent_occupancy": pressure.recent_occupancy,
+            },
         )
 
     def close(self, *, wait: bool = True) -> None:
@@ -1575,10 +1602,11 @@ class ContextManager:
         *,
         user_id: str,
         conversation_id: str,
-        trigger: Literal["occupancy", "seam"],
+        trigger: Literal["occupancy"],
         phase: CompactionPhase,
         require_occupancy: bool,
         measure: Callable[[int], _Pressure],
+        pressure: _Pressure | None = None,
     ) -> _Pressure | None:
         """Compact at most one batch.
 
@@ -1591,14 +1619,12 @@ class ContextManager:
             conversation_id=conversation_id,
         )
         previous_through = previous.through_sequence if previous else 0
-        pressure = measure(previous_through)
+        # A concurrent completion may have advanced storage since measurement.
+        if pressure is None or pressure.through_sequence != previous_through:
+            pressure = measure(previous_through)
         if (
             require_occupancy
-            # Automatic compaction requires measured token pressure.
-            and (
-                pressure.occupancy is None
-                or pressure.occupancy < self._compact_occupancy_threshold
-            )
+            and not pressure.exceeds(self._compact_occupancy_threshold)
         ):
             return pressure
         messages = self._store.list_messages_after(
@@ -1613,8 +1639,7 @@ class ContextManager:
         # Never summarize the uncommitted current message.
         early_occupancy = (
             require_occupancy
-            and pressure.occupancy is not None
-            and pressure.occupancy >= self._compact_occupancy_threshold
+            and pressure.exceeds(self._compact_occupancy_threshold)
         )
         if not messages or (
             len(messages) < self._summary_batch_size
@@ -1869,9 +1894,9 @@ class ContextManager:
                 ),
                 "trigger": trigger,
                 "through_sequence": to_summarize[-1].sequence,
-                "occupancy": pressure.occupancy,
+                "request_occupancy": pressure.request_occupancy,
+                "recent_occupancy": pressure.recent_occupancy,
                 "occupancy_source": pressure.source,
-                "projection_overflow": pressure.projection_overflow,
                 "input_occupancy_numerator": pressure.request_tokens,
                 "input_occupancy_denominator": pressure.max_input_tokens,
                 "background": BACKGROUND_PROVIDER_CALL.get(),
@@ -1999,15 +2024,15 @@ class ContextManager:
         request_tokens, max_input_tokens = self._estimate_request(
             pressure_context
         )
+        after_sequence = pressure_context.through_sequence
         return _Pressure(
-            occupancy=max(
-                request_tokens / max_input_tokens,
-                self._recent_token_occupancy(
-                    user_id=user_id, conversation_id=conversation_id,
-                    after_sequence=after_sequence,
-                ),
+            request_occupancy=request_tokens / max_input_tokens,
+            recent_occupancy=self._recent_token_occupancy(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                after_sequence=after_sequence,
             ),
-            projection_overflow=False,
+            through_sequence=after_sequence,
             request_tokens=request_tokens,
             max_input_tokens=max_input_tokens,
             context=pressure_context,
@@ -2020,7 +2045,6 @@ class ContextManager:
         user_id: str,
         conversation_id: str,
         after_sequence: int,
-        trigger: Literal["occupancy", "seam"],
         carried: tuple[int, int] | None,
         assistant_message: str,
     ) -> _Pressure:
@@ -2049,35 +2073,17 @@ class ContextManager:
             reply_tokens = min(reply_tokens, self._recent_message_tokens)
         predicted = request_tokens + reply_tokens
         return _Pressure(
-            occupancy=max(
-                predicted / max_input_tokens,
-                self._recent_token_occupancy(
-                    user_id=user_id, conversation_id=conversation_id,
-                    after_sequence=after_sequence,
-                ),
+            request_occupancy=predicted / max_input_tokens,
+            recent_occupancy=self._recent_token_occupancy(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                after_sequence=after_sequence,
             ),
-            projection_overflow=False,
+            through_sequence=after_sequence,
             request_tokens=predicted,
             max_input_tokens=max_input_tokens,
             context=None,
             source="carried",
-        )
-
-    def _overflow_only_pressure(
-        self,
-        *,
-        user_id: str,
-        conversation_id: str,
-        after_sequence: int,
-        source: Literal["seam", "overflow_only"],
-    ) -> _Pressure:
-        return _Pressure(
-            occupancy=None,
-            projection_overflow=False,
-            request_tokens=None,
-            max_input_tokens=None,
-            context=None,
-            source=source,
         )
 
     def _legacy_pressure(
@@ -2090,11 +2096,13 @@ class ContextManager:
         # Offline callers use the explicit/default recent token budget when
         # no complete-request estimator is installed. Never count rows/chars.
         return _Pressure(
-            occupancy=self._recent_token_occupancy(
-                user_id=user_id, conversation_id=conversation_id,
+            request_occupancy=None,
+            recent_occupancy=self._recent_token_occupancy(
+                user_id=user_id,
+                conversation_id=conversation_id,
                 after_sequence=after_sequence,
             ),
-            projection_overflow=False,
+            through_sequence=after_sequence,
             request_tokens=None,
             max_input_tokens=None,
             context=None,
@@ -2117,12 +2125,7 @@ class ContextManager:
             )
             for record in records
         )
-        # The recent quota is another token budget. Filling it is hard pressure,
-        # even if the already-clipped complete request looks small. Soft pressure
-        # therefore starts at 80% of this quota with the default 0.60/0.75 pair.
-        return (
-            self._compact_occupancy_threshold * used / self._recent_context_tokens
-        )
+        return used / self._recent_context_tokens
 
     def _estimate_request(self, context: MainAgentContext) -> tuple[int, int]:
         request_tokens, max_input_tokens = self._request_token_estimator(context)

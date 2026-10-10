@@ -9,6 +9,7 @@ from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.memory import ConversationSummaryDelta, SummaryKeyFact
 from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.providers.openai_client import AgentWorkerError
+from career_agent.agent.providers.token_budget import message_token_count
 from career_agent.storage.context import CareerContextStore
 from career_agent.harness.observability import ACTIVE_TRACE_CONTEXT, InMemoryTraceRecorder
 
@@ -290,5 +291,134 @@ def test_uncropped_recent_token_quota_triggers_even_when_request_estimate_is_low
         assert {fact.source_sequence for fact in store.list_summary_facts(
             user_id="u", conversation_id="c"
         )} == {1, 2}
+    finally:
+        manager.close()
+
+
+@pytest.mark.parametrize("budget", ["request", "recent"])
+def test_either_budget_alone_queues_at_soft_pressure_without_load_wait(tmp_path, budget):
+    worker = Worker(block=True)
+    manager, store, notices = setup_manager(
+        tmp_path, worker,
+        max_recent_context_tokens=50 if budget == "recent" else 1000,
+    )
+    manager.configure_request_token_estimator(
+        lambda _: (650 if budget == "request" else 100, 1000)
+    )
+    recorder = InMemoryTraceRecorder()
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "soft"))
+    try:
+        context = load(manager)
+        manager.commit_turn(
+            context=context, task=ConversationTaskState(), assistant_message="done"
+        )
+        assert worker.entered.wait(1)
+        loaded = load(manager)
+        assert loaded.through_sequence == 0
+        assert not notices
+        events = recorder.snapshot("soft").events
+        scheduled = [e for e in events if e.event_type == "context_compaction_scheduled"]
+        assert len(scheduled) == 1
+        raw_tokens = sum(
+            message_token_count(record.message.content)
+            for record in store.list_message_records("u", "c", limit=20)
+        )
+        expected_recent = raw_tokens / (50 if budget == "recent" else 1000)
+        assert scheduled[0].details["recent_occupancy"] == expected_recent
+        assert 0.6 <= scheduled[0].details[f"{budget}_occupancy"] < 0.75
+        assert not [e for e in events if e.event_type == "context_compaction_waited"]
+    finally:
+        ACTIVE_TRACE_CONTEXT.reset(token)
+        worker.release.set()
+        manager.close()
+
+
+@pytest.mark.parametrize("budget", ["request", "recent"])
+@pytest.mark.parametrize("pending", [False, True])
+def test_load_reuses_initial_pressure_and_remeasures_only_after_wait(
+    tmp_path, monkeypatch, budget, pending
+):
+    worker = Worker(block=pending)
+    manager, store, notices = setup_manager(
+        tmp_path, worker, max_recent_context_tokens=1000
+    )
+    manager.configure_request_token_estimator(
+        lambda context: (800 if budget == "request" and context.through_sequence == 0 else 100, 1000)
+    )
+    manager._recent_token_occupancy = lambda **kwargs: (
+        0.8 if budget == "recent" and kwargs["after_sequence"] == 0 else 0.1
+    )
+    measurements = []
+    original = manager._recent_pressure
+
+    def measured(**kwargs):
+        measurements.append(kwargs["after_sequence"])
+        return original(**kwargs)
+
+    monkeypatch.setattr(manager, "_recent_pressure", measured)
+    announced = Event()
+    manager.on_compaction(lambda phase: (notices.append(phase), announced.set()))
+    try:
+        if pending:
+            manager._carried_request_tokens[("u", "c")] = (
+                800 if budget == "request" else 100, 1000
+            )
+            schedule(manager, store)
+            assert worker.entered.wait(1)
+            with ThreadPoolExecutor() as pool:
+                future = pool.submit(load, manager)
+                assert announced.wait(1)
+                assert not future.done()
+                worker.release.set()
+                context = future.result(timeout=2)
+            assert measurements == [0, 8]
+        else:
+            context = load(manager)
+            assert measurements == [0]
+        assert worker.calls == 1
+        assert notices == ["load"]
+        assert context.through_sequence == 8
+    finally:
+        worker.release.set()
+        manager.close()
+
+
+@pytest.mark.parametrize(
+    "request_tokens,recent_ratio,expected_calls",
+    [(100, 0.1, 0), (100, 0.65, 1), (650, 0.1, 0)],
+)
+def test_workflow_exit_queues_only_when_token_budget_crosses_soft_threshold(
+    tmp_path, request_tokens, recent_ratio, expected_calls
+):
+    worker = Worker()
+    manager, store, notices = setup_manager(
+        tmp_path, worker, seed_turns=0, max_recent_context_tokens=1000
+    )
+    manager.configure_request_token_estimator(lambda _: (request_tokens, 1000))
+    manager._recent_token_occupancy = lambda **_: recent_ratio
+    try:
+        entry = load(manager)
+        held = manager.commit_workflow_entry(
+            context=entry,
+            task=ConversationTaskState(
+                active_workflow="mock_interview", run_id="mock-1",
+                phase="mock_interview_answer_required",
+            ),
+        )
+        context = manager.load_for_workflow_turn(
+            user_id="u", conversation_id="c", task=held
+        )
+        # The workflow envelope invalidates the entry's request estimate;
+        # only current, measurable recent pressure can queue this exit.
+        assert ("u", "c") not in manager._carried_request_tokens
+        manager.commit_workflow_exit(
+            context=context, task=ConversationTaskState(),
+            assistant_message="模拟面试完成，结果资源 mock-1。",
+        )
+        manager.close()
+        assert worker.calls == expected_calls
+        assert not notices
+        records = store.list_message_records("u", "c", limit=10)
+        assert len(records) == 2
     finally:
         manager.close()

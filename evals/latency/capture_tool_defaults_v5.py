@@ -10,6 +10,7 @@ from career_agent.evaluation.latency_capture import capture
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--work-root", type=Path, required=True)
+    parser.add_argument("--fixture", type=Path)
     parser.add_argument("--conversations", type=int, default=6)
     parser.add_argument("--inter-turn-delay-seconds", type=float, default=0.0)
     args = parser.parse_args()
@@ -23,8 +24,9 @@ def main():
         os.environ["MAIN_AGENT_" + suffix] = value
     os.environ["MAIN_AGENT_VENDOR"] = "qwen"
     os.environ["MAIN_AGENT_ENABLE_THINKING"] = "false"
+    options = {"fixture": args.fixture} if args.fixture is not None else {}
     capture(args.work_root, conversations=args.conversations,
-            inter_turn_delay_seconds=args.inter_turn_delay_seconds)
+            inter_turn_delay_seconds=args.inter_turn_delay_seconds, **options)
 
 
 if __name__ == "__main__":

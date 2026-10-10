@@ -1,0 +1,135 @@
+{
+  "provider_calls": 0,
+  "recent_budget_tokens": 10144,
+  "per_message_cap_tokens": 3804,
+  "seed_recent_tokens": 6508,
+  "ideal_completed_before_next_load": [
+    {
+      "turn": 1,
+      "user_tokens": 1170,
+      "load_recent_ratio": 0.6415615141955836,
+      "commit_recent_ratio": 0.7577878548895899,
+      "would_queue": true
+    },
+    {
+      "turn": 2,
+      "user_tokens": 1170,
+      "load_recent_ratio": 0.46667981072555204,
+      "commit_recent_ratio": 0.5829061514195584,
+      "would_queue": false
+    },
+    {
+      "turn": 3,
+      "user_tokens": 1170,
+      "load_recent_ratio": 0.5829061514195584,
+      "commit_recent_ratio": 0.6991324921135647,
+      "would_queue": true
+    },
+    {
+      "turn": 4,
+      "user_tokens": 1170,
+      "load_recent_ratio": 0.5472200315457413,
+      "commit_recent_ratio": 0.6634463722397477,
+      "would_queue": true
+    },
+    {
+      "turn": 5,
+      "user_tokens": 1978,
+      "load_recent_ratio": 0.11622634069400631,
+      "commit_recent_ratio": 0.3121056782334385,
+      "would_queue": false
+    },
+    {
+      "turn": 6,
+      "user_tokens": 1170,
+      "load_recent_ratio": 0.3121056782334385,
+      "commit_recent_ratio": 0.42833201892744477,
+      "would_queue": false
+    },
+    {
+      "turn": 7,
+      "user_tokens": 1170,
+      "load_recent_ratio": 0.42833201892744477,
+      "commit_recent_ratio": 0.544558359621451,
+      "would_queue": false
+    },
+    {
+      "turn": 8,
+      "user_tokens": 1170,
+      "load_recent_ratio": 0.544558359621451,
+      "commit_recent_ratio": 0.6607847003154574,
+      "would_queue": true
+    },
+    {
+      "turn": 9,
+      "user_tokens": 1170,
+      "load_recent_ratio": 0.11622634069400631,
+      "commit_recent_ratio": 0.23245268138801262,
+      "would_queue": false
+    },
+    {
+      "turn": 10,
+      "user_tokens": 2207,
+      "load_recent_ratio": 0.23245268138801262,
+      "commit_recent_ratio": 0.4509069400630915,
+      "would_queue": false
+    },
+    {
+      "turn": 11,
+      "user_tokens": 1170,
+      "load_recent_ratio": 0.4509069400630915,
+      "commit_recent_ratio": 0.5671332807570978,
+      "would_queue": false
+    },
+    {
+      "turn": 12,
+      "user_tokens": 1170,
+      "load_recent_ratio": 0.5671332807570978,
+      "commit_recent_ratio": 0.6833596214511041,
+      "would_queue": true
+    },
+    {
+      "turn": 13,
+      "user_tokens": 1170,
+      "load_recent_ratio": 0.11622634069400631,
+      "commit_recent_ratio": 0.23245268138801262,
+      "would_queue": false
+    },
+    {
+      "turn": 14,
+      "user_tokens": 1170,
+      "load_recent_ratio": 0.23245268138801262,
+      "commit_recent_ratio": 0.34867902208201895,
+      "would_queue": false
+    },
+    {
+      "turn": 15,
+      "user_tokens": 1978,
+      "load_recent_ratio": 0.34867902208201895,
+      "commit_recent_ratio": 0.544558359621451,
+      "would_queue": false
+    },
+    {
+      "turn": 16,
+      "user_tokens": 1170,
+      "load_recent_ratio": 0.544558359621451,
+      "commit_recent_ratio": 0.6607847003154574,
+      "would_queue": true
+    },
+    {
+      "turn": 17,
+      "user_tokens": 1170,
+      "load_recent_ratio": 0.11622634069400631,
+      "commit_recent_ratio": 0.23245268138801262,
+      "would_queue": false
+    },
+    {
+      "turn": 18,
+      "user_tokens": 1170,
+      "load_recent_ratio": 0.23245268138801262,
+      "commit_recent_ratio": 0.34867902208201895,
+      "would_queue": false
+    }
+  ],
+  "interpretation": "Local tokenizer only; scripted reply and immediate completion test workload sizing, not model behavior or latency."
+}

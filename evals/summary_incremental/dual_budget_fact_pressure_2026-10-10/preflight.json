@@ -1,0 +1,135 @@
+{
+  "provider_calls": 0,
+  "recent_budget_tokens": 10144,
+  "per_message_cap_tokens": 3804,
+  "seed_recent_tokens": 6303,
+  "ideal_completed_before_next_load": [
+    {
+      "turn": 1,
+      "user_tokens": 925,
+      "load_recent_ratio": 0.621352523659306,
+      "commit_recent_ratio": 0.7149053627760252,
+      "would_queue": true
+    },
+    {
+      "turn": 2,
+      "user_tokens": 925,
+      "load_recent_ratio": 0.42074132492113564,
+      "commit_recent_ratio": 0.5142941640378549,
+      "would_queue": false
+    },
+    {
+      "turn": 3,
+      "user_tokens": 925,
+      "load_recent_ratio": 0.5142941640378549,
+      "commit_recent_ratio": 0.6078470031545742,
+      "would_queue": true
+    },
+    {
+      "turn": 4,
+      "user_tokens": 925,
+      "load_recent_ratio": 0.34069400630914826,
+      "commit_recent_ratio": 0.4342468454258675,
+      "would_queue": false
+    },
+    {
+      "turn": 5,
+      "user_tokens": 1741,
+      "load_recent_ratio": 0.4342468454258675,
+      "commit_recent_ratio": 0.6082413249211357,
+      "would_queue": true
+    },
+    {
+      "turn": 6,
+      "user_tokens": 925,
+      "load_recent_ratio": 0.2675473186119874,
+      "commit_recent_ratio": 0.36110015772870663,
+      "would_queue": false
+    },
+    {
+      "turn": 7,
+      "user_tokens": 925,
+      "load_recent_ratio": 0.36110015772870663,
+      "commit_recent_ratio": 0.45465299684542587,
+      "would_queue": false
+    },
+    {
+      "turn": 8,
+      "user_tokens": 925,
+      "load_recent_ratio": 0.45465299684542587,
+      "commit_recent_ratio": 0.5482058359621451,
+      "would_queue": false
+    },
+    {
+      "turn": 9,
+      "user_tokens": 925,
+      "load_recent_ratio": 0.5482058359621451,
+      "commit_recent_ratio": 0.6417586750788643,
+      "would_queue": true
+    },
+    {
+      "turn": 10,
+      "user_tokens": 1741,
+      "load_recent_ratio": 0.1871056782334385,
+      "commit_recent_ratio": 0.36110015772870663,
+      "would_queue": false
+    },
+    {
+      "turn": 11,
+      "user_tokens": 925,
+      "load_recent_ratio": 0.36110015772870663,
+      "commit_recent_ratio": 0.45465299684542587,
+      "would_queue": false
+    },
+    {
+      "turn": 12,
+      "user_tokens": 925,
+      "load_recent_ratio": 0.45465299684542587,
+      "commit_recent_ratio": 0.5482058359621451,
+      "would_queue": false
+    },
+    {
+      "turn": 13,
+      "user_tokens": 925,
+      "load_recent_ratio": 0.5482058359621451,
+      "commit_recent_ratio": 0.6417586750788643,
+      "would_queue": true
+    },
+    {
+      "turn": 14,
+      "user_tokens": 925,
+      "load_recent_ratio": 0.1871056782334385,
+      "commit_recent_ratio": 0.28065851735015773,
+      "would_queue": false
+    },
+    {
+      "turn": 15,
+      "user_tokens": 1741,
+      "load_recent_ratio": 0.28065851735015773,
+      "commit_recent_ratio": 0.45465299684542587,
+      "would_queue": false
+    },
+    {
+      "turn": 16,
+      "user_tokens": 925,
+      "load_recent_ratio": 0.45465299684542587,
+      "commit_recent_ratio": 0.5482058359621451,
+      "would_queue": false
+    },
+    {
+      "turn": 17,
+      "user_tokens": 925,
+      "load_recent_ratio": 0.5482058359621451,
+      "commit_recent_ratio": 0.6417586750788643,
+      "would_queue": true
+    },
+    {
+      "turn": 18,
+      "user_tokens": 925,
+      "load_recent_ratio": 0.1871056782334385,
+      "commit_recent_ratio": 0.28065851735015773,
+      "would_queue": false
+    }
+  ],
+  "interpretation": "Tokenizer-only workload sizing with a scripted short reply and assumed instant completion, not model behavior/quality evidence. Third-party technical history avoids the previous fixture's personal-preference confirmation dependency."
+}

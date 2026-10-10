@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "measurement": "authored_third_party_dual_token_pressure_18_turns",
+  "started_at": "2026-10-10T20:30:16.844697+00:00",
+  "fixture_sha256": "d5e4275b2b3c7c3c6c6f3bdbaa124de854e69eaccde177d6ec502b63b10e9270",
+  "revision": "d6044c2f77bdfb034046611b8bbe5289b4e0b3d5",
+  "source_sha256": "e94e4c2dab9afb4fada433c218a7c24f124af4f542c5cb12b5dbed928bbc8a83",
+  "models": {
+    "MAIN_AGENT_MODEL": "qwen3.7-plus",
+    "RESUME_ANALYSIS_AGENT_MODEL": "qwen3.7-plus",
+    "CAREER_EMBEDDING_MODEL": "qwen3.7-text-embedding",
+    "CONVERSATION_SUMMARY_AGENT_MODEL": null
+  },
+  "summary_prompt_sha256": "7264084a1b19f53aa07d144cf94a0fb8b286413daee814a586602729d427bdee",
+  "summary_config": {
+    "model": "qwen3.7-plus",
+    "disable_thinking": true,
+    "timeout_seconds": 30.0,
+    "max_output_tokens": 1200
+  },
+  "history_turns": 9,
+  "conversations": 1,
+  "inter_turn_delay_seconds": 20.0,
+  "turns": [
+    {
+      "conversation": 1,
+      "turn": 1,
+      "inter_turn_gap_ms": 0,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 8278
+    },
+    {
+      "conversation": 1,
+      "turn": 2,
+      "inter_turn_gap_ms": 20000,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 8333
+    },
+    {
+      "conversation": 1,
+      "turn": 3,
+      "inter_turn_gap_ms": 20002,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7514
+    },
+    {
+      "conversation": 1,
+      "turn": 4,
+      "inter_turn_gap_ms": 20004,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 8503
+    },
+    {
+      "conversation": 1,
+      "turn": 5,
+      "inter_turn_gap_ms": 20005,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7868
+    },
+    {
+      "conversation": 1,
+      "turn": 6,
+      "inter_turn_gap_ms": 20005,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7844
+    },
+    {
+      "conversation": 1,
+      "turn": 7,
+      "inter_turn_gap_ms": 20002,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7646
+    },
+    {
+      "conversation": 1,
+      "turn": 8,
+      "inter_turn_gap_ms": 20005,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7845
+    },
+    {
+      "conversation": 1,
+      "turn": 9,
+      "inter_turn_gap_ms": 20002,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7564
+    },
+    {
+      "conversation": 1,
+      "turn": 10,
+      "inter_turn_gap_ms": 20005,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7527
+    },
+    {
+      "conversation": 1,
+      "turn": 11,
+      "inter_turn_gap_ms": 20000,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7053
+    },
+    {
+      "conversation": 1,
+      "turn": 12,
+      "inter_turn_gap_ms": 20002,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 8032
+    },
+    {
+      "conversation": 1,
+      "turn": 13,
+      "inter_turn_gap_ms": 20006,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7084
+    },
+    {
+      "conversation": 1,
+      "turn": 14,
+      "inter_turn_gap_ms": 20001,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7199
+    },
+    {
+      "conversation": 1,
+      "turn": 15,
+      "inter_turn_gap_ms": 20001,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7219
+    },
+    {
+      "conversation": 1,
+      "turn": 16,
+      "inter_turn_gap_ms": 20002,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7542
+    },
+    {
+      "conversation": 1,
+      "turn": 17,
+      "inter_turn_gap_ms": 20002,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7132
+    },
+    {
+      "conversation": 1,
+      "turn": 18,
+      "inter_turn_gap_ms": 20005,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 6950
+    }
+  ],
+  "finished_at": "2026-10-10T20:38:17.545148+00:00"
+}

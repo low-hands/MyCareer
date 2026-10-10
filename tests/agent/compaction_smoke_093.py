@@ -244,7 +244,7 @@ def run_trajectory(
             and reachable
             and contiguous
             and duplicates == duplicate_summary == 0
-            and (count <= 2 if (recent, batch) == (16, 8) else count == 5)
+            and (count <= 2 if (recent, batch) == (16, 8) else count == 6)
         ),
     )
 

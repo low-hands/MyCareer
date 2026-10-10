@@ -16,11 +16,11 @@ from career_agent.storage.context import CareerContextStore
 def test_larger_token_quota_reduces_compactions_and_retains_sources(tmp_path: Path) -> None:
     legacy = run_trajectory(tmp_path / "legacy.sqlite3", recent=8, batch=4, worker=FactSummaryWorker())
     current = run_trajectory(tmp_path / "current.sqlite3", recent=16, batch=8, worker=FactSummaryWorker())
-    assert legacy.compaction_calls == 5
-    assert current.compaction_calls == 1
+    assert legacy.compaction_calls == 6
+    assert current.compaction_calls == 2
     assert current.compaction_calls <= 2
-    assert legacy.watermark == 20
-    assert current.watermark == 8
+    assert legacy.watermark == 24
+    assert current.watermark == 16
     for result in (legacy, current):
         assert result.retained_known_facts == result.known_fact_count == 4
         assert result.history_reachable
@@ -77,8 +77,7 @@ def test_one_long_current_message_triggers_complete_request_occupancy_before_row
     events = [event for event in recorder.snapshot("synthetic-long").events if event.event_type == "context_compacted"]
     assert len(events) == 1
     assert events[0].details["trigger"] == "occupancy"
-    assert events[0].details["projection_overflow"] is False
-    assert events[0].details["occupancy"] >= 0.75
+    assert events[0].details["request_occupancy"] >= 0.75
     assert worker.sequences == [tuple(range(1, 9))]
     assert current.user_message == "long " * 3200
     assert current.through_sequence == 8

@@ -291,7 +291,6 @@ def test_summary_distillation_admits_generic_preferences_only_to_quarantine(
         context=first,
         task=first.task,
         assistant_message="我会把这作为待确认候选。",
-        compaction_trigger="seam",
     )
 
     quarantined = store.list_free_text_preferences(
@@ -361,7 +360,6 @@ def test_summary_distillation_admits_generic_preferences_only_to_quarantine(
         context=reaffirmation,
         task=reaffirmation.task,
         assistant_message="了解。",
-        compaction_trigger="seam",
     )
     after_inference = store.list_free_text_preferences(user_id="u1")
     assert len(after_inference) == 1
@@ -411,7 +409,6 @@ def test_summary_distillation_rejects_unverifiable_candidate_provenance(
         context=first,
         task=first.task,
         assistant_message="好的。",
-        compaction_trigger="seam",
     )
 
     assert store.list_free_text_preferences(user_id="u1") == ()
@@ -671,9 +668,9 @@ def test_occupancy_compaction_records_its_trigger_without_raw_arguments(
         "conversation_key": conversation_trace_key("u1", "c1"),
         "trigger": "occupancy",
         "through_sequence": 2,
-        "occupancy": 52 / 60,
+        "request_occupancy": None,
+        "recent_occupancy": 52 / 60,
         "occupancy_source": "legacy",
-        "projection_overflow": False,
         "input_occupancy_numerator": None,
         "input_occupancy_denominator": None,
         "background": False,
@@ -732,7 +729,7 @@ def test_complete_request_pressure_can_exceed_one_and_trigger_compaction(
     # addition: the load's estimate already holds this turn's message.
     expected = 3000 + message_token_count("short")
     assert event.details["occupancy_source"] == "carried"
-    assert event.details["occupancy"] == expected / 1000
+    assert event.details["request_occupancy"] == expected / 1000
     assert event.details["input_occupancy_numerator"] == expected
     assert event.details["input_occupancy_denominator"] == 1000
 
@@ -838,7 +835,7 @@ def test_commit_compacts_when_the_carried_estimate_and_reply_cross_the_threshold
     assert event.details["occupancy_source"] == "carried"
     assert event.details["input_occupancy_numerator"] == 700 + reply_cap
     assert event.details["input_occupancy_denominator"] == 1000
-    assert event.details["occupancy"] == (700 + reply_cap) / 1000
+    assert event.details["request_occupancy"] == (700 + reply_cap) / 1000
 
 
 def test_commit_ignores_row_count_when_token_pressure_is_low(
@@ -936,7 +933,7 @@ def test_a_commit_no_load_measured_leaves_occupancy_to_the_next_load(
     assert len(worker.calls) == 1
 
 
-def test_a_quiet_seam_does_not_compact_or_build_or_estimate(
+def test_a_quiet_workflow_boundary_does_not_compact_or_build_or_estimate(
     tmp_path, monkeypatch
 ) -> None:
     worker = RecordingSummaryWorker()
@@ -965,7 +962,7 @@ def test_a_quiet_seam_does_not_compact_or_build_or_estimate(
     estimates.clear()
     builds = _counting_builds(monkeypatch)
     recorder = InMemoryTraceRecorder()
-    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-seam"))
+    token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-workflow-boundary"))
     try:
         context_manager.commit_workflow_exit(
             context=workflow_context,
@@ -977,7 +974,7 @@ def test_a_quiet_seam_does_not_compact_or_build_or_estimate(
 
     assert worker.calls == []
     assert (builds, estimates) == ([], [])
-    assert _compacted_events(recorder, "turn-seam") == []
+    assert _compacted_events(recorder, "turn-workflow-boundary") == []
 
 
 def test_a_compaction_listener_hears_the_phase_only_when_the_worker_is_called(
@@ -1094,6 +1091,8 @@ def test_a_load_records_its_request_estimate_as_numbers_only(tmp_path) -> None:
             "conversation_key": conversation_trace_key("u1", "c1"),
             "input_occupancy_numerator": 1234,
             "input_occupancy_denominator": 32_000,
+            "request_occupancy": 1234 / 32_000,
+            "recent_occupancy": 0.0,
         }
     ]
 
@@ -1196,8 +1195,7 @@ def test_one_compaction_call_advances_only_one_batch_under_large_backlog(
         after_sequence=first.through_sequence,
         user_message="probe",
     )
-    assert pressure.occupancy == 1.0
-    assert pressure.projection_overflow is False
+    assert pressure.request_occupancy == 1.0
 
     context_manager.load_for_turn(
         user_id="u1", conversation_id="c1", user_message="second"
@@ -1366,20 +1364,19 @@ def test_explicit_compaction_runs_only_one_batch(tmp_path) -> None:
         require_occupancy=False,
         user_id="u1",
         conversation_id="c1",
-        trigger="seam",
+        trigger="occupancy",
         phase="commit",
-        measure=lambda after_sequence: context_manager._overflow_only_pressure(
+        measure=lambda after_sequence: context_manager._legacy_pressure(
             user_id="u1",
             conversation_id="c1",
             after_sequence=after_sequence,
-            source="seam",
         ),
     )
 
     assert len(worker.calls) == 1
 
 
-def test_report_delivery_does_not_create_a_low_occupancy_seam(tmp_path) -> None:
+def test_report_delivery_does_not_force_low_occupancy_compaction(tmp_path) -> None:
     worker = RecordingSummaryWorker()
     context_manager = manager(tmp_path, limit=4, summary_worker=worker)
     context = context_manager.load_for_turn(
@@ -1566,18 +1563,17 @@ def _store_turns(path, conversation_id: str, turns: int) -> None:
         )
 
 
-def _attempt_seam_compaction(context_manager, conversation_id: str = "c1") -> None:
+def _attempt_explicit_compaction(context_manager, conversation_id: str = "c1") -> None:
     context_manager._compact_one_batch(
         require_occupancy=False,
         user_id="u1",
         conversation_id=conversation_id,
-        trigger="seam",
+        trigger="occupancy",
         phase="commit",
-        measure=lambda after_sequence: context_manager._overflow_only_pressure(
+        measure=lambda after_sequence: context_manager._legacy_pressure(
             user_id="u1",
             conversation_id=conversation_id,
             after_sequence=after_sequence,
-            source="seam",
         ),
     )
 
@@ -1600,17 +1596,17 @@ def test_compaction_stops_calling_a_failing_summarizer_after_three_failures(
     token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-breaker"))
     try:
         for _ in range(5):
-            _attempt_seam_compaction(context_manager)
+            _attempt_explicit_compaction(context_manager)
         assert worker.calls == 3
         # Another conversation keeps its own count.
-        _attempt_seam_compaction(context_manager, "c2")
+        _attempt_explicit_compaction(context_manager, "c2")
         assert worker.calls == 4
         now[0] += timedelta(minutes=9)
-        _attempt_seam_compaction(context_manager)
+        _attempt_explicit_compaction(context_manager)
         assert worker.calls == 4
         now[0] += timedelta(minutes=1)
-        _attempt_seam_compaction(context_manager)
-        _attempt_seam_compaction(context_manager)
+        _attempt_explicit_compaction(context_manager)
+        _attempt_explicit_compaction(context_manager)
         # One attempt once the interval has passed; its failure suspends again.
         assert worker.calls == 5
     finally:
@@ -1642,11 +1638,11 @@ def test_a_successful_summary_resets_the_compaction_breaker(tmp_path) -> None:
         clock=lambda: now[0],
     )
     for _ in range(4):
-        _attempt_seam_compaction(context_manager)
+        _attempt_explicit_compaction(context_manager)
     assert worker.calls == 3
 
     now[0] += timedelta(minutes=10)
-    _attempt_seam_compaction(context_manager)
+    _attempt_explicit_compaction(context_manager)
 
     assert worker.calls == 4
     summary = context_manager._store.get_conversation_summary(
@@ -1655,7 +1651,7 @@ def test_a_successful_summary_resets_the_compaction_breaker(tmp_path) -> None:
     assert summary is not None and summary.through_sequence == 2
     assert ("u1", "c1") not in context_manager._compaction_failures
     # Counting starts over: the next failure is the first, not the fourth.
-    _attempt_seam_compaction(context_manager)
+    _attempt_explicit_compaction(context_manager)
     assert worker.calls == 5
     assert context_manager._compaction_failures[("u1", "c1")] == (1, None)
 
