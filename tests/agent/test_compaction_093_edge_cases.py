@@ -120,7 +120,7 @@ def test_default_batch_backoff_recovers_same_prefix_without_watermark_skips(
     clock = [datetime(2026, 9, 17, tzinfo=timezone.utc)]
     worker = RecoveringSummaryWorker()
     manager = ContextManager(store, summary_worker=worker, clock=lambda: clock[0])
-    manager.configure_request_token_estimator(lambda context: (16000, 32000))
+    manager.configure_request_token_estimator(lambda context: (25000 if context.through_sequence == 0 else 16000, 32000))
     for _ in range(6):
         manager.load_for_turn(user_id="u", conversation_id="c", user_message="next")
     assert worker.sequences == [tuple(range(1, 9))] * 3

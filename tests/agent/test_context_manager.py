@@ -51,7 +51,7 @@ def manager(
     max_recent_context_chars: int = 16000,
     compact_occupancy_threshold: float = 0.75,
 ) -> ContextManager:
-    return ContextManager(
+    context_manager = ContextManager(
         CareerContextStore(tmp_path / "context.sqlite3"),
         summary_worker=summary_worker,
         recent_message_limit=limit,
@@ -60,6 +60,21 @@ def manager(
         max_recent_context_chars=max_recent_context_chars,
         compact_occupancy_threshold=compact_occupancy_threshold,
     )
+
+    # Memory merge/distillation fixtures drive their old pressure schedule with
+    # a scripted signal; real token counting/row independence is tested below.
+    def fixture_pressure(*, user_id, conversation_id, after_sequence):
+        records = context_manager._store.list_message_records(
+            user_id, conversation_id,
+            limit=limit + summary_batch_size - 1, after_sequence=after_sequence,
+        )
+        return (
+            sum(len(record.message.content) for record in records)
+            / max_recent_context_chars
+        )
+
+    context_manager._recent_token_occupancy = fixture_pressure
+    return context_manager
 
 
 def test_configured_career_profile_budgets_reach_all_context_envelopes(
@@ -264,7 +279,7 @@ def test_summary_distillation_admits_generic_preferences_only_to_quarantine(
     context_manager = ContextManager(
         store,
         summary_worker=GenericPreferenceSummaryWorker(),
-        recent_message_limit=2,
+        max_recent_context_tokens=16,
         summary_batch_size=2,
     )
     first = context_manager.load_for_turn(
@@ -826,7 +841,7 @@ def test_commit_compacts_when_the_carried_estimate_and_reply_cross_the_threshold
     assert event.details["occupancy"] == (700 + reply_cap) / 1000
 
 
-def test_commit_compacts_on_overflow_even_when_the_carried_estimate_is_low(
+def test_commit_ignores_row_count_when_token_pressure_is_low(
     tmp_path,
 ) -> None:
     path = tmp_path / "context.sqlite3"
@@ -844,19 +859,18 @@ def test_commit_compacts_on_overflow_even_when_the_carried_estimate_is_low(
     context_manager = ContextManager(
         CareerContextStore(path),
         summary_worker=worker,
-        recent_message_limit=8,
+        recent_message_limit=2048,
         summary_batch_size=4,
     )
     context_manager.configure_request_token_estimator(lambda context: (1, 1000))
     recorder = InMemoryTraceRecorder()
     token = ACTIVE_TRACE_CONTEXT.set((recorder, "turn-overflow"))
     try:
-        # Ten unsummarised rows fit the eleven-row projection at load.
+        # Short messages fit the token budget.
         context = context_manager.load_for_turn(
             user_id="u1", conversation_id="c1", user_message="next"
         )
         assert worker.calls == []
-        # Twelve do not.
         context_manager.commit_turn(
             context=context,
             task=ConversationTaskState(),
@@ -865,11 +879,12 @@ def test_commit_compacts_on_overflow_even_when_the_carried_estimate_is_low(
     finally:
         ACTIVE_TRACE_CONTEXT.reset(token)
 
-    assert len(worker.calls) == 1
-    (event,) = _compacted_events(recorder, "turn-overflow")
-    assert event.details["trigger"] == "projection_overflow"
-    assert event.details["occupancy_source"] == "carried"
-    assert event.details["occupancy"] < 0.75
+    assert worker.calls == []
+    assert _compacted_events(recorder, "turn-overflow") == []
+    loaded = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="next"
+    )
+    assert len(loaded.recent_messages) == 12
 
 
 def test_a_commit_no_load_measured_leaves_occupancy_to_the_next_load(
@@ -921,7 +936,7 @@ def test_a_commit_no_load_measured_leaves_occupancy_to_the_next_load(
     assert len(worker.calls) == 1
 
 
-def test_a_seam_compacts_without_building_or_estimating(
+def test_a_quiet_seam_does_not_compact_or_build_or_estimate(
     tmp_path, monkeypatch
 ) -> None:
     worker = RecordingSummaryWorker()
@@ -960,13 +975,9 @@ def test_a_seam_compacts_without_building_or_estimating(
     finally:
         ACTIVE_TRACE_CONTEXT.reset(token)
 
-    assert len(worker.calls) == 1
+    assert worker.calls == []
     assert (builds, estimates) == ([], [])
-    (event,) = _compacted_events(recorder, "turn-seam")
-    assert event.details["trigger"] == "seam"
-    assert event.details["occupancy_source"] == "seam"
-    assert event.details["occupancy"] is None
-    assert event.details["input_occupancy_numerator"] is None
+    assert _compacted_events(recorder, "turn-seam") == []
 
 
 def test_a_compaction_listener_hears_the_phase_only_when_the_worker_is_called(
@@ -999,8 +1010,14 @@ def test_a_compaction_listener_hears_the_phase_only_when_the_worker_is_called(
         assistant_message="模拟面试已完成。",
     )
 
+    assert worker.calls == []
+    assert phases == []
+    context_manager.configure_request_token_estimator(lambda context: (800, 1000))
+    context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="continue"
+    )
     assert len(worker.calls) == 1
-    assert phases == ["commit"]
+    assert phases == ["load"]
 
 
 def test_a_load_that_compacted_carries_the_estimate_of_what_it_returned(
@@ -1180,7 +1197,7 @@ def test_one_compaction_call_advances_only_one_batch_under_large_backlog(
         user_message="probe",
     )
     assert pressure.occupancy == 1.0
-    assert pressure.projection_overflow is True
+    assert pressure.projection_overflow is False
 
     context_manager.load_for_turn(
         user_id="u1", conversation_id="c1", user_message="second"
@@ -1251,14 +1268,14 @@ def test_key_fact_keeps_its_source_across_repeated_compaction(tmp_path) -> None:
     assert any("UNIQUEFIVE" in item["content"] for item in readback.payload["messages"])
 
 
-def test_legacy_short_chat_compacts_when_unsummarized_rows_leave_projection(
+def test_short_chat_does_not_compact_by_message_count(
     tmp_path,
 ) -> None:
     worker = RecordingSummaryWorker()
     context_manager = ContextManager(
         CareerContextStore(tmp_path / "context.sqlite3"),
         summary_worker=worker,
-        recent_message_limit=8,
+        recent_message_limit=2048,
         summary_batch_size=4,
     )
     recorder = InMemoryTraceRecorder()
@@ -1281,19 +1298,16 @@ def test_legacy_short_chat_compacts_when_unsummarized_rows_leave_projection(
     summary = context_manager._store.get_conversation_summary(
         user_id="u1", conversation_id="c1"
     )
-    assert summary is not None
-    assert summary.through_sequence == 4
-    compacted = [
-        event
-        for event in recorder.snapshot("turn-1").events
-        if event.event_type == "context_compacted"
-    ]
-    assert compacted[-1].details["trigger"] == "projection_overflow"
-    assert compacted[-1].details["projection_overflow"] is True
-    assert compacted[-1].details["occupancy"] < 0.01
+    assert summary is None
+    assert worker.calls == []
+    assert _compacted_events(recorder, "turn-1") == []
+    loaded = context_manager.load_for_turn(
+        user_id="u1", conversation_id="c1", user_message="next"
+    )
+    assert len(loaded.recent_messages) == 12
 
 
-def test_workflow_exit_compacts_at_a_low_occupancy_seam(tmp_path) -> None:
+def test_workflow_exit_does_not_compact_at_low_token_occupancy(tmp_path) -> None:
     worker = RecordingSummaryWorker()
     context_manager = manager(tmp_path, limit=4, summary_worker=worker)
     entry_context = context_manager.load_for_turn(
@@ -1324,12 +1338,11 @@ def test_workflow_exit_compacts_at_a_low_occupancy_seam(tmp_path) -> None:
     summary = context_manager._store.get_conversation_summary(
         user_id="u1", conversation_id="c1"
     )
-    assert summary is not None
-    assert summary.through_sequence == 2
-    assert len(worker.calls) == 1
+    assert summary is None
+    assert worker.calls == []
 
 
-def test_one_seam_never_runs_a_synchronous_summary_loop(tmp_path) -> None:
+def test_explicit_compaction_runs_only_one_batch(tmp_path) -> None:
     path = tmp_path / "context.sqlite3"
     writer = ContextManager(CareerContextStore(path), recent_message_limit=20)
     for index in range(5):
@@ -1349,7 +1362,8 @@ def test_one_seam_never_runs_a_synchronous_summary_loop(tmp_path) -> None:
         summary_batch_size=2,
     )
 
-    context_manager._maybe_summarize(
+    context_manager._compact_one_batch(
+        require_occupancy=False,
         user_id="u1",
         conversation_id="c1",
         trigger="seam",
@@ -1553,7 +1567,8 @@ def _store_turns(path, conversation_id: str, turns: int) -> None:
 
 
 def _attempt_seam_compaction(context_manager, conversation_id: str = "c1") -> None:
-    context_manager._maybe_summarize(
+    context_manager._compact_one_batch(
+        require_occupancy=False,
         user_id="u1",
         conversation_id=conversation_id,
         trigger="seam",
@@ -1672,11 +1687,11 @@ def test_summary_worker_failure_preserves_recent_conversation(tmp_path) -> None:
     ]
 
 
-def test_recent_message_projection_obeys_total_character_budget(tmp_path) -> None:
-    context_manager = manager(
-        tmp_path,
-        limit=4,
-        max_recent_context_chars=40,
+def test_recent_message_projection_obeys_total_token_budget(tmp_path) -> None:
+    context_manager = ContextManager(
+        CareerContextStore(tmp_path / "context.sqlite3"),
+        max_recent_context_tokens=10,
+        max_recent_message_tokens=10,
     )
     for _ in range(2):
         context = context_manager.load_for_turn(
@@ -1691,8 +1706,8 @@ def test_recent_message_projection_obeys_total_character_budget(tmp_path) -> Non
     loaded = context_manager.load_for_turn(
         user_id="u1", conversation_id="c1", user_message="next"
     )
-    assert sum(len(message.content) for message in loaded.recent_messages) == 40
-    assert loaded.recent_messages[-1].content == "y" * 10
+    assert sum(message_token_count(message.content) for message in loaded.recent_messages) <= 10
+    assert loaded.recent_messages[-1].content
     assert loaded.recent_messages[-1].content_clipped is True
     assert loaded.through_sequence == 0
     assert loaded.recent_from_sequence == 1
@@ -2040,7 +2055,7 @@ def test_retrieval_queries_read_the_prompt_copy_of_a_long_message(
     ],
     ids=["short", "chinese-16k-in-window", "chinese-32k-current", "english-16k"],
 )
-def test_without_token_caps_messages_keep_the_character_bounds(
+def test_default_recent_token_caps_apply_without_an_estimator(
     tmp_path, current, earlier
 ) -> None:
     # Maintenance commands and most fixtures never install an estimator.
@@ -2069,10 +2084,11 @@ def test_without_token_caps_messages_keep_the_character_bounds(
     projection = project_decision_messages(context)
     assert projection.current_user_message == current
     if earlier is not None:
-        assert [
-            (message.content, message.content_clipped)
-            for message in context.recent_messages
-        ] == [(earlier, False), ("收到", False)]
+        first, last = context.recent_messages
+        assert message_token_count(first.content) <= 2000
+        assert earlier.startswith(first.content)
+        assert first.content_clipped is True
+        assert (last.content, last.content_clipped) == ("收到", False)
 
 
 def test_recent_window_clears_only_older_exact_large_body_duplicates(tmp_path) -> None:
@@ -2660,6 +2676,7 @@ def test_full_stored_message_is_clipped_only_for_summary_input(tmp_path) -> None
         summary_batch_size=2,
         max_message_chars=32000,
         max_recent_context_chars=10000,
+        max_recent_context_tokens=1000,
     )
     context = context_manager.load_for_turn(
         user_id="u1", conversation_id="c1", user_message="u" * 8000

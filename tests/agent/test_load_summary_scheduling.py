@@ -35,12 +35,13 @@ class Worker:
         ))
 
 
-def setup_manager(tmp_path, worker, **options):
+def setup_manager(tmp_path, worker, *, seed_turns=5, **options):
     store = CareerContextStore(tmp_path / "memory.sqlite3")
     plain = ContextManager(store)
-    for i in range(5):
+    for i in range(seed_turns):
         context = plain.load_for_turn(user_id="u", conversation_id="c", user_message=f"fact_{i}")
         plain.commit_turn(context=context, task=ConversationTaskState(), assistant_message=f"answer_{i}")
+    options.setdefault("max_recent_context_tokens", 24)
     manager = ContextManager(store, summary_worker=worker, background_summary=True, **options)
     notices = []
     manager.on_compaction(notices.append)
@@ -58,7 +59,7 @@ def load(manager):
 
 def test_load_waits_announces_and_has_no_watermark_gap(tmp_path):
     worker = Worker(block=True)
-    manager, store, notices = setup_manager(tmp_path, worker, recent_message_limit=2)
+    manager, store, notices = setup_manager(tmp_path, worker, max_recent_context_tokens=24)
     try:
         schedule(manager, store)
         assert worker.entered.wait(1)
@@ -82,7 +83,7 @@ def test_load_waits_announces_and_has_no_watermark_gap(tmp_path):
 @pytest.mark.parametrize("in_flight", [False, True])
 def test_failed_background_job_is_retried_synchronously(tmp_path, in_flight):
     worker = Worker(block=in_flight, fail_first=True)
-    manager, store, notices = setup_manager(tmp_path, worker, recent_message_limit=2)
+    manager, store, notices = setup_manager(tmp_path, worker, max_recent_context_tokens=24)
     try:
         schedule(manager, store)
         assert worker.entered.wait(1)
@@ -100,7 +101,7 @@ def test_failed_background_job_is_retried_synchronously(tmp_path, in_flight):
 
 def test_soft_pressure_only_schedules_on_commit(tmp_path):
     worker = Worker(block=True)
-    manager, store, notices = setup_manager(tmp_path, worker)
+    manager, store, notices = setup_manager(tmp_path, worker, max_recent_context_tokens=1000)
     manager.configure_request_token_estimator(lambda _: (650, 1000))
     try:
         context = load(manager)
@@ -110,6 +111,12 @@ def test_soft_pressure_only_schedules_on_commit(tmp_path):
         assert worker.entered.wait(1)
         assert not worker.release.is_set()
         assert not notices
+        # A running job does not delay a load below the hard token threshold.
+        loaded = load(manager)
+        assert len(loaded.recent_messages) == 12
+        assert loaded.through_sequence == 0
+        assert worker.calls == 1
+        assert not notices
     finally:
         worker.release.set()
         manager.close()
@@ -117,7 +124,7 @@ def test_soft_pressure_only_schedules_on_commit(tmp_path):
 
 def test_wait_timeout_runs_sync_and_late_result_loses_cas(tmp_path):
     worker = Worker(block=True)
-    manager, store, notices = setup_manager(tmp_path, worker, recent_message_limit=2, summary_wait_timeout_seconds=0.01)
+    manager, store, notices = setup_manager(tmp_path, worker, max_recent_context_tokens=24, summary_wait_timeout_seconds=0.01)
     recorder = InMemoryTraceRecorder()
     token = ACTIVE_TRACE_CONTEXT.set((recorder, "run"))
     try:
@@ -145,7 +152,7 @@ def test_wait_timeout_runs_sync_and_late_result_loses_cas(tmp_path):
 
 def test_circuit_skips_pending_wait_and_sync(tmp_path):
     worker = Worker()
-    manager, store, notices = setup_manager(tmp_path, worker, recent_message_limit=2)
+    manager, store, notices = setup_manager(tmp_path, worker, max_recent_context_tokens=24)
     pending = Future()
     manager._summary_jobs[("u", "c")] = pending
     manager._compaction_failures[("u", "c")] = (3, datetime.now(timezone.utc))
@@ -161,7 +168,7 @@ def test_circuit_skips_pending_wait_and_sync(tmp_path):
 
 def test_job_limit_records_skipped_trace(tmp_path):
     worker = Worker(block=True)
-    manager, store, notices = setup_manager(tmp_path, worker, recent_message_limit=2, summary_job_limit=1)
+    manager, store, notices = setup_manager(tmp_path, worker, max_recent_context_tokens=24, summary_job_limit=1)
     recorder = InMemoryTraceRecorder()
     token = ACTIVE_TRACE_CONTEXT.set((recorder, "run"))
     try:
@@ -178,10 +185,10 @@ def test_job_limit_records_skipped_trace(tmp_path):
 
 
 def test_restart_load_recovers_from_persisted_watermark(tmp_path):
-    manager, store, _ = setup_manager(tmp_path, Worker(), recent_message_limit=2)
+    manager, store, _ = setup_manager(tmp_path, Worker(), max_recent_context_tokens=24)
     schedule(manager, store)
     manager.close()
-    restarted = ContextManager(CareerContextStore(store.path), summary_worker=Worker(), background_summary=True, recent_message_limit=2)
+    restarted = ContextManager(CareerContextStore(store.path), summary_worker=Worker(), background_summary=True, max_recent_context_tokens=24)
     try:
         assert load(restarted).through_sequence == 8
     finally:
@@ -189,7 +196,7 @@ def test_restart_load_recovers_from_persisted_watermark(tmp_path):
 
 
 def test_fact_migration_does_not_backfill_on_every_open(tmp_path):
-    manager, store, _ = setup_manager(tmp_path, Worker(), recent_message_limit=2)
+    manager, store, _ = setup_manager(tmp_path, Worker(), max_recent_context_tokens=24)
     load(manager)
     manager.close()
     import sqlite3
@@ -203,3 +210,85 @@ def test_soft_threshold_configuration():
     assert ContextDeploymentConfig.from_env(environ={"CONTEXT_COMPACT_SOFT_THRESHOLD": "0.55"}).compact_soft_threshold == 0.55
     with pytest.raises(ValueError):
         ContextDeploymentConfig(compact_soft_threshold=0.8)
+
+
+def test_many_short_messages_do_not_trigger_compaction_or_leave_window_gaps(tmp_path):
+    worker = Worker()
+    manager, store, notices = setup_manager(
+        tmp_path, worker, seed_turns=40, max_recent_context_tokens=8000
+    )
+    manager.configure_request_token_estimator(lambda _: (500, 1000))
+    try:
+        context = load(manager)
+        assert context.through_sequence == 0
+        assert len(context.recent_messages) == 80
+        manager.commit_turn(
+            context=context, task=ConversationTaskState(), assistant_message="done"
+        )
+        assert len(load(manager).recent_messages) == 82
+        assert worker.calls == 0
+        assert not manager._summary_jobs
+        assert not notices
+    finally:
+        manager.close()
+
+
+def test_pending_summary_waits_on_hard_token_pressure_then_remeasures(tmp_path):
+    worker = Worker(block=True)
+    manager, store, notices = setup_manager(tmp_path, worker, seed_turns=9, max_recent_context_tokens=1000)
+    manager.configure_request_token_estimator(
+        lambda context: ((800 if context.user_message == "large" else 650) if context.through_sequence == 0 else 500, 1000)
+    )
+    try:
+        context = load(manager)
+        manager.commit_turn(
+            context=context, task=ConversationTaskState(), assistant_message="done"
+        )
+        assert worker.entered.wait(1)
+        announced = Event()
+        manager.on_compaction(lambda phase: (notices.append(phase), announced.set()))
+        with ThreadPoolExecutor() as pool:
+            pending = pool.submit(
+                manager.load_for_turn, user_id="u", conversation_id="c", user_message="large"
+            )
+            assert announced.wait(1)
+            assert not pending.done()
+            worker.release.set()
+            context = pending.result(timeout=2)
+        assert context.through_sequence == 8
+        assert worker.calls == 1
+        assert notices == ["load"]
+    finally:
+        worker.release.set()
+        manager.close()
+
+
+def test_uncropped_recent_token_quota_triggers_even_when_request_estimate_is_low(tmp_path):
+    store = CareerContextStore(tmp_path / "memory.sqlite3")
+    writer = ContextManager(store)
+    context = writer.load_for_turn(
+        user_id="u", conversation_id="c", user_message="甲乙丙丁" * 20
+    )
+    writer.commit_turn(
+        context=context, task=ConversationTaskState(),
+        assistant_message="戊己庚辛" * 20,
+    )
+    worker = Worker()
+    manager = ContextManager(
+        store, summary_worker=worker, background_summary=True,
+        max_recent_context_tokens=100, max_recent_message_tokens=100,
+    )
+    manager.configure_request_token_estimator(lambda _: (500, 1000))
+    notices = []
+    manager.on_compaction(notices.append)
+    try:
+        loaded = load(manager)
+        assert worker.calls == 1
+        assert notices == ["load"]
+        assert loaded.through_sequence == 2
+        assert loaded.recent_messages == ()
+        assert {fact.source_sequence for fact in store.list_summary_facts(
+            user_id="u", conversation_id="c"
+        )} == {1, 2}
+    finally:
+        manager.close()

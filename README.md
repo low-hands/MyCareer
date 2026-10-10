@@ -355,7 +355,7 @@ uv run career-agent backup restore --source ~/.career-agent-backups/20260914T120
 
 | 变量 | 默认值 | 范围 |
 | --- | --- | --- |
-| `CONTEXT_RECENT_MESSAGE_LIMIT` | 16 | 2–64 |
+| `CONTEXT_RECENT_MESSAGE_LIMIT` | 2048 | 128–8192（条数保险上限；近期窗口按 token 装填） |
 | `CONTEXT_SUMMARY_BATCH_SIZE` | 8 | 2–32 |
 | `CONTEXT_COMPACT_OCCUPANCY_THRESHOLD` | 0.75 | 0.7–0.9 |
 | `MAIN_AGENT_CONTEXT_WINDOW_TOKENS` | 65536 | 2048–2000000，按模型实际窗口填写 |

@@ -14,7 +14,9 @@ from career_agent.agent.providers.openai_client import (
     OpenAICompatibleAgentConfig,
 )
 
-DEFAULT_RECENT_MESSAGE_LIMIT = 16
+DEFAULT_RECENT_MESSAGE_LIMIT = 2048
+DEFAULT_RECENT_CONTEXT_TOKENS = 8000
+DEFAULT_RECENT_MESSAGE_TOKENS = 2000
 DEFAULT_SUMMARY_BATCH_SIZE = 8
 DEFAULT_COMPACT_OCCUPANCY_THRESHOLD = 0.75
 DEFAULT_COMPACT_SOFT_THRESHOLD = 0.6
@@ -104,9 +106,11 @@ class ContextDeploymentConfig:
     def __post_init__(self) -> None:
         if (
             type(self.recent_message_limit) is not int
-            or not 2 <= self.recent_message_limit <= 64
+            or not 128 <= self.recent_message_limit <= 8192
         ):
-            raise ValueError("recent_message_limit must be between 2 and 64")
+            raise ValueError(
+                "recent_message_limit safety cap must be between 128 and 8192"
+            )
         if (
             type(self.summary_batch_size) is not int
             or not 2 <= self.summary_batch_size <= 32
@@ -131,7 +135,8 @@ class ContextDeploymentConfig:
         env = _environment(environ)
         return cls(
             recent_message_limit=_integer(
-                env, "CONTEXT_RECENT_MESSAGE_LIMIT", DEFAULT_RECENT_MESSAGE_LIMIT, 2, 64
+                env, "CONTEXT_RECENT_MESSAGE_LIMIT",
+                DEFAULT_RECENT_MESSAGE_LIMIT, 128, 8192
             ),
             summary_batch_size=_integer(
                 env, "CONTEXT_SUMMARY_BATCH_SIZE", DEFAULT_SUMMARY_BATCH_SIZE, 2, 32

@@ -1,0 +1,6 @@
+{
+  "status": "abandoned",
+  "reason": "User replaced row-lookahead design with token-only compaction; stopped both driver and current capture via SIGINT. Gap20 never started. Retain completed attempts and incomplete trace; not final results.",
+  "raw_trace": "output/summary-prefetch-gap0-2026-10-09/run-events.sqlite3",
+  "source_changes_archive": "abandoned_changes.json (patch text preserved exactly with SHA256; original diff context spaces escaped by JSON)"
+}

@@ -11,6 +11,8 @@ from typing import Callable, Literal, Protocol
 from career_agent.agent.context.deployment import (
     DEFAULT_COMPACT_OCCUPANCY_THRESHOLD,
     DEFAULT_COMPACT_SOFT_THRESHOLD,
+    DEFAULT_RECENT_CONTEXT_TOKENS,
+    DEFAULT_RECENT_MESSAGE_TOKENS,
     DEFAULT_RECENT_MESSAGE_LIMIT,
     DEFAULT_SUMMARY_BATCH_SIZE,
 )
@@ -250,8 +252,12 @@ class ContextManager:
         self._max_recent_context_tokens = max_recent_context_tokens
         self._max_recent_message_tokens = max_recent_message_tokens
         self._user_message_tokens = max_user_message_tokens
-        self._recent_context_tokens = max_recent_context_tokens
-        self._recent_message_tokens = max_recent_message_tokens
+        self._recent_context_tokens = (
+            max_recent_context_tokens or DEFAULT_RECENT_CONTEXT_TOKENS
+        )
+        self._recent_message_tokens = (
+            max_recent_message_tokens or DEFAULT_RECENT_MESSAGE_TOKENS
+        )
         # The complete-request estimate each conversation's latest load took,
         # left for that turn's commit. The commit removes what it reads, so this
         # holds at most one entry per conversation with a turn in flight.
@@ -504,11 +510,7 @@ class ContextManager:
             user_id=user_id,
             conversation_id=conversation_id,
         )
-        raw_limit = (
-            self._recent_message_limit + self._summary_batch_size - 1
-            if self._summary_worker is not None
-            else self._recent_message_limit
-        )
+        raw_limit = self._recent_message_limit
         recent_records = self._bound_recent_messages(
             self._deduplicate_recent_messages(
                 self._store.list_message_records(
@@ -1441,16 +1443,30 @@ class ContextManager:
             previous = self._store.get_conversation_summary(
                 user_id=user_id, conversation_id=conversation_id
             )
-            pressure = measure(previous.through_sequence if previous else 0)
-            if trigger == "seam" or pressure.projection_overflow or (
+            through_sequence = previous.through_sequence if previous else 0
+            pressure = measure(through_sequence)
+            if (
                 pressure.occupancy is not None
                 and pressure.occupancy >= self._compact_soft_threshold
             ):
                 self._schedule_summary(
                     user_id=user_id, conversation_id=conversation_id,
-                    trigger=trigger, phase=phase, pressure=pressure,
+                    trigger="occupancy", phase=phase, pressure=pressure,
                 )
             return pressure
+        if self._background_summary:
+            previous = self._store.get_conversation_summary(
+                user_id=user_id, conversation_id=conversation_id
+            )
+            pressure = measure(previous.through_sequence if previous else 0)
+            hard_pressure = (
+                pressure.occupancy is not None
+                and pressure.occupancy >= self._compact_occupancy_threshold
+            )
+            if not hard_pressure or self._compaction_suspended(
+                user_id=user_id, conversation_id=conversation_id
+            ):
+                return pressure
         if self._background_summary and not self._compaction_suspended(
             user_id=user_id, conversation_id=conversation_id
         ):
@@ -1479,7 +1495,7 @@ class ContextManager:
             conversation_id=conversation_id,
             trigger=trigger,
             phase=phase,
-            require_occupancy=trigger == "occupancy",
+            require_occupancy=True,
             measure=measure,
         )
 
@@ -1543,7 +1559,8 @@ class ContextManager:
             self._summary_jobs[key] = pool.submit(run)
         record_active_trace(
             "context_compaction_scheduled", "conversation_summary",
-            outcome="started", details={"background": True, "phase": phase},
+            outcome="started",
+            details={"background": True, "phase": phase, "trigger": trigger},
         )
 
     def close(self, *, wait: bool = True) -> None:
@@ -1577,9 +1594,7 @@ class ContextManager:
         pressure = measure(previous_through)
         if (
             require_occupancy
-            and not pressure.projection_overflow
-            # Unmeasured occupancy is never a reason to compact; the next load
-            # measures. A seam does not require occupancy and skips this.
+            # Automatic compaction requires measured token pressure.
             and (
                 pressure.occupancy is None
                 or pressure.occupancy < self._compact_occupancy_threshold
@@ -1592,14 +1607,12 @@ class ContextManager:
             after_sequence=previous_through,
             limit=self._summary_batch_size,
         )
-        # The row policy batches low-pressure history, but a complete request
-        # at the occupancy threshold cannot wait for eight rows to accumulate.
+        # Batching controls work size, not the trigger. Token pressure cannot
+        # wait for eight rows to accumulate.
         # Even one oversized exchange can justify compacting a shorter prefix.
-        # Keep legacy character pressure and explicit seams on their existing
-        # batch policy, and never summarize the uncommitted current message.
+        # Never summarize the uncommitted current message.
         early_occupancy = (
             require_occupancy
-            and pressure.source in {"estimated", "carried"}
             and pressure.occupancy is not None
             and pressure.occupancy >= self._compact_occupancy_threshold
         )
@@ -1854,11 +1867,7 @@ class ContextManager:
                 "conversation_key": conversation_trace_key(
                     user_id, conversation_id
                 ),
-                "trigger": (
-                    "projection_overflow"
-                    if trigger == "occupancy" and pressure.projection_overflow
-                    else trigger
-                ),
+                "trigger": trigger,
                 "through_sequence": to_summarize[-1].sequence,
                 "occupancy": pressure.occupancy,
                 "occupancy_source": pressure.source,
@@ -1991,12 +2000,14 @@ class ContextManager:
             pressure_context
         )
         return _Pressure(
-            occupancy=request_tokens / max_input_tokens,
-            projection_overflow=self._projection_overflows(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                after_sequence=after_sequence,
+            occupancy=max(
+                request_tokens / max_input_tokens,
+                self._recent_token_occupancy(
+                    user_id=user_id, conversation_id=conversation_id,
+                    after_sequence=after_sequence,
+                ),
             ),
+            projection_overflow=False,
             request_tokens=request_tokens,
             max_input_tokens=max_input_tokens,
             context=pressure_context,
@@ -2014,14 +2025,6 @@ class ContextManager:
         assistant_message: str,
     ) -> _Pressure:
         """Pressure at commit, without building the context again."""
-        if trigger == "seam":
-            # A seam compacts whatever the occupancy, so it measures nothing.
-            return self._overflow_only_pressure(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                after_sequence=after_sequence,
-                source="seam",
-            )
         if self._request_token_estimator is None:
             return self._legacy_pressure(
                 user_id=user_id,
@@ -2030,13 +2033,12 @@ class ContextManager:
             )
         if carried is None:
             # No load measured this turn: a workflow-owned turn, or an
-            # interrupted commit that never loaded. Only overflow is decided
-            # here; occupancy waits for the next load.
-            return self._overflow_only_pressure(
+            # interrupted commit that never loaded. Measure the recent token
+            # quota without rebuilding the complete request.
+            return self._legacy_pressure(
                 user_id=user_id,
                 conversation_id=conversation_id,
                 after_sequence=after_sequence,
-                source="overflow_only",
             )
         request_tokens, max_input_tokens = carried
         # The load's estimate already holds this turn's message as the current
@@ -2047,12 +2049,14 @@ class ContextManager:
             reply_tokens = min(reply_tokens, self._recent_message_tokens)
         predicted = request_tokens + reply_tokens
         return _Pressure(
-            occupancy=predicted / max_input_tokens,
-            projection_overflow=self._projection_overflows(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                after_sequence=after_sequence,
+            occupancy=max(
+                predicted / max_input_tokens,
+                self._recent_token_occupancy(
+                    user_id=user_id, conversation_id=conversation_id,
+                    after_sequence=after_sequence,
+                ),
             ),
+            projection_overflow=False,
             request_tokens=predicted,
             max_input_tokens=max_input_tokens,
             context=None,
@@ -2069,11 +2073,7 @@ class ContextManager:
     ) -> _Pressure:
         return _Pressure(
             occupancy=None,
-            projection_overflow=self._projection_overflows(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                after_sequence=after_sequence,
-            ),
+            projection_overflow=False,
             request_tokens=None,
             max_input_tokens=None,
             context=None,
@@ -2087,46 +2087,41 @@ class ContextManager:
         conversation_id: str,
         after_sequence: int,
     ) -> _Pressure:
-        # Maintenance callers may not own a model or a tool registry. Preserve
-        # their legacy recent-window signal, but production runtime always
-        # installs the complete-request estimator.
-        raw_limit = self._recent_message_limit + self._summary_batch_size - 1
-        candidates = self._store.list_message_records(
-            user_id,
-            conversation_id,
-            limit=raw_limit + 1,
-            after_sequence=after_sequence,
-        )
-        recent = self._bound_recent_messages(
-            self._deduplicate_recent_messages(candidates[-raw_limit:])
-        )
-        used = sum(len(record.message.content) for record in recent)
+        # Offline callers use the explicit/default recent token budget when
+        # no complete-request estimator is installed. Never count rows/chars.
         return _Pressure(
-            occupancy=used / self._max_recent_context_chars,
-            projection_overflow=len(candidates) > raw_limit,
+            occupancy=self._recent_token_occupancy(
+                user_id=user_id, conversation_id=conversation_id,
+                after_sequence=after_sequence,
+            ),
+            projection_overflow=False,
             request_tokens=None,
             max_input_tokens=None,
             context=None,
             source="legacy",
         )
 
-    def _projection_overflows(
-        self, *, user_id: str, conversation_id: str, after_sequence: int
-    ) -> bool:
-        raw_limit = self._recent_message_limit + self._summary_batch_size - 1
-        return (
-            len(
-                self._store.list_message_records(
-                    user_id,
-                    conversation_id,
-                    # One extra row proves that the oldest unsummarised message
-                    # would disappear from the projection before a watermark
-                    # can name it.
-                    limit=raw_limit + 1,
-                    after_sequence=after_sequence,
-                )
+    def _recent_token_occupancy(
+        self, *, user_id: str, conversation_id: str, after_sequence: int,
+    ) -> float:
+        records = self._deduplicate_recent_messages(
+            self._store.list_message_records(
+                user_id, conversation_id, limit=self._recent_message_limit,
+                after_sequence=after_sequence,
             )
-            > raw_limit
+        )
+        used = sum(
+            min(
+                message_token_count(record.message.content),
+                self._recent_message_tokens,
+            )
+            for record in records
+        )
+        # The recent quota is another token budget. Filling it is hard pressure,
+        # even if the already-clipped complete request looks small. Soft pressure
+        # therefore starts at 80% of this quota with the default 0.60/0.75 pair.
+        return (
+            self._compact_occupancy_threshold * used / self._recent_context_tokens
         )
 
     def _estimate_request(self, context: MainAgentContext) -> tuple[int, int]:
@@ -2138,8 +2133,7 @@ class ContextManager:
     def _bound_recent_messages(
         self, messages: tuple[StoredConversationMessage, ...]
     ) -> tuple[StoredConversationMessage, ...]:
-        # Measured in tokens once the request budget has set the caps, and in
-        # characters otherwise, which is the legacy behaviour unchanged.
+        # Token caps are available before a request estimator is installed.
         token_bounded = (
             self._recent_context_tokens is not None
             and self._recent_message_tokens is not None

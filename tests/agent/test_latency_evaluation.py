@@ -256,3 +256,37 @@ def test_background_summary_timing_is_labelled_and_reported_separately(tmp_path)
     mode = summarize(path)["phases"]["summary_compaction"]["execution_mode"]
     assert mode["background"]["operation_duration_ms"]["total"] == 15000
     assert mode["foreground_or_legacy"]["operation_duration_ms"]["total"] == 20
+
+
+def test_capture_reading_gaps_are_between_turns_and_excluded_from_wall_time(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    import dotenv
+    import career_agent.cli as cli
+    import career_agent.evaluation.latency_capture as sampling
+
+    monkeypatch.setattr(dotenv, "load_dotenv", lambda: None)
+    for suffix, value in {"BASE_URL": "https://example.test/v1", "API_KEY": "test-only", "MODEL": "test-model"}.items():
+        monkeypatch.setenv("MAIN_AGENT_" + suffix, value)
+    clock = [0.0]
+    gaps = []
+
+    def sleep(seconds):
+        gaps.append(seconds)
+        clock[0] += seconds
+
+    class Runtime:
+        def run_turn(self, **kwargs):
+            clock[0] += 1
+            return SimpleNamespace(context=SimpleNamespace(task=SimpleNamespace(pending_interaction=None)))
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(cli, "build_main_agent_runtime", lambda _: Runtime())
+    monkeypatch.setattr(sampling, "sleep", sleep)
+    monkeypatch.setattr(sampling, "perf_counter", lambda: clock[0])
+    result = sampling.capture(tmp_path / "capture", conversations=1, inter_turn_delay_seconds=20)
+    assert gaps == [20, 20, 20]
+    assert result["inter_turn_delay_seconds"] == 20
+    assert [t["wall_ms"] for t in result["turns"]] == [1000] * 4
+    assert [t["inter_turn_gap_ms"] for t in result["turns"]] == [0, 20000, 20000, 20000]

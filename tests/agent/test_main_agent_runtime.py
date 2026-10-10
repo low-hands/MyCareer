@@ -1725,10 +1725,10 @@ def test_conversation_span_is_turn_local_observation_not_recent_history(
     store = CareerContextStore(tmp_path / "context.sqlite3")
     manager = ContextManager(
         store,
-        recent_message_limit=2,
+        recent_message_limit=2048,
         summary_batch_size=2,
         summary_worker=StaticSummaryWorker(),
-        max_recent_context_chars=60,
+        max_recent_context_tokens=22,
         compact_occupancy_threshold=0.7,
     )
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -1743,6 +1743,8 @@ def test_conversation_span_is_turn_local_observation_not_recent_history(
             task=ConversationTaskState(),
             assistant_message=f"private-old-assistant-{index}",
         )
+    # The seeded watermark is the fixture; the exercised turn has normal caps.
+    manager = ContextManager(store, summary_worker=StaticSummaryWorker())
     decisions = SequenceDecisionMaker(
         AgentDecision(
             action="tool_call",
@@ -1790,6 +1792,8 @@ def test_conversation_span_is_turn_local_observation_not_recent_history(
         user_id="u1", conversation_id="c1", user_message="next"
     ).recent_messages
     assert [message.content for message in recent] == [
+        "private-old-user-2",
+        "private-old-assistant-2",
         "回看缺失的开头。",
         "我已根据那段历史继续处理。",
     ]

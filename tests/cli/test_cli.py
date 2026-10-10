@@ -211,7 +211,7 @@ def test_rederivation_eval_scans_production_turns(tmp_path) -> None:
     manager = ContextManager(
         CareerContextStore(tmp_path / "context.sqlite3"),
         summary_worker=SummaryWorker(),
-        recent_message_limit=2,
+        max_recent_context_tokens=20,
         summary_batch_size=2,
     )
     runtime = MainAgentRuntime(

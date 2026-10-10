@@ -100,10 +100,10 @@ def _compacted_runtime(tmp_path, *decisions):
     store = CareerContextStore(tmp_path / "context.sqlite3")
     manager = ContextManager(
         store,
-        recent_message_limit=2,
+        recent_message_limit=2048,
         summary_batch_size=2,
         summary_worker=StaticSummaryWorker(),
-        max_recent_context_chars=60,
+        max_recent_context_tokens=22,
         compact_occupancy_threshold=0.7,
     )
     manager.upsert_profile(CareerProfileContext(user_id="u1"))

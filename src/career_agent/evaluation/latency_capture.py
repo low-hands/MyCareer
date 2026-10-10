@@ -10,15 +10,24 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
-from time import perf_counter
+from time import perf_counter, sleep
 
 FIXTURE = Path(__file__).resolve().parents[3] / "evals/latency/scenarios.json"
 
 
-def capture(root: Path, *, conversations: int, fixture: Path = FIXTURE) -> dict:
+def capture(
+    root: Path, *, conversations: int, fixture: Path = FIXTURE,
+    inter_turn_delay_seconds: float = 0.0,
+) -> dict:
+    if (
+        not math.isfinite(inter_turn_delay_seconds)
+        or not 0 <= inter_turn_delay_seconds <= 60
+    ):
+        raise ValueError("inter-turn delay must be between 0 and 60 seconds")
     from dotenv import load_dotenv
     load_dotenv()
     from career_agent.cli import build_parser, build_main_agent_runtime
@@ -70,7 +79,8 @@ def capture(root: Path, *, conversations: int, fixture: Path = FIXTURE) -> dict:
                                  "disable_thinking": summary_config.disable_thinking,
                                  "timeout_seconds": summary_config.provider.timeout_seconds,
                                  "max_output_tokens": summary_config.max_output_tokens},
-              "history_turns": len(payload["history"]), "conversations": conversations, "turns": []}
+              "history_turns": len(payload["history"]), "conversations": conversations,
+              "inter_turn_delay_seconds": inter_turn_delay_seconds, "turns": []}
     # Keep the manifest durable if a process is interrupted mid-capture.
     def save():
         (root / "capture.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -86,8 +96,14 @@ def capture(root: Path, *, conversations: int, fixture: Path = FIXTURE) -> dict:
                                       user_message=ConversationMessageContext(role="user", content=user.format(resume=payload["resume"], jd=payload["jd"]), created_at=now),
                                       assistant_message=ConversationMessageContext(role="assistant", content=assistant, created_at=now))
                 for index, message in enumerate(payload["turns"]):
+                    gap_ms = 0
+                    if index and inter_turn_delay_seconds:
+                        gap_started = perf_counter()
+                        sleep(inter_turn_delay_seconds)
+                        gap_ms = round((perf_counter() - gap_started) * 1000)
                     started = perf_counter()
-                    row = {"conversation": number + 1, "turn": index + 1}
+                    row = {"conversation": number + 1, "turn": index + 1,
+                           "inter_turn_gap_ms": gap_ms}
                     try:
                         result = runtime.run_turn(user_id="latency-user", conversation_id=conversation_id, user_message=message)
                         row["status"] = "returned"
@@ -113,10 +129,12 @@ def main(argv=None):
     parser.add_argument("--work-root", type=Path, required=True)
     parser.add_argument("--conversations", type=int, default=3)
     parser.add_argument("--fixture", type=Path, default=FIXTURE)
+    parser.add_argument("--inter-turn-delay-seconds", type=float, default=0.0)
     args = parser.parse_args(argv)
     if not 1 <= args.conversations <= 20:
         parser.error("conversations must be between 1 and 20")
-    capture(args.work_root, conversations=args.conversations, fixture=args.fixture)
+    capture(args.work_root, conversations=args.conversations, fixture=args.fixture,
+            inter_turn_delay_seconds=args.inter_turn_delay_seconds)
     return 0
 
 

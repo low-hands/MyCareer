@@ -19,7 +19,7 @@ class DeltaWorker:
 def test_fact_overflow_is_archived_and_explicit_correction_only_retires_its_id(tmp_path):
     store=CareerContextStore(tmp_path/'memory.sqlite3')
     worker=DeltaWorker()
-    manager=ContextManager(store,summary_worker=worker,recent_message_limit=2,summary_batch_size=2)
+    manager=ContextManager(store,summary_worker=worker,max_recent_context_tokens=20,summary_batch_size=2)
     originals=[]
     for i in range(10):
         context=manager.load_for_turn(user_id='u',conversation_id='c',user_message=f'fact_{i}: count={i*100}')
@@ -34,6 +34,13 @@ def test_fact_overflow_is_archived_and_explicit_correction_only_retires_its_id(t
     worker.correct=fact_id(archived)
     context=manager.load_for_turn(user_id='u',conversation_id='c',user_message='correction next')
     manager.commit_turn(context=context,task=ConversationTaskState(),assistant_message='replacement confirmed')
+    manager._compact_one_batch(
+        user_id="u", conversation_id="c", trigger="occupancy", phase="load",
+        require_occupancy=False,
+        measure=lambda sequence: manager._legacy_pressure(
+            user_id="u", conversation_id="c", after_sequence=sequence
+        ),
+    )
     assert archived not in store.list_summary_facts(user_id='u',conversation_id='c')
     assert archived in store.list_summary_facts(user_id='u',conversation_id='c',statuses=('superseded',))
     assert len(store.list_summary_facts(user_id='u',conversation_id='c'))==19
@@ -61,7 +68,7 @@ class BlockingWorker(DeltaWorker):
 def test_foreground_does_not_wait_and_background_cannot_resurrect_deleted_conversation(tmp_path,delete):
     store=CareerContextStore(tmp_path/'memory.sqlite3');seed(store)
     worker=BlockingWorker()
-    manager=ContextManager(store,summary_worker=worker,background_summary=True,recent_message_limit=2)
+    manager=ContextManager(store,summary_worker=worker,background_summary=True,max_recent_context_tokens=24)
     try:
         # Commit schedules without waiting; deletion races the in-flight result.
         context=ContextManager(store).load_for_turn(user_id='u',conversation_id='c',user_message='next')
@@ -93,7 +100,7 @@ def test_background_failures_preserve_sources_and_open_existing_circuit(tmp_path
             raise AgentWorkerError("CONVERSATION_SUMMARY_TIMEOUT", "Timeout")
     store=CareerContextStore(tmp_path/'memory.sqlite3');seed(store)
     worker=FailingWorker()
-    manager=ContextManager(store,summary_worker=worker,background_summary=True,recent_message_limit=2)
+    manager=ContextManager(store,summary_worker=worker,background_summary=True,max_recent_context_tokens=24)
     try:
         for index in range(4):
             manager.load_for_turn(user_id='u',conversation_id='c',user_message='next')
