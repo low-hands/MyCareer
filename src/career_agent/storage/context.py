@@ -42,7 +42,11 @@ from career_agent.agent.contracts.memory import (
     SummaryMessage,
     SummaryKeyFact,
 )
-from career_agent.storage.summary_facts import ensure_schema as ensure_fact_schema, reconcile as reconcile_facts
+from career_agent.storage.summary_facts import (
+    create_schema as create_fact_schema,
+    ensure_schema as ensure_fact_schema,
+    reconcile as reconcile_facts,
+)
 from career_agent.agent.contracts.session import AgentSession
 from career_agent.domain.episodes import CareerEpisodeDraft
 from career_agent.domain.intent_memory import IntentMemoryVersion
@@ -282,7 +286,6 @@ class CareerContextStore:
                 },
             )
             apply_episode_schema(connection)
-            ensure_fact_schema(connection)
             self._adopt_legacy_preferences(connection)
         os.chmod(self.path, 0o600)
 
@@ -798,6 +801,7 @@ class CareerContextStore:
 
     @staticmethod
     def _migrate(connection: sqlite3.Connection) -> None:
+        create_fact_schema(connection)
         connection.execute("CREATE TABLE IF NOT EXISTS sessions (session_id TEXT NOT NULL, user_id TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, last_active_at TEXT NOT NULL, spotlight_nonce TEXT NOT NULL, PRIMARY KEY(user_id, session_id))")
         CareerContextStore._upgrade_to_v4(connection)
         connection.execute("CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id, last_active_at DESC)")

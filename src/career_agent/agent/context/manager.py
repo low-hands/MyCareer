@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError
 from threading import Lock
+from time import monotonic
+import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Literal, Protocol
 
 from career_agent.agent.context.deployment import (
     DEFAULT_COMPACT_OCCUPANCY_THRESHOLD,
+    DEFAULT_COMPACT_SOFT_THRESHOLD,
     DEFAULT_RECENT_MESSAGE_LIMIT,
     DEFAULT_SUMMARY_BATCH_SIZE,
 )
@@ -140,7 +143,32 @@ class ContextManager:
         "in this recent window]"
     )
 
-    def __init__(self, store: CareerContextStore, *, session_manager: SessionManager | None = None, summary_worker: ConversationSummaryWorker | None = None, recent_message_limit: int = DEFAULT_RECENT_MESSAGE_LIMIT, summary_batch_size: int = DEFAULT_SUMMARY_BATCH_SIZE, max_message_chars: int = 32000, max_recent_context_chars: int = 32000, max_recent_message_chars: int | None = None, max_user_message_tokens: int | None = None, max_recent_context_tokens: int | None = None, max_recent_message_tokens: int | None = None, compact_occupancy_threshold: float = DEFAULT_COMPACT_OCCUPANCY_THRESHOLD, archived_resource_limit: int = 12, target_role_source: TargetRoleSource | None = None, career_profile_budgets: CareerProfileBudgets | None = None, episode_store: SQLiteCareerEpisodeStore | None = None, working_notes_store: WorkingNotesSource | None = None, clock: Callable[[], datetime] | None = None, background_summary: bool = False) -> None:
+    def __init__(
+        self,
+        store: CareerContextStore,
+        *,
+        session_manager: SessionManager | None = None,
+        summary_worker: ConversationSummaryWorker | None = None,
+        recent_message_limit: int = DEFAULT_RECENT_MESSAGE_LIMIT,
+        summary_batch_size: int = DEFAULT_SUMMARY_BATCH_SIZE,
+        max_message_chars: int = 32000,
+        max_recent_context_chars: int = 32000,
+        max_recent_message_chars: int | None = None,
+        max_user_message_tokens: int | None = None,
+        max_recent_context_tokens: int | None = None,
+        max_recent_message_tokens: int | None = None,
+        compact_occupancy_threshold: float = DEFAULT_COMPACT_OCCUPANCY_THRESHOLD,
+        archived_resource_limit: int = 12,
+        target_role_source: TargetRoleSource | None = None,
+        career_profile_budgets: CareerProfileBudgets | None = None,
+        episode_store: SQLiteCareerEpisodeStore | None = None,
+        working_notes_store: WorkingNotesSource | None = None,
+        clock: Callable[[], datetime] | None = None,
+        background_summary: bool = False,
+        compact_soft_threshold: float = DEFAULT_COMPACT_SOFT_THRESHOLD,
+        summary_job_limit: int = 8,
+        summary_wait_timeout_seconds: float = 35.0,
+    ) -> None:
         if recent_message_limit < 2 or summary_batch_size < 2:
             raise ValueError("conversation memory limits must be at least two")
         if max_message_chars < 1 or max_recent_context_chars < 2:
@@ -175,13 +203,29 @@ class ContextManager:
             raise ValueError("archived resource limit is invalid")
         if not 0.7 <= compact_occupancy_threshold <= 0.9:
             raise ValueError("compact occupancy threshold must be between 0.7 and 0.9")
+        if not 0 < compact_soft_threshold <= compact_occupancy_threshold:
+            raise ValueError(
+                "compact soft threshold must be positive and at most the hard threshold"
+            )
+        if (
+            type(summary_job_limit) is not int or summary_job_limit < 1
+            or not math.isfinite(summary_wait_timeout_seconds)
+            or summary_wait_timeout_seconds <= 0
+        ):
+            raise ValueError("summary job limit and wait timeout must be positive")
+        self._compact_soft_threshold = compact_soft_threshold
+        self._summary_job_limit = summary_job_limit
+        self._summary_wait_timeout_seconds = summary_wait_timeout_seconds
         self._store = store
         self._sessions = session_manager or SessionManager(store)
         self._summary_worker = summary_worker
         self._background_summary = background_summary
-        self._summary_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="conversation-summary") if background_summary else None
+        self._summary_pool = (
+            ThreadPoolExecutor(max_workers=1, thread_name_prefix="conversation-summary")
+            if background_summary else None
+        )
         self._summary_lock = Lock()
-        self._summary_jobs: set[tuple[str, str]] = set()
+        self._summary_jobs: dict[tuple[str, str], Future] = {}
         self._summary_closed = False
         self._recent_message_limit = recent_message_limit
         self._summary_batch_size = summary_batch_size
@@ -1393,16 +1437,43 @@ class ContextManager:
         """
         if self._summary_worker is None:
             return None
-        if self._background_summary:
-            previous = self._store.get_conversation_summary(user_id=user_id, conversation_id=conversation_id)
+        if self._background_summary and phase == "commit":
+            previous = self._store.get_conversation_summary(
+                user_id=user_id, conversation_id=conversation_id
+            )
             pressure = measure(previous.through_sequence if previous else 0)
-            early_threshold = self._compact_occupancy_threshold - 0.05
             if trigger == "seam" or pressure.projection_overflow or (
-                pressure.occupancy is not None and pressure.occupancy >= early_threshold
+                pressure.occupancy is not None
+                and pressure.occupancy >= self._compact_soft_threshold
             ):
-                self._schedule_summary(user_id=user_id, conversation_id=conversation_id,
-                    trigger=trigger, phase=phase, pressure=pressure)
+                self._schedule_summary(
+                    user_id=user_id, conversation_id=conversation_id,
+                    trigger=trigger, phase=phase, pressure=pressure,
+                )
             return pressure
+        if self._background_summary and not self._compaction_suspended(
+            user_id=user_id, conversation_id=conversation_id
+        ):
+            with self._summary_lock:
+                future = self._summary_jobs.get((user_id, conversation_id))
+            if future is not None:
+                self._announce_compaction("load")
+                started = monotonic()
+                outcome = "completed"
+                try:
+                    future.result(timeout=self._summary_wait_timeout_seconds)
+                except TimeoutError:
+                    outcome = "timeout"
+                except Exception:
+                    outcome = "failed"
+                record_active_trace(
+                    "context_compaction_waited", "conversation_summary",
+                    outcome="succeeded" if outcome == "completed" else "failed",
+                    duration_ms=round((monotonic() - started) * 1000),
+                    details={"phase": "load", "wait_result": outcome},
+                )
+        # Re-read the persisted watermark and remeasure after waiting, including
+        # failed/timed-out jobs. Never reuse a pre-wait context snapshot.
         return self._compact_one_batch(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -1412,37 +1483,68 @@ class ContextManager:
             measure=measure,
         )
 
-    def _schedule_summary(self, *, user_id: str, conversation_id: str, trigger: Literal["occupancy", "seam"], phase: CompactionPhase, pressure: _Pressure) -> None:
+    def _announce_compaction(self, phase: CompactionPhase) -> None:
+        if self._compaction_listener is not None:
+            try:
+                self._compaction_listener(phase)
+            except Exception:
+                pass
+
+    def _schedule_summary(
+        self, *, user_id: str, conversation_id: str,
+        trigger: Literal["occupancy", "seam"], phase: CompactionPhase,
+        pressure: _Pressure,
+    ) -> None:
         key = (user_id, conversation_id)
         trace = ACTIVE_TRACE_CONTEXT.get()
+        pool = self._summary_pool
+        if pool is None:
+            return
+
+        def run() -> None:
+            token = ACTIVE_TRACE_CONTEXT.set(trace)
+            mode = BACKGROUND_PROVIDER_CALL.set(True)
+            try:
+                self._compact_one_batch(
+                    user_id=user_id, conversation_id=conversation_id,
+                    trigger=trigger, phase=phase, require_occupancy=False,
+                    measure=lambda _: pressure,
+                )
+            except Exception:
+                self._record_compaction_failure(
+                    user_id=user_id, conversation_id=conversation_id,
+                    error=AgentWorkerError(
+                        "CONVERSATION_SUMMARY_BACKGROUND_FAILED",
+                        "Background summary failed",
+                    ),
+                )
+            finally:
+                BACKGROUND_PROVIDER_CALL.reset(mode)
+                ACTIVE_TRACE_CONTEXT.reset(token)
+                with self._summary_lock:
+                    self._summary_jobs.pop(key, None)
+
         with self._summary_lock:
-            # One running/queued job per owned conversation, bounded globally.
-            if self._summary_closed or key in self._summary_jobs or len(self._summary_jobs) >= 8:
+            # submit and registration share the lock with completion cleanup.
+            if self._summary_closed or key in self._summary_jobs:
                 return
-            if self._compaction_suspended(user_id=user_id, conversation_id=conversation_id):
+            if len(self._summary_jobs) >= self._summary_job_limit:
+                record_active_trace(
+                    "context_compaction_skipped", "conversation_summary",
+                    outcome="interrupted",
+                    details={"reason": "job_limit", "limit": self._summary_job_limit,
+                             "background": True, "phase": phase},
+                )
                 return
-            self._summary_jobs.add(key)
-            def run():
-                token = ACTIVE_TRACE_CONTEXT.set(trace)
-                mode = BACKGROUND_PROVIDER_CALL.set(True)
-                try:
-                    self._compact_one_batch(user_id=user_id, conversation_id=conversation_id,
-                        trigger=trigger, phase=phase, require_occupancy=False,
-                        measure=lambda _: pressure)
-                except Exception:
-                    # Unexpected failures also open the circuit; never expose
-                    # exception bodies or fail an unrelated foreground turn.
-                    self._record_compaction_failure(user_id=user_id, conversation_id=conversation_id,
-                        error=AgentWorkerError("CONVERSATION_SUMMARY_BACKGROUND_FAILED", "Background summary failed"))
-                finally:
-                    BACKGROUND_PROVIDER_CALL.reset(mode)
-                    ACTIVE_TRACE_CONTEXT.reset(token)
-                    with self._summary_lock:
-                        self._summary_jobs.discard(key)
-            assert self._summary_pool is not None
-            self._summary_pool.submit(run)
-        record_active_trace("context_compaction_scheduled", "conversation_summary",
-            outcome="started", details={"background": True, "phase": phase})
+            if self._compaction_suspended(
+                user_id=user_id, conversation_id=conversation_id
+            ):
+                return
+            self._summary_jobs[key] = pool.submit(run)
+        record_active_trace(
+            "context_compaction_scheduled", "conversation_summary",
+            outcome="started", details={"background": True, "phase": phase},
+        )
 
     def close(self, *, wait: bool = True) -> None:
         """Application shutdown, never called to finish a foreground turn."""
@@ -1502,7 +1604,9 @@ class ContextManager:
             and pressure.occupancy >= self._compact_occupancy_threshold
         )
         if not messages or (
-            len(messages) < self._summary_batch_size and not early_occupancy and not self._background_summary
+            len(messages) < self._summary_batch_size
+            and not early_occupancy
+            and not self._background_summary
         ):
             return pressure
         to_summarize = messages[: self._summary_batch_size]
@@ -1510,44 +1614,73 @@ class ContextManager:
             user_id=user_id, conversation_id=conversation_id
         ):
             return pressure
-        if self._compaction_listener is not None and not self._background_summary:
-            try:
-                self._compaction_listener(phase)
-            except Exception:
-                pass
+        if not BACKGROUND_PROVIDER_CALL.get():
+            self._announce_compaction(phase)
         known_facts = merge_facts(
-            self._store.list_summary_facts(user_id=user_id, conversation_id=conversation_id),
+            self._store.list_summary_facts(
+                user_id=user_id, conversation_id=conversation_id
+            ),
             previous.content.key_facts if previous else (),
         )
+        started = monotonic()
+        summary_succeeded = False
         try:
             extract = getattr(self._summary_worker, "extract_delta", None)
             content = (
-                extract(previous=previous.content if previous else None,
-                    messages=to_summarize, known_facts=known_facts)
+                extract(
+                    previous=previous.content if previous else None,
+                    messages=to_summarize, known_facts=known_facts,
+                )
                 if extract is not None else self._summary_worker.summarize(
-                    previous=previous.content if previous else None, messages=to_summarize)
+                    previous=previous.content if previous else None,
+                    messages=to_summarize,
+                )
             )
             superseded_fact_ids = ()
+            source_sequences = {message.sequence for message in to_summarize}
             if isinstance(content, ConversationSummaryDelta):
-                source_sequences = {message.sequence for message in to_summarize}
-                if any(fact.source_sequence not in source_sequences for fact in content.new_facts):
+                if any(
+                    fact.source_sequence not in source_sequences
+                    for fact in content.new_facts
+                ):
                     raise ValueError("New fact source is outside the compacted batch")
                 if content.superseded_fact_ids and not content.new_facts:
                     raise ValueError("Supersession requires replacement facts")
                 superseded_fact_ids = content.superseded_fact_ids
-                all_facts = merge_facts(known_facts, content.new_facts, superseded_fact_ids)
+                all_facts = merge_facts(
+                    known_facts, content.new_facts, superseded_fact_ids
+                )
             else:
-                all_facts = merge_facts(known_facts, tuple(fact for fact in content.key_facts
-                    if fact.source_sequence <= previous_through or fact.source_sequence in {m.sequence for m in to_summarize}))
+                all_facts = merge_facts(
+                    known_facts,
+                    tuple(
+                        fact for fact in content.key_facts
+                        if fact.source_sequence <= previous_through
+                        or fact.source_sequence in source_sequences
+                    ),
+                )
+            summary_succeeded = True
         except ValueError:
-            self._record_compaction_failure(user_id=user_id, conversation_id=conversation_id,
-                error=AgentWorkerError("CONVERSATION_SUMMARY_INVALID_RESPONSE", "Invalid incremental summary"))
+            self._record_compaction_failure(
+                user_id=user_id, conversation_id=conversation_id,
+                error=AgentWorkerError(
+                    "CONVERSATION_SUMMARY_INVALID_RESPONSE", "Invalid incremental summary"
+                ),
+            )
             return pressure
         except AgentWorkerError as error:
             self._record_compaction_failure(
                 user_id=user_id, conversation_id=conversation_id, error=error
             )
             return pressure
+        finally:
+            if not BACKGROUND_PROVIDER_CALL.get():
+                record_active_trace(
+                    "context_compaction_sync_finished", "conversation_summary",
+                    outcome="succeeded" if summary_succeeded else "failed",
+                    duration_ms=round((monotonic() - started) * 1000),
+                    details={"phase": phase, "background": False},
+                )
         self._compaction_failures.pop((user_id, conversation_id), None)
         preference_candidates_proposed = len(content.long_term_memory_candidates)
         preference_candidates = self._validated_preference_candidates(
@@ -1732,7 +1865,7 @@ class ContextManager:
                 "projection_overflow": pressure.projection_overflow,
                 "input_occupancy_numerator": pressure.request_tokens,
                 "input_occupancy_denominator": pressure.max_input_tokens,
-                "background": self._background_summary,
+                "background": BACKGROUND_PROVIDER_CALL.get(),
                 "archived_fact_count": len(all_facts) - len(key_facts),
                 "superseded_fact_count": len(superseded_fact_ids),
                 "restored_constraints": restored_constraints,
@@ -1806,7 +1939,7 @@ class ContextManager:
                 ),
                 "consecutive_failures": failures,
                 "compaction_suspended": suspended,
-                **({"background": True} if self._background_summary else {}),
+                "background": BACKGROUND_PROVIDER_CALL.get(),
                 # Only the shared allowlisted protocol metadata crosses the
                 # trace boundary; no exception text or provider response body.
                 **({"provider": error.provider.as_dict()} if error.provider else {}),

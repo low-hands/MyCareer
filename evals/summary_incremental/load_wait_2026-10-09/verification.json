@@ -1,0 +1,59 @@
+{
+  "deterministic": {
+    "command": ".venv/bin/python -m pytest -q -k 'not holdout'",
+    "passed": 2722,
+    "skipped": 1,
+    "deselected_holdout": 3,
+    "existing_xfailed": 4,
+    "duration_seconds": 82.04,
+    "provider_calls": 0
+  },
+  "targeted": {
+    "passed": 104,
+    "duration_seconds": 4.02
+  },
+  "offline_replay": {
+    "qwen": {
+      "scenarios": 47,
+      "contract_failed": 0,
+      "behaviour_failed": 4,
+      "quality_failed": 1,
+      "stale": 0,
+      "unrecorded": 0,
+      "offline_lexical_fallback_warning_count": 10,
+      "provider_calls": 0
+    },
+    "deepseek": {
+      "scenarios": 47,
+      "contract_failed": 0,
+      "behaviour_failed": 11,
+      "quality_failed": 1,
+      "stale": 0,
+      "unrecorded": 0,
+      "offline_lexical_fallback_warning_count": 10,
+      "provider_calls": 0
+    }
+  },
+  "interpretation": "Deterministic tests do not establish model quality. Offline replay retains recorded behaviour/quality failures. Frozen holdout excluded by repository protocol. No live trajectory rerecording.",
+  "isolated_change": {
+    "basis": "HEAD plus only this repair and existing local tokenizer asset",
+    "targeted_passed": 104,
+    "duration_seconds": 3.83,
+    "initial_environment_failure": "Export omitted Git-ignored tokenizer vocabulary; 25 failures resolved by copying the existing bundled asset, without changing source.",
+    "qwen_replay_matches_working_tree": true,
+    "deepseek_replay_matches_working_tree": true
+  },
+  "latency": {
+    "attempted_turns": 24,
+    "returned_turns": 24,
+    "background_summaries_succeeded": 6,
+    "summary_failures": 0,
+    "infrastructure_failures": 0,
+    "load_wait_count": 6,
+    "load_wait_total_ms": 85633,
+    "load_sync_count": 0,
+    "commit_sync_count": 0,
+    "skipped_jobs": 0,
+    "all_fingerprints_valid": true
+  }
+}

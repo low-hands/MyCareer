@@ -63,12 +63,12 @@ def test_foreground_does_not_wait_and_background_cannot_resurrect_deleted_conver
     worker=BlockingWorker()
     manager=ContextManager(store,summary_worker=worker,background_summary=True,recent_message_limit=2)
     try:
-        # Worker is held until after load AND commit have both returned.
-        context=manager.load_for_turn(user_id='u',conversation_id='c',user_message='next')
+        # Commit schedules without waiting; deletion races the in-flight result.
+        context=ContextManager(store).load_for_turn(user_id='u',conversation_id='c',user_message='next')
+        manager.commit_turn(context=context,task=ConversationTaskState(),assistant_message='done')
         assert worker.entered.wait(1)
         assert not worker.release.is_set()
         assert context.through_sequence==0
-        manager.commit_turn(context=context,task=ConversationTaskState(),assistant_message='done')
         assert worker.calls==1
         assert store.get_conversation_summary(user_id='u',conversation_id='c') is None
         if delete:

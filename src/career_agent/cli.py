@@ -172,6 +172,8 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     context_manager = ContextManager(
         context_store,
         background_summary=True,
+        summary_wait_timeout_seconds=summary_config.provider.timeout_seconds + 5.0,
+        compact_soft_threshold=context_config.compact_soft_threshold,
         summary_worker=OpenAIConversationSummaryWorker(
             summary_config.provider,
             max_output_tokens=summary_config.max_output_tokens,

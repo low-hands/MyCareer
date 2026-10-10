@@ -58,6 +58,9 @@ EventType = Literal[
     "presentation_degraded",
     "context_compacted",
     "context_compaction_scheduled",
+    "context_compaction_skipped",
+    "context_compaction_waited",
+    "context_compaction_sync_finished",
     "summary_facts_dropped",
     # The complete-request estimate a load took, as numbers. Paired with the
     # run's first model_succeeded it gives estimator against provider count,
