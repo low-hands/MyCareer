@@ -11,7 +11,7 @@ from career_agent.storage.context import CareerContextStore
 from career_agent.domain.episodes import CareerEpisodeDraft
 from career_agent.storage.episodes import SQLiteCareerEpisodeStore
 
-FIXTURE = json.loads((Path(__file__).parents[2] / "evals/episode_retrieval/temporal_v1/year_labels.json").read_text())
+FIXTURE = json.loads((Path(__file__).parents[2] / "evals/episode_retrieval/temporal_v1/year_labels.json").read_text(encoding="utf-8"))
 CLOCK = datetime.fromisoformat(FIXTURE["clock"])
 
 

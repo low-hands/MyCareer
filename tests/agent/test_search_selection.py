@@ -18,6 +18,7 @@ from career_agent.agent.capabilities.waiting import (
 from career_agent.agent.presentation.delivery_policy import DELIVERY_POLICIES, is_waiting
 import pytest
 from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.memory import ConversationSummaryContent
 from career_agent.agent.contracts.decisions import AgentDecision, ToolCall
 from career_agent.agent.contracts.observations import DecisionObservation
 from career_agent.agent.contracts.profile import CareerProfileContext
@@ -53,7 +54,9 @@ def _context(task=None, observations=(), *, user_message="看看这个岗位和�
 def test_search_offer_starts_small_and_retains_loaded_tools() -> None:
     strategy = SearchStrategy()
     cold = strategy.select(_context(), SCHEMAS)
-    assert set(cold.offered_names) == set(ALWAYS_OFFERED_TOOLS) - {"read_conversation_span"}
+    assert set(cold.offered_names) == set(ALWAYS_OFFERED_TOOLS) - {
+        "read_conversation_span", "fetch_archived_constraints",
+    }
     assert "route_to_capability" not in cold.selected_names
     assert "create_application" not in cold.offered_names
     task = ConversationTaskState(loaded_capabilities=(
@@ -340,7 +343,10 @@ def test_search_projection_and_prompt_exclude_profile_routing() -> None:
 def test_directory_is_stable_complete_and_metadata_only() -> None:
     directory = capability_directory()
     for item in searchable_capabilities():
-        assert f"- {item.name}: {item.summary}" in directory
+        if not item.static_directory:
+            assert item.name not in directory
+        else:
+            assert f"- {item.name}: {item.summary}" in directory
         assert item.example_queries[0] not in directory
     assert "route_to_capability" not in directory
     assert "handle_mock_interview_input" not in directory
@@ -348,6 +354,15 @@ def test_directory_is_stable_complete_and_metadata_only() -> None:
     prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt(SearchStrategy().tool_policy())
     assert "route_to_capability" not in prompt
     assert "tool_profile" not in prompt
+    assert "read_conversation_span" not in prompt
+    assert "fetch_archived_constraints" not in prompt
+
+
+def test_cold_offered_tool_descriptions_do_not_name_history_readback() -> None:
+    for name in ("fetch_archived_constraints", "search_career_history"):
+        assert "read_conversation_span" not in CAPABILITIES[name].tool_schema()[
+            "function"
+        ]["description"]
 
 
 def test_search_budget_is_bounded_per_turn() -> None:
@@ -425,7 +440,9 @@ def test_search_selection_is_wired_at_runtime_startup(tmp_path) -> None:
     result = runtime.run_turn(
         user_id="u1", conversation_id="c1", user_message="列出我的简历",
     )
-    assert set(ALWAYS_OFFERED_TOOLS) - {"read_conversation_span"} <= set(
+    assert set(ALWAYS_OFFERED_TOOLS) - {
+        "read_conversation_span", "fetch_archived_constraints",
+    } <= set(
         schema["function"]["name"] for schema in maker.schemas
     )
     assert "list_resumes" in {schema["function"]["name"] for schema in maker.schemas}
@@ -534,6 +551,60 @@ def test_history_offer_uses_one_watermark_contract(through, recent, expected):
     assert strategy.resolve_unoffered("read_conversation_span", context) == ("load" if expected else "refuse")
     arguments = project_atomic_arguments(context, "read_conversation_span", {}, source_turn_id=None)
     assert arguments["_has_compressed_history"] is expected
+
+
+@pytest.mark.parametrize("omitted, expected", [(0, False), (1, True)])
+def test_archived_constraints_offer_requires_omitted_constraints(
+    omitted, expected,
+):
+    context = _context(ConversationTaskState(
+        loaded_capabilities=("fetch_archived_constraints",),
+    )).model_copy(update={
+        "conversation_summary": ConversationSummaryContent(
+            omitted_active_constraint_count=omitted,
+        ),
+    })
+    strategy = SearchStrategy()
+    selection = strategy.select(context, SCHEMAS)
+    name = "fetch_archived_constraints"
+    assert (name in selection.selected_names) is expected
+    assert (name in selection.offered_names) is expected
+    assert (name in selection.tool_projection["available_now"]) is expected
+    assert (name in {schema["function"]["name"] for schema in selection.schemas}) is expected
+    assert strategy.offers_tool(context, name) is expected
+    assert strategy.resolve_unoffered(name, context) == (
+        "load" if expected else "refuse"
+    )
+
+
+def test_archived_constraints_are_unavailable_without_a_summary():
+    context = _context(ConversationTaskState(
+        loaded_capabilities=("fetch_archived_constraints",),
+    ))
+    selection = SearchStrategy().select(context, SCHEMAS)
+    assert "fetch_archived_constraints" not in selection.offered_names
+
+
+def test_forced_zero_count_constraint_read_is_refused_before_execution():
+    from career_agent.agent.middleware.tool_availability import ToolAvailabilityMiddleware
+
+    context = _context().model_copy(update={
+        "conversation_summary": ConversationSummaryContent(
+            omitted_active_constraint_count=0,
+        ),
+    })
+    selection = SearchStrategy().select(context, SCHEMAS)
+    result = ToolAvailabilityMiddleware(
+        tools=MainAgentToolRegistry(conversation_store=object()),
+    ).resolve(
+        name="fetch_archived_constraints",
+        task=context.task,
+        offered_tool_names=selection.offered_names,
+        runtime_owned=False,
+        owner_confirmed=False,
+        policy_owned=False,
+    )
+    assert result.kind == "not_offered"
 
 
 def test_forced_cold_history_call_is_not_offered_and_never_executes(tmp_path, monkeypatch):

@@ -298,6 +298,21 @@ def _request_envelope_token_count(
     return count_tokens(serialized_prefix + serialized_suffix)
 
 
+def _complete_request_token_count(
+    metadata: _StaticRequestMetadata,
+    messages: list[dict[str, Any]],
+) -> int:
+    serialized_dynamic = json.dumps(
+        messages[1:], ensure_ascii=False, sort_keys=True,
+        separators=(",", ":"),
+    )
+    return _request_envelope_token_count(
+        metadata.serialized_prefix,
+        metadata.serialized_suffix,
+        dynamic_inner=serialized_dynamic[1:-1],
+    )
+
+
 
 
 
@@ -710,26 +725,15 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             assemble_decision_messages(
                 context,
                 system_prompt=self._effective_system_prompt(),
-                # Its value is stable and its fixed length is all estimation
-                # needs; do not consume or expose the live session secret here.
-                spotlight_nonce="0" * 32,
+                # The delimiter's actual token cost depends on its hex bytes,
+                # so use the same value that the outgoing request will use.
+                spotlight_nonce=self._spotlight_nonce(context),
             )
         )
         if self._config.prompt_cache == "explicit":
             self._apply_explicit_cache_breakpoint(messages)
-        serialized_dynamic = json.dumps(
-            messages[1:],
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        dynamic_inner = serialized_dynamic[1:-1]
         return (
-            _request_envelope_token_count(
-                metadata.serialized_prefix,
-                metadata.serialized_suffix,
-                dynamic_inner=dynamic_inner,
-            ),
+            _complete_request_token_count(metadata, messages),
             self._config.max_input_tokens,
         )
 
@@ -795,6 +799,14 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
         if self._model_extra_body:
             request_options.setdefault("extra_body", {}).update(self._model_extra_body)
         while True:
+            # Reprompts append control state, so check every assembled request,
+            # including the first one, against the configured input limit.
+            request_tokens = _complete_request_token_count(metadata, messages)
+            if request_tokens > self._config.max_input_tokens:
+                raise AgentWorkerError(
+                    "MAIN_AGENT_INPUT_BUDGET_EXCEEDED",
+                    "Main Agent request exceeds its configured input budget.",
+                )
             response = self._request_with_retries(
                 messages=messages, tools=tools, request_options=request_options
             )
@@ -1218,11 +1230,11 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             "Use this source mapping:\n"
             "| Missing source | Retrieval tool |\n"
             "| --- | --- |\n"
-            "| Earlier chat messages | read_conversation_span |\n"
-            "| Still-active omitted constraints | fetch_archived_constraints |\n"
+            "| Earlier chat messages | offered history readback tool |\n"
+            "| Still-active omitted constraints | offered constraint archive tool |\n"
             "| Career facts in career_memory.memory_overflow | search_career_memory |\n"
             "| Cross-conversation event details | search_career_episodes |\n\n"
-            "Use a row only when its tool is currently offered; read_conversation_span "
+            "Use a row only when its tool is currently offered; history readback "
             "is offered only when earlier history has been compressed. "
             "A report or event the context says is no longer reachable is not "
             "missing evidence to search for. "
@@ -1246,7 +1258,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             "no additional budget trimming, not that every original fact was "
             "preserved. archived_fact_count counts retained chat facts outside the visible "
             "summary, so absence from the summary is not proof the user never stated "
-            "a fact. For read_conversation_span, use nonempty focused query "
+            "a fact. For history readback, use nonempty focused query "
             "terms for long compressed histories. Omit sequence bounds so the "
             "runtime selects all omitted history before recent_from_sequence. It retrieves earlier chat messages, not "
             "the active constraint ledger. Use an exact span only when the user "
@@ -1304,7 +1316,7 @@ class OpenAICompatibleMainAgentDecisionMaker(DecisionMaker):
             "confirm_career_fact yourself: an explicit confirmation on the next "
             "turn is handled deterministically by the runtime. "
             "An archived "
-            "constraint still applies. fetch_archived_constraints retrieves still-active "
+            "constraint still applies. The offered constraint archive tool retrieves still-active "
             "omitted constraints, not arbitrary earlier chat facts. A constraint stops applying "
             "only when the user says it no longer holds; then call "
             "propose_constraint_retirement with its exact text and "

@@ -1129,6 +1129,33 @@ def test_a_worker_failure_before_any_reply_keeps_its_public_code(tmp_path) -> No
     assert "private provider detail" not in failed.message
 
 
+def test_input_budget_failure_emits_a_clear_turn_failure(tmp_path) -> None:
+    from career_agent.agent.providers.openai_client import AgentWorkerError
+
+    class OverBudget:
+        def decide(self, context, tool_specs):
+            raise AgentWorkerError(
+                "MAIN_AGENT_INPUT_BUDGET_EXCEEDED", "internal request size",
+            )
+
+    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
+    manager.upsert_profile(CareerProfileContext(user_id="u1"))
+    agent = MainAgentRuntime(
+        context_manager=manager, decision_maker=OverBudget(),
+        tools=CountingRegistry(),
+    )
+    events = []
+    with pytest.raises(AgentWorkerError):
+        agent.run_turn(
+            user_id="u1", conversation_id="c1", user_message="请直接回答",
+            event_sink=events.append,
+        )
+    assert events[-1].type == "turn_failed"
+    assert events[-1].code == "MAIN_AGENT_INPUT_BUDGET_EXCEEDED"
+    assert "本轮内容超出模型处理上限" in events[-1].message
+    assert "internal request size" not in events[-1].message
+
+
 def test_a_decision_retry_and_a_long_wait_are_announced_as_progress(
     tmp_path,
 ) -> None:

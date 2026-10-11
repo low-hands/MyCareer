@@ -208,6 +208,8 @@ def _failure_reason(error: object, code: str) -> str:
         reason = "模型结果未通过本地完整性校验，没有保存分析草稿。"
     elif code.startswith("JOB_RESEARCH_"):
         reason = "研究结果未通过能力或来源校验，没有生成研究报告。"
+    elif code == "MAIN_AGENT_INPUT_BUDGET_EXCEEDED":
+        reason = "本轮内容超出模型处理上限，未完成。"
     else:
         reason = "该能力未完成，未保存结果。"
     return reason

@@ -1927,7 +1927,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         steps=(
             TrajectoryStep(
                 forbid_tools=frozenset(
-                    {"research_job", "open_job_search"}
+                    {"research_job", "open_job_search", "read_conversation_span", "fetch_archived_constraints"}
                 ),
                 forbid_message_contains=frozenset({SPAN_PAGE_IN_FACT}),
                 forbid_message_regexes=_SPAN_DECOY_AS_ANSWER,

@@ -184,14 +184,15 @@ class ToolResult(ContractModel):
     """Advice for the next step, in prose. See ``DecisionObservation``."""
     payload: dict[str, Any] = Field(default_factory=dict)
     # Runtime-owned provenance; never supplied by the model-facing tool schema.
-    explicit_sequence_span: bool = Field(default=False, exclude=True)
-    body_source: DeliveredBodySource | None = Field(default=None, exclude=True)
-    body_dependencies: tuple[BodyDependency, ...] = Field(default=(), exclude=True)
+    # The presenter needs this after a graph checkpoint is restored. It is
+    # runtime-owned, but must be part of the checkpoint's Pydantic payload.
+    explicit_sequence_span: bool = False
+    body_source: DeliveredBodySource | None = None
+    body_dependencies: tuple[BodyDependency, ...] = ()
     resource_ref: ConversationResourceReference | None = None
     resource_refs: tuple[ConversationResourceReference, ...] = Field(
         default=(),
         max_length=MAX_CONVERSATION_SPAN_RESOURCE_REFS,
-        exclude=True,
     )
 
     @model_validator(mode="after")

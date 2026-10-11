@@ -129,6 +129,20 @@ def test_page_in_is_gated_by_the_watermark_not_by_the_tool_menu() -> None:
     assert "verbatim" in coverage["omits"]
 
 
+def test_compressed_history_still_names_its_offered_readback_tool() -> None:
+    context = compacted_span_context(
+        user_message=SPAN_HIDDEN_QUESTION, page_in=True,
+    )
+    selection = SearchStrategy().select(
+        context, MainAgentToolRegistry(conversation_store=object()).schemas(),
+    )
+    projected = project_decision_messages(
+        context.model_copy(update={"capability_selection": selection})
+    )
+    assert "read_conversation_span" in selection.offered_names
+    assert projected.data["conversation_summary"]["coverage"]["readback_tool"] == "read_conversation_span"
+
+
 def test_runtime_selects_compressed_span_when_model_omits_bounds() -> None:
     context = compacted_span_context(
         user_message=SPAN_HIDDEN_QUESTION, page_in=True

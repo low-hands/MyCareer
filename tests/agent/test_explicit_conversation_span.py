@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.memory import ConversationSummaryContent
@@ -16,6 +17,12 @@ from career_agent.agent.contracts.decisions import (
 )
 from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.agent.contracts.task_state import ConversationTaskState
+from career_agent.agent.contracts.observations import ToolResult
+from career_agent.agent.contracts.resources import ConversationResourceReference
+from career_agent.agent.presentation.body_contracts import (
+    BodyDependency, MockInterviewBodySource,
+)
+from career_agent.agent.presentation.factory import build_turn_presenter
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime, ModelDecision
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.storage.context import CareerContextStore
@@ -51,6 +58,40 @@ class CountingRegistry(MainAgentToolRegistry):
     def invoke_atomic_tool(self, name, arguments):
         self.calls.append((name, dict(arguments)))
         return super().invoke_atomic_tool(name, arguments)
+
+
+def test_explicit_span_provenance_survives_checkpoint_serialization() -> None:
+    result = ToolResult(
+        tool_name="read_conversation_span",
+        state="conversation_span_found",
+        message="Found the requested span.",
+        explicit_sequence_span=True,
+        body_source=MockInterviewBodySource(
+            session_id="session-1", question_number=2,
+        ),
+        body_dependencies=(BodyDependency(kind="job", resource_id="job-1"),),
+        resource_refs=(ConversationResourceReference(
+            kind="saved_job", resource_id="snapshot-1",
+            job_posting_id="job-1",
+        ),),
+    )
+    serde = JsonPlusSerializer(
+        pickle_fallback=False,
+        allowed_msgpack_modules=(("career_agent.agent.contracts.observations", "ToolResult"),),
+    )
+    restored = serde.loads_typed(serde.dumps_typed(result))
+    assert isinstance(restored, ToolResult)
+    assert restored.explicit_sequence_span is True
+    assert restored.body_source == result.body_source
+    assert restored.body_dependencies == result.body_dependencies
+    assert restored.resource_refs == result.resource_refs
+    source_result = restored.model_copy(update={
+        "state": "mock_interview_question_found",
+    })
+    drafts = build_turn_presenter().delivered_bodies((source_result,))
+    assert len(drafts) == 1
+    assert drafts[0].source == result.body_source
+    assert drafts[0].dependencies == result.body_dependencies
 
 
 @pytest.mark.parametrize(

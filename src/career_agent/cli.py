@@ -1126,7 +1126,13 @@ def _stored_job_payload(record: StoredJobRecord) -> dict[str, object]:
 
 
 def _chat_tool_result_payload(result: ToolObservation) -> dict[str, object]:
-    return result.model_dump(mode="json")
+    return result.model_dump(
+        mode="json",
+        exclude={
+            "explicit_sequence_span", "body_source", "body_dependencies",
+            "resource_refs",
+        },
+    )
 
 
 def _chat_interaction_response(args: argparse.Namespace) -> InteractionResponse | None:

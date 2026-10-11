@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from datetime import datetime
+import gc
 import hashlib
 import inspect
 import json
@@ -64,7 +66,7 @@ def run(args, data, sample, client):
     target = args.root / f"Q42-{sample:02}.json"
     if args.record and target.exists():
         raise ValueError("refusing to overwrite an attempt")
-    old = None if args.record else json.loads(target.read_text())
+    old = None if args.record else json.loads(target.read_text(encoding="utf-8"))
     if old is not None and old.get("fixture_sha256") != hashlib.sha256(FIXTURE.read_bytes()).hexdigest():
         return {"sample": sample, "status": "stale", "grading": "not_graded"}
     requests = []
@@ -77,7 +79,7 @@ def run(args, data, sample, client):
                 kind=item["kind"], title=item["title"], summary=item["summary"],
                 occurred_at=datetime.fromisoformat(item["occurred_at"])))
             stable = "career_episode_" + hashlib.md5(item["id"].encode()).hexdigest()
-            with sqlite3.connect(path) as conn:
+            with closing(sqlite3.connect(path)) as conn, conn:
                 conn.execute("UPDATE career_episodes SET id=? WHERE id=?", (stable, ep.id))
                 conn.execute("UPDATE career_episodes_fts SET episode_id=? WHERE episode_id=?", (stable, ep.id))
         now = datetime.fromisoformat(data["clock"])
@@ -131,6 +133,9 @@ def run(args, data, sample, client):
                 row["status"] = "step_budget_exhausted"
         except Exception as error:
             row.update(status="infrastructure_error", error_type=type(error).__name__)
+        # SQLite's connection context manager commits but does not close.
+        # Release method-local connections before Windows removes the temp DB.
+        gc.collect()
     if args.record:
         target.write_text(json.dumps({**row, "fixture_sha256": hashlib.sha256(FIXTURE.read_bytes()).hexdigest(), "requests": requests}, ensure_ascii=False, indent=2) + "\n")
     return row
@@ -145,7 +150,7 @@ def main():
     parser.add_argument("--env-prefix", default="MAIN_AGENT")
     args = parser.parse_args()
     sys.path.insert(0, str(args.source_root.resolve()))
-    data = json.loads(FIXTURE.read_text())
+    data = json.loads(FIXTURE.read_text(encoding="utf-8"))
     client = None
     if args.record:
         from dotenv import load_dotenv

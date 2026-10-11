@@ -10,8 +10,8 @@ from career_agent.agent.capabilities.reachability import reachable
 from career_agent.agent.contracts.task_state import ConversationTaskState
 
 
-# Baseline candidates before task-specific loading. History readback also
-# requires compressed history in SearchStrategy.
+# Baseline candidates before context gates. History readback requires
+# compressed history and archived constraints require a positive omission count.
 ALWAYS_OFFERED_TOOLS: tuple[str, ...] = (
     "search_capabilities",
     "load_skill",

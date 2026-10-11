@@ -38,7 +38,7 @@ def test_frozen_fixture_builds_real_projection_before_sampling(tmp_path):
                 "content": "没有找到去年（2025 年）的字节投递记录。",
             }}]})
     client = SimpleNamespace(chat=SimpleNamespace(completions=Client()))
-    data = json.loads(MODULE.FIXTURE.read_text())
+    data = json.loads(MODULE.FIXTURE.read_text(encoding="utf-8"))
     assert {i["kind"] for i in data["corpus"]} <= {"mock_interview", "job_research", "application", "interview_round"}
     result = MODULE.run(SimpleNamespace(root=tmp_path, record=True, model="qwen3.7-plus"), data, 0, client)
     assert result["status"] == "valid"

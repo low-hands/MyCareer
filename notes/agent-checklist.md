@@ -18,6 +18,7 @@
 - [ ] 观察结果是否改变下一步：同一请求、不同工具结果，后续动作是否相应变化
 - [ ] 参数接地：参数校验失败、编造 ID、调用未提供工具被拒的频率
 - [ ] 稳定性：关键场景跑 k 次，统计 pass^k
+- [ ] 未压缩会话中多余工具调用与文本重答：DeepSeek 小样本仍有 `load_skill`、`list_target_roles` 各一次及两次文本重答；`fetch_archived_constraints` 现按省略约束计数在代码中屏蔽，待 Qwen、DeepSeek 全量新录制检验
 
 ## 规划
 
@@ -39,10 +40,10 @@
 - [x] 主 agent 能看到 `archived_fact_count`；摘要里没有的早期事实，先用 `read_conversation_span` 读回，见 108
 - [x] 模型自行读取的会话 span 只作证据，不再拼进回答；用户指定序号的读取仍交付原文，见 107
 - [x] 启动时拒绝无法容纳最大单条消息、活动事实及请求框架的明显小预算，默认 32000 不变，见 114
-- [ ] 单条消息加已有摘要全部字段仍可能超预算；启动最低容量校验不保证所有最大内容组合，需单独处理剩余边界
-- [ ] `explicit_sequence_span` 不随 checkpoint 序列化，恢复后可能不交付原文
+- [ ] 单条消息加已有摘要全部字段仍可能超预算；发送前已逐次检查完整请求并明确失败，仍需让超限轮次自动适配预算
+- [x] `explicit_sequence_span` 及 `body_source`、`body_dependencies`、`resource_refs` 随 checkpoint 序列化，恢复后保留原文和来源正文交付
 - [x] 查证结果只给模型看、由模型整理回答：`search_career_memory`、`search_career_episodes`、`search_career_history`、`get_career_memory_detail` 改为不拼接原文；`resolve_claim_source` 的简历原句仍逐字交付。若用户直接要列表或修订记录时模型整理不可靠，再为这类工具加"用户明确要原文"的来源判断
-- [ ] DeepSeek 在未压缩对话中问到未提及的公司时仍调用不可用的 `read_conversation_span`（1/3），见 111
+- [x] DeepSeek 未压缩会话调用不可用 `read_conversation_span` 的问题：新录制 0/3（旧 1/3），压缩会话应回读时 3/3 回读；`fetch_archived_constraints` 的误调用另按省略约束计数加入代码门禁，待全量重录验证
 - [x] 情景记忆混合检索已合入并默认启用（配置 CAREER_EMBEDDING 时生效）：BM25 + 向量（语义分支取前 20）用 RRF k=60 融合，工具与注入上下文标注 `matched_by`，向量缓存与删除最终一致。**未通过事先冻结的验收**：开发集换说法 Recall@5 只提升 8.3 个百分点（门槛 10，12 条中差 1 条），部分实体/时间类 nDCG 下降；端到端判分两版都不可靠（模型自评、手写规则），收益未证实。按用户决定（2026-10-11）先合入，测试集 32 条仍封存未跑。情景标题与摘要会发给 embedding 服务（含面试反馈、拒信原因）
 - [ ] 6a 补验收：判分改用与被测模型不同的模型，按 LongMemEval 做法每类约 30 条人工标注核对一致率；再在开发集判门槛，过了才跑一次测试集
 - [ ] 防止向量检索在"本该找不到"时乱返回：现无阈值，8 个候选阈值在开发集均未达标；依赖 `matched_by` 让模型区分语义相近与名字匹配，待 6a 补验收时单独评估
@@ -91,7 +92,7 @@
 
 - [x] 重录轨迹：两套模型 47 条轨迹与 19 个 runtime 场景已按最终提示重录，过期与缺失均为 0，见 111
 - [x] runtime 录制有效性改按模型请求内容核验（提示、工具 schema、渲染上下文及生成选项），替代全部 Python 源码指纹；旧基线从冻结提交重建独立请求基线并标注来源，原录制未改，见 113。职业记忆交付改动仍在 `codex/memory-evidence-delivery`，尚未合回 main
-- [ ] 下次用 v2 格式真正重录 runtime 时，替换当前从旧源码重建的请求基线；在此之前 runtime 成绩仅作参考，不能当作原始请求一致的直接证据。年份标注已把同一个固定评估时钟注入 ContextManager.now 和 registry.episode_clock；后续日期相关误判仍需检查工作笔记 stale_days、简报逾期等其他真实时间派生字段
+- [ ] 下次用 v2 格式真正重录 runtime 时，替换当前从旧源码重建的请求基线；本次提示、工具 schema 和归档约束可用性修改使 Qwen、DeepSeek 旧录制均过期，需两模型按新请求全量重录。未压缩场景新增禁止 `read_conversation_span`、`fetch_archived_constraints`，旧录制按新标准评分会变化。在此之前 runtime 成绩仅作参考，不能当作原始请求一致的直接证据。年份标注已把同一个固定评估时钟注入 ContextManager.now 和 registry.episode_clock；后续日期相关误判仍需检查工作笔记 stale_days、简报逾期等其他真实时间派生字段
 - [ ] 产出质量的分级评估：简历定制是否捏造、调研是否有幻觉、模拟面试反馈是否准确
 - [ ] trace 汇总：工具失败率、审批与拒绝次数、重试、token 与成本、延迟
 

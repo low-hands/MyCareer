@@ -1694,6 +1694,43 @@ def _scripted_maker(*responses):
     return OpenAICompatibleMainAgentDecisionMaker(_config(), client=client), completions
 
 
+def test_combined_request_budget_is_checked_before_provider_call():
+    maker, completions = _scripted_maker()
+    maker._config = OpenAICompatibleAgentConfig(
+        endpoint="https://example.test/v1/chat/completions",
+        api_key="test", model="test-model", max_input_tokens=11000,
+    )
+    static_tokens, limit = maker.static_request_token_usage(())
+    assert static_tokens <= limit // 2
+    context = _context().model_copy(update={
+        "user_message": "A lengthy current request. " * 2000,
+        "conversation_summary": ConversationSummaryContent(
+            user_goals=("An existing goal. " * 20,),
+        ),
+    })
+    with pytest.raises(AgentWorkerError) as error:
+        maker.decide(context, ())
+    assert error.value.code == "MAIN_AGENT_INPUT_BUDGET_EXCEEDED"
+    assert completions.requests == []
+
+
+def test_reprompt_can_cross_input_budget_after_a_valid_first_request():
+    context = _context()
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("unknown_tool")]),
+    )
+    first_tokens, _ = maker.request_token_usage(context, ())
+    maker._config = OpenAICompatibleAgentConfig(
+        endpoint="https://example.test/v1/chat/completions",
+        api_key="test", model="test-model",
+        max_input_tokens=max(1024, first_tokens + 10),
+    )
+    with pytest.raises(AgentWorkerError) as error:
+        maker.decide(context, ())
+    assert error.value.code == "MAIN_AGENT_INPUT_BUDGET_EXCEEDED"
+    assert len(completions.requests) == 1
+
+
 def test_note_only_search_proposal_is_corrected_before_returning():
     from career_agent.agent.contracts.observations import WorkingNotesContext
     context = _context().model_copy(update={"working_notes": WorkingNotesContext(

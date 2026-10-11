@@ -17,6 +17,10 @@ from career_agent.agent.contracts.decisions import (
     ToolCall,
 )
 from career_agent.agent.contracts.observations import ToolObservation
+from career_agent.agent.contracts.resources import ConversationResourceReference
+from career_agent.agent.presentation.body_contracts import (
+    BodyDependency, MockInterviewBodySource,
+)
 from career_agent.agent.runtime.main_agent_runtime import (
     InteractionReceipt,
     MainAgentRuntime,
@@ -28,7 +32,7 @@ from career_agent.agent.runtime.main_agent_runtime import (
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.providers.openai_client import AgentWorkerError
 from career_agent.domain.resume import ResumeArtifactDelivery, ResumeArtifactReference
-from career_agent.cli import EXIT_WORKFLOW_ERROR, build_parser, main
+from career_agent.cli import EXIT_WORKFLOW_ERROR, _chat_tool_result_payload, build_parser, main
 from career_agent.evaluation import trajectory
 from career_agent.evaluation.trajectory import trajectory_tool_specs
 from career_agent.evaluation.main_agent_scenarios import SCENARIOS
@@ -777,6 +781,25 @@ def test_chat_emits_all_tool_results_in_execution_order() -> None:
         "get_resume_metadata",
     ]
     assert payload["tool_result"] == payload["tool_results"][-1]
+
+
+def test_chat_result_excludes_checkpoint_only_delivery_metadata() -> None:
+    result = ToolObservation(
+        tool_name="get_mock_interview_question",
+        state="mock_interview_question_found",
+        message="已找到题目。",
+        explicit_sequence_span=True,
+        body_source=MockInterviewBodySource(
+            session_id="session-1", question_number=1,
+        ),
+        body_dependencies=(BodyDependency(kind="job", resource_id="job-1"),),
+        resource_refs=(ConversationResourceReference(
+            kind="saved_job", resource_id="snapshot-1", job_posting_id="job-1",
+        ),),
+    )
+    payload = _chat_tool_result_payload(result)
+    assert payload["state"] == "mock_interview_question_found"
+    assert not {"explicit_sequence_span", "body_source", "body_dependencies", "resource_refs"} & payload.keys()
 
 
 def test_chat_reports_a_runtime_failure_as_one_json_object() -> None:

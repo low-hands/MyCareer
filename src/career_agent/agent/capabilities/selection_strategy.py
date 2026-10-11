@@ -29,6 +29,8 @@ _LOGGER = logging.getLogger(__name__)
 def capability_directory() -> str:
     groups: dict[str, list[str]] = {}
     for item in searchable_capabilities():
+        if not item.static_directory:
+            continue
         groups.setdefault(item.namespace or "control", []).append(
             f"- {item.name}: {item.summary}"
         )
@@ -36,6 +38,15 @@ def capability_directory() -> str:
         f"[{namespace}]\n" + "\n".join(lines)
         for namespace, lines in groups.items()
     )
+
+
+def _available_in_context(name: str, context: MainAgentContext) -> bool:
+    if name == "read_conversation_span":
+        return context.has_compressed_history
+    if name == "fetch_archived_constraints":
+        summary = context.conversation_summary
+        return summary is not None and summary.omitted_active_constraint_count > 0
+    return True
 
 
 class SearchStrategy:
@@ -53,12 +64,12 @@ class SearchStrategy:
     ) -> Literal["load", "refuse", "reject"]:
         """Classify a discoverable name before deciding whether to load it.
 
-        A waiting or unreachable tool goes to authorization under its original
+        A context-gated, waiting or unreachable tool goes to authorization under its original
         name. Authorization can then issue a deterministic refusal before
         argument projection or execution; loading it would only repeat the
         same unavailable state.
         """
-        if name == "read_conversation_span" and not context.has_compressed_history:
+        if not _available_in_context(name, context):
             return "refuse"
         if name not in self._searchable_names:
             return "reject"
@@ -135,7 +146,7 @@ class SearchStrategy:
         selected = tuple(
             name for name in sources
             if name not in waiting
-            and (name != "read_conversation_span" or context.has_compressed_history)
+            and _available_in_context(name, context)
         )
         selection = prepare_capability_selection(
             selected, task=task, registered_schemas=registered,
@@ -172,7 +183,7 @@ class SearchStrategy:
         # The prelude runs before decide and uses the same history availability.
         return (
             name in ALWAYS_OFFERED_TOOLS and reachable(name, context.task)
-            and (name != "read_conversation_span" or context.has_compressed_history)
+            and _available_in_context(name, context)
         )
 
     def tool_policy(self) -> str:

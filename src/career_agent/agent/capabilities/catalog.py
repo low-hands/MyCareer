@@ -57,6 +57,7 @@ class CapabilityDescriptor:
     preference_bound: bool = False
     reference_readback: bool = False
     schema_gated: bool = False
+    static_directory: bool = True
     precondition: Precondition | None = None
     requirement: str | None = None
 
@@ -218,9 +219,9 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
         (
             'Read the constraints this conversation recorded but conversation_summary is not showing.'
             ' Call this when omitted_active_constraint_count is above zero and the reply depends on w'
-            'hich constraints apply; when the count is zero it returns not applicable. An archived '
+            'hich constraints apply. An archived '
             'constraint still applies. It does not recover '
-            'arbitrary earlier chat facts; use read_conversation_span for those. Read-only.'
+            'arbitrary earlier chat facts. Read-only.'
         ),
     ),
     'propose_constraint_retirement': (
@@ -302,7 +303,7 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
             'd the next page.'
             ' Historical means changed career claims, not conversation history. This tool cannot '
             'retrieve old messages, company research reports or their competitor analysis. For '
-            'a missing message use read_conversation_span if available; otherwise explain the '
+            'a missing message use an offered history readback tool if available; otherwise explain the '
             'missing context. For an inaccessible report explain that it cannot be retrieved.'
         ),
     ),
@@ -849,6 +850,7 @@ def _capability(
     preference_bound: bool = False,
     reference_readback: bool = False,
     schema_gated: bool = False,
+    static_directory: bool = True,
     precondition: Precondition | None = None,
     requirement: str | None = None,
     destructive: bool = False,
@@ -887,6 +889,7 @@ def _capability(
         preference_bound=preference_bound,
         reference_readback=reference_readback,
         schema_gated=schema_gated,
+        static_directory=static_directory,
         precondition=precondition,
         requirement=requirement,
     )
@@ -894,9 +897,9 @@ def _capability(
 
 def _declared_descriptors() -> Iterable[CapabilityDescriptor]:
     yield _capability("load_skill", "READ")
-    yield _capability("read_conversation_span", "READ")
+    yield _capability("read_conversation_span", "READ", static_directory=False)
     yield _capability("update_working_notes", "WRITE", notes_guarded=False)
-    yield _capability("fetch_archived_constraints", "READ")
+    yield _capability("fetch_archived_constraints", "READ", static_directory=False)
     yield _capability("search_career_memory", "READ")
     yield _capability("update_owner_settings", "WRITE", destructive=True, replay_safe=True)
     yield _capability("get_daily_brief", "READ")
