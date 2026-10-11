@@ -186,10 +186,12 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     # Resume quotations are provenance readbacks, not durable conversation
     # memory. Keep the quote in the bounded turn-local observation only.
     "claim_source_found": _summarised(),
-    "career_memory_detail_found": _summarised(),
-    "career_memory_search_found": _summarised(),
-    "career_episode_search_found": _summarised(),
-    "career_history_found": _summarised(),
+    # Memory searches and readbacks are evidence for the model's reply,
+    # rather than user-facing deliverables. Keep their bounded receipt only.
+    "career_memory_detail_found": DeliveryPolicy(durable_message="summary", body_delivery="model"),
+    "career_memory_search_found": DeliveryPolicy(durable_message="summary", body_delivery="model"),
+    "career_episode_search_found": DeliveryPolicy(durable_message="summary", body_delivery="model"),
+    "career_history_found": DeliveryPolicy(durable_message="summary", body_delivery="model"),
 }
 
 _POLICIES.update(

@@ -40,7 +40,7 @@
 - [x] 模型自行读取的会话 span 只作证据，不再拼进回答；用户指定序号的读取仍交付原文，见 107
 - [ ] 单条消息与活动事实本身超出摘要输入预算时仍会反复失败，需定处理边界
 - [ ] `explicit_sequence_span` 不随 checkpoint 序列化，恢复后可能不交付原文
-- [ ] 查证结果只给模型看、由模型整理回答：`search_career_memory`、`search_career_episodes`、`search_career_history`、`get_career_memory_detail` 改为不拼接原文；`resolve_claim_source` 的简历原句仍逐字交付。若用户直接要列表或修订记录时模型整理不可靠，再为这类工具加"用户明确要原文"的来源判断
+- [x] 查证结果只给模型看、由模型整理回答：`search_career_memory`、`search_career_episodes`、`search_career_history`、`get_career_memory_detail` 改为不拼接原文；`resolve_claim_source` 的简历原句仍逐字交付。若用户直接要列表或修订记录时模型整理不可靠，再为这类工具加"用户明确要原文"的来源判断
 - [ ] DeepSeek 在未压缩对话中问到未提及的公司时仍调用不可用的 `read_conversation_span`（1/3），见 111
 - [ ] 情景记忆补向量：先把 `episode_retrieval` 的未召回用例分类，扩充并冻结评估集（换说法、同行业干扰项、本该找不到），再做混合检索；复用事实记忆的 SQLite 向量存储与删除同步
 - [ ] 防止向量检索在"本该找不到"时乱返回：设相似度阈值，单独评估
@@ -88,6 +88,7 @@
 ## 评估与可观测性
 
 - [x] 重录轨迹：两套模型 47 条轨迹与 19 个 runtime 场景已按最终提示重录，过期与缺失均为 0，见 111
+- [ ] runtime 录制有效性改按模型请求内容核验（提示、工具 schema、渲染上下文），替代全部 Python 源码指纹；独立处理。职业记忆交付改动暂留 `codex/memory-evidence-delivery`，待该项解决或下次统一重录后再合回 main，见 112
 - [ ] 产出质量的分级评估：简历定制是否捏造、调研是否有幻觉、模拟面试反馈是否准确
 - [ ] trace 汇总：工具失败率、审批与拒绝次数、重试、token 与成本、延迟
 

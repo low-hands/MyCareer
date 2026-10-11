@@ -2932,23 +2932,12 @@ def test_a_turn_killed_before_any_write_leaves_the_conversation_clean(
     assert context.recent_messages == ()
 
 
-def test_a_mixed_turn_streams_the_card_less_body_and_keeps_the_whole_reply(
+def test_a_mixed_turn_keeps_memory_evidence_model_only_and_the_whole_reply(
     tmp_path,
 ) -> None:
-    """The card ceiling is a property of the turn, and three forks must agree.
+    """Memory evidence remains model-visible beside a card without leaking to the stream.
 
-    ``_present`` learned this when the reply limit was fixed; the other two
-    forks kept asking ``tool_results[-1]``. A turn that reads a memory detail
-    (no card) and then a research report (card) ends with a card-backed last
-    result, so:
-
-    * the stream handed delivery to the card and never wrote the detail out —
-      the body had nowhere else to go, so it was simply lost;
-    * the row re-clamped an already-bounded reply to card length, storing 600
-      characters of an answer the reader was shown in full.
-
-    Both are invisible in a single-result turn, which is why every existing test
-    passed. This one is mixed on purpose.
+    The whole model reply still uses the ordinary reply ceiling and is stored intact.
     """
     jd_body = "职业记忆\n\n" + "负责端到端的检索系统。" * 60
     reply = "先说记忆：" + "这个岗位要求的是检索与排序的工程能力。" * 40
@@ -2990,19 +2979,20 @@ def test_a_mixed_turn_streams_the_card_less_body_and_keeps_the_whole_reply(
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
     load_capability_family(manager, "memory")
+    decisions = SequenceDecisionMaker(
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="get_career_memory_detail", arguments={}),
+        ),
+        AgentDecision(
+            action="tool_call",
+            tool_call=ToolCall(name="get_job_research", arguments={}),
+        ),
+        AgentDecision(action="final", message=reply),
+    )
     runtime = DirectRuntime(
         context_manager=manager,
-        decision_maker=SequenceDecisionMaker(
-            AgentDecision(
-                action="tool_call",
-                tool_call=ToolCall(name="get_career_memory_detail", arguments={}),
-            ),
-            AgentDecision(
-                action="tool_call",
-                tool_call=ToolCall(name="get_job_research", arguments={}),
-            ),
-            AgentDecision(action="final", message=reply),
-        ),
+        decision_maker=decisions,
         tools=MixedRegistry(),
     )
 
@@ -3021,10 +3011,12 @@ def test_a_mixed_turn_streams_the_card_less_body_and_keeps_the_whole_reply(
         user_id="u1", conversation_id="c1", user_message="继续"
     ).recent_messages[-1]
 
-    # Fork one: the detail has no card behind it, so the stream is the only
-    # place it can appear. A card elsewhere in the turn does not excuse
-    # dropping it.
-    assert jd_body in streamed
+    assert any(
+        jd_body in (observation.body or "")
+        for observation in decisions.contexts[1].tool_observations
+    )
+    assert jd_body not in streamed
+    assert result.assistant_message == reply
     # Fork two: the reply was already cut at the ceiling this turn earns.
     assert len(reply) > DELIVERY_SUMMARY_LIMIT
     assert result.model_message == reply
@@ -3112,16 +3104,16 @@ def test_every_stored_report_in_the_turn_gets_its_own_card() -> None:
 def test_every_card_less_body_in_the_turn_is_delivered_not_just_the_last() -> None:
     """Pins ``_present``/``_undelivered_bodies`` against a last-result relapse.
 
-    Two condensed states with no card in one turn — reading a memory detail,
+    Two condensed states with no card in one turn — reading a resume source quote,
     then the daily brief — each hold a body nothing else will ever show. Delivering only
     ``tool_results[-1]`` silently drops the first, which is precisely what the
     presenter used to do to composed turns.
     """
-    jd = ToolResult(
-        tool_name="get_career_memory_detail",
-        state="career_memory_detail_found",
-        message="已读取职业记忆。",
-        payload={"body": "JD BODY: 精通 Rust。"},
+    source_quote = ToolResult(
+        tool_name="resolve_claim_source",
+        state="claim_source_found",
+        message="已读取简历原句。",
+        payload={"source_quote": "简历原句：精通 Rust。"},
     )
     brief = ToolResult(
         tool_name="get_daily_brief",
@@ -3140,14 +3132,14 @@ def test_every_card_less_body_in_the_turn_is_delivered_not_just_the_last() -> No
     update = present_turn(
         {
             "decision": AgentDecision(action="final", message="两件事都看过了。"),
-            "tool_results": (jd, brief),
+            "tool_results": (source_quote, brief),
         }
     )
 
     assert update["model_message"] == "两件事都看过了。"
-    assert "JD BODY: 精通 Rust。" in update["assistant_message"]
+    assert "简历原句：精通 Rust。" in update["assistant_message"]
     assert "今日职业简报" in update["assistant_message"]
-    assert update["assistant_message"].index("JD BODY") < update[
+    assert update["assistant_message"].index("简历原句") < update[
         "assistant_message"
     ].index("今日职业简报")
 
@@ -3205,17 +3197,17 @@ def test_a_reply_is_bounded_by_what_else_carries_the_delivery() -> None:
             "decision": AgentDecision(action="final", message="长" * 5_000),
             "tool_results": (
                 ToolResult(
-                    tool_name="get_career_memory_detail",
-                    state="career_memory_detail_found",
-                    message="已读取职业记忆。",
-                    payload={"body": "JD BODY"},
+                    tool_name="resolve_claim_source",
+                    state="claim_source_found",
+                    message="已读取简历出处。",
+                    payload={"source_quote": "简历原句"},
                 ),
                 card,
             ),
         }
     )
     assert len(mixed["model_message"]) == 5_000
-    assert "JD BODY" in mixed["assistant_message"]
+    assert "简历原句" in mixed["assistant_message"]
 
 
 def test_the_model_narrates_and_the_presenter_is_the_fallback() -> None:
@@ -3244,14 +3236,13 @@ def test_the_model_narrates_and_the_presenter_is_the_fallback() -> None:
             "tool_results": (result,),
         }
     )
-    # A condensed state with no card has nowhere else to put its body, so the
-    # reply introduces it rather than standing in for it. The row keeps only
-    # the reply — that is what ``model_message`` carries separately.
+    # History is evidence for the model's reply. Its raw readback is not
+    # appended to the user-facing answer.
     assert answered["model_message"] == "已提取 1 段候选经历，等你确认。"
-    assert answered["assistant_message"].startswith("已提取 1 段候选经历，等你确认。")
-    assert result.message in answered["assistant_message"]
+    assert answered["assistant_message"] == "已提取 1 段候选经历，等你确认。"
+    assert "PRIVATE RESULT" not in answered["assistant_message"]
 
-    # No prose from the model — the authoritative presenter still delivers.
+    # Without model prose, the presenter delivers only the bounded receipt.
     silent = present_turn(
         {
             "decision": AgentDecision(action="final", message=""),

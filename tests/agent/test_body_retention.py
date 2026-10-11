@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import pytest
 
 from career_agent.agent.presentation.delivery_policy import DELIVERY_POLICIES
+from career_agent.agent.contracts.decisions import AgentDecision
 from career_agent.agent.contracts.observations import (
     ToolObservation,
     ToolResult,
@@ -12,7 +13,7 @@ from career_agent.agent.contracts.resources import (
     ConversationSpanMessage,
     ConversationSpanView,
 )
-from career_agent.agent.presentation.factory import build_turn_presenter
+from career_agent.agent.presentation.factory import build_turn_presenter, present_turn
 from career_agent.agent.presentation.presenter import TurnPresenter
 from career_agent.agent.runtime.observation_reducer import tool_observation
 
@@ -34,10 +35,6 @@ def test_only_snapshots_and_entity_handles_are_retained() -> None:
     [
         "conversation_span_found",
         "claim_source_found",
-        "career_memory_detail_found",
-        "career_memory_search_found",
-        "career_episode_search_found",
-        "career_history_found",
     ],
 )
 def test_none_retention_keeps_live_readback_without_a_second_persistent_copy(
@@ -94,3 +91,31 @@ def test_a_saved_jd_is_the_models_observation_and_the_readers_card_only() -> Non
     assert presenter.delivered_bodies((output,)) == ()
     assert presenter.turn_is_card_backed((output,))
     assert TurnPresenter.turn_resource_refs((output,)) == (output.resource_ref,)
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        "career_memory_search_found",
+        "career_episode_search_found",
+        "career_history_found",
+        "career_memory_detail_found",
+    ],
+)
+def test_memory_evidence_reaches_the_model_without_automatic_user_delivery(state) -> None:
+    body = "仅供核实的职业事实及历史原文。"
+    output = ToolResult(
+        tool_name="read", state=state, message="已读取相关证据。", payload={"body": body}
+    )
+    observation = tool_observation("read", output)
+    assert observation.body == body
+    presenter = build_turn_presenter()
+    assert presenter._screen_message(output) == output.message
+    assert presenter._undelivered_bodies((output,)) == ""
+    assert presenter.delivered_bodies((output,)) == ()
+    assert presenter.turn_resource_refs((output,)) == ()
+    reply = "已核实，以下是结论。"
+    result = present_turn(
+        {"decision": AgentDecision(action="final", message=reply), "tool_results": (output,)}
+    )
+    assert result["assistant_message"] == result["model_message"] == reply
