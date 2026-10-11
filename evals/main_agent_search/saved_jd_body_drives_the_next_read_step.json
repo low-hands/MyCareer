@@ -2,9 +2,9 @@
   "scenario": "saved_jd_body_drives_the_next_read_step",
   "policy": "A bounded observation body is approved presenter text from the read result. Use an explicit requirement stated in that body to choose the user's requested next operation without guessing from the receipt.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "63aedcc812e4259976611ee9a7da7414c1d3e1e7cc0abb0a10f4041d8b024e9b",
+  "prompt_fingerprint": "9ecc1679f4b9a62ce33cd3263d2964d06d15426c7686097f3d2442f40742dd09",
   "context_shape_fingerprint": "55820bf48f6f2198d501a39f4f7141c3382fd8eb4342d7e462a4e8514f57b864",
-  "recorded_at": "2026-10-09T18:17:24.620344+00:00",
+  "recorded_at": "2026-10-11T07:27:06.318851+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,7 +12,7 @@
         "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
+      "selected_schema_fingerprint": "8ccb28e97fd33d091bbe4eb97507bdbb132678d13ab9e917dd24ab573a2cbcc9",
       "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
       "offered_tools": [
         "load_skill",
@@ -23,7 +23,7 @@
         "create_interview",
         "search_capabilities"
       ],
-      "elapsed_ms": 2643.9,
+      "elapsed_ms": 3819.2,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -34,8 +34,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:17:24.338155+00:00",
-      "elapsed_ms": 2648.7,
+      "recorded_at": "2026-10-11T07:27:05.300103+00:00",
+      "elapsed_ms": 3823.3,
       "steps": [
         {
           "tool_call": {
@@ -43,7 +43,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
+          "selected_schema_fingerprint": "8ccb28e97fd33d091bbe4eb97507bdbb132678d13ab9e917dd24ab573a2cbcc9",
           "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
           "offered_tools": [
             "load_skill",
@@ -54,7 +54,7 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 2643.9,
+          "elapsed_ms": 3819.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -64,16 +64,20 @@
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:17:25.603381+00:00",
-      "elapsed_ms": 3860.4,
+      "recorded_at": "2026-10-11T07:27:10.745960+00:00",
+      "elapsed_ms": 9210.1,
       "steps": [
         {
           "tool_call": {
-            "name": "analyze_job",
-            "arguments": {}
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "list_resumes"
+              ]
+            }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
+          "selected_schema_fingerprint": "8ccb28e97fd33d091bbe4eb97507bdbb132678d13ab9e917dd24ab573a2cbcc9",
           "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
           "offered_tools": [
             "load_skill",
@@ -84,7 +88,47 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 3858.4,
+          "elapsed_ms": 4941.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "implicit_capability_load",
+              "retried": true,
+              "raw_output": {
+                "content": "JD 明确要求 Rust。继续匹配简历前，需要先分析岗位并选定一个简历版本。当前没有已选定的简历版本，我需要先列出可用的简历供选择。\n\n",
+                "tool_calls": [
+                  {
+                    "name": "list_resumes",
+                    "arguments": "{}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "list_resumes",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "c04706c790af4e6a07a7d03e3f180a5a87b98e0ab206cb806e8eb2276b416eaa",
+          "decision_shape_fingerprint": "c328916bdc51cba35fde35fe044c0b19b9455a88679d20db8459a51327268380",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_resumes",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4262.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -94,8 +138,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:17:24.620344+00:00",
-      "elapsed_ms": 2811.7,
+      "recorded_at": "2026-10-11T07:27:06.318851+00:00",
+      "elapsed_ms": 2799.7,
       "steps": [
         {
           "tool_call": {
@@ -103,7 +147,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
+          "selected_schema_fingerprint": "8ccb28e97fd33d091bbe4eb97507bdbb132678d13ab9e917dd24ab573a2cbcc9",
           "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
           "offered_tools": [
             "load_skill",
@@ -114,7 +158,7 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 2809.7,
+          "elapsed_ms": 2795.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

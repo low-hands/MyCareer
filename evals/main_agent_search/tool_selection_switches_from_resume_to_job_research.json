@@ -2,20 +2,14 @@
   "scenario": "tool_selection_switches_from_resume_to_job_research",
   "policy": "When a requested business tool is not yet offered, discover it and continue the user's task in the same conversation.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f",
+  "prompt_fingerprint": "98884b7e7c3a7d962fd1df80b00c5b79a2da8b6288dda585896c4ecd94d771d6",
   "context_shape_fingerprint": "9ea445ee9609e1f03030d660b96ddd4f6484086fa09142d64c438ccf82a4ad1a",
-  "recorded_at": "2026-10-09T18:18:07.154754+00:00",
+  "recorded_at": "2026-10-11T07:29:27.448735+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "research_job",
-        "arguments": {
-          "selection_index": 1,
-          "focus": "主要竞争对手"
-        }
-      },
+      "content": "{\"action\":\"ask_user\",\"message\":\"请先上传您的简历文件，我才能帮您查看和 critique。您可以将简历作为附件发送给我。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "56629f520c701fe5e85811e151ccd1780ab162c196de63b1e128aee9ac5fe10c",
+      "selected_schema_fingerprint": "953af3ac5036f16ec65ca88af856ddd5772307e1d621d2686f170708a040a25e",
       "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
       "offered_tools": [
         "load_skill",
@@ -26,7 +20,7 @@
         "get_job_research",
         "search_capabilities"
       ],
-      "elapsed_ms": 5901.8,
+      "elapsed_ms": 8100.7,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -37,19 +31,13 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:18:04.820299+00:00",
-      "elapsed_ms": 5905.6,
+      "recorded_at": "2026-10-11T07:29:09.979551+00:00",
+      "elapsed_ms": 8103.7,
       "steps": [
         {
-          "tool_call": {
-            "name": "research_job",
-            "arguments": {
-              "selection_index": 1,
-              "focus": "主要竞争对手"
-            }
-          },
+          "content": "{\"action\":\"ask_user\",\"message\":\"请先上传您的简历文件，我才能帮您查看和 critique。您可以将简历作为附件发送给我。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "56629f520c701fe5e85811e151ccd1780ab162c196de63b1e128aee9ac5fe10c",
+          "selected_schema_fingerprint": "953af3ac5036f16ec65ca88af856ddd5772307e1d621d2686f170708a040a25e",
           "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
           "offered_tools": [
             "load_skill",
@@ -60,7 +48,7 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 5901.8,
+          "elapsed_ms": 8100.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -70,52 +58,19 @@
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:18:05.348557+00:00",
-      "elapsed_ms": 5987.2,
+      "recorded_at": "2026-10-11T07:29:10.786927+00:00",
+      "elapsed_ms": 5903.9,
       "steps": [
         {
           "tool_call": {
             "name": "research_job",
             "arguments": {
-              "selection_index": 1,
-              "focus": "主要竞争对手"
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "56629f520c701fe5e85811e151ccd1780ab162c196de63b1e128aee9ac5fe10c",
-          "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "research_job",
-            "get_job_research",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 5983.2,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-09T18:18:07.154754+00:00",
-      "elapsed_ms": 5769.9,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "research_job",
-            "arguments": {
-              "focus": "主要竞争对手、市场竞争格局",
+              "focus": "主要竞争对手",
               "selection_index": 1
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "56629f520c701fe5e85811e151ccd1780ab162c196de63b1e128aee9ac5fe10c",
+          "selected_schema_fingerprint": "953af3ac5036f16ec65ca88af856ddd5772307e1d621d2686f170708a040a25e",
           "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
           "offered_tools": [
             "load_skill",
@@ -126,7 +81,34 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 5766.7,
+          "elapsed_ms": 5900.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:29:27.448735+00:00",
+      "elapsed_ms": 22552.2,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"我看到您希望先查看简历，但当前没有检测到附件简历。请您上传简历文件，以便我进行审查。\\n\\n另外，您也提到了要研究当前岗位公司（示例科技）的主要竞争对手。在您上传简历的同时，我也可以先开始进行竞争对手调研。请问您希望我先进行哪一项操作？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "953af3ac5036f16ec65ca88af856ddd5772307e1d621d2686f170708a040a25e",
+          "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 22549.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

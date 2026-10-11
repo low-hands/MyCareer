@@ -2,19 +2,17 @@
   "scenario": "submitted_resume_questionnaire_continues_tailoring",
   "policy": "After a user submits answers to a questionnaire for the current resume tailoring task, continue that task with the bound resume and match. Skipped and absent answers are not career facts or permission to invent experience.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "175fe3a21d57cd17917598cdbba8877fc63219c795af3360188b2e238f73dca6",
+  "prompt_fingerprint": "2ee02c270b1fa72f47d8469a6d5293bfaab4f4bc544a24ebb0d371361fa0ebdb",
   "context_shape_fingerprint": "2a7924fc8dda76d33903c9162cba2cf866d73a90fa7322af9149bfec6ac7b293",
-  "recorded_at": "2026-10-09T18:17:10.611164+00:00",
+  "recorded_at": "2026-10-11T07:26:29.060192+00:00",
   "steps": [
     {
       "tool_call": {
-        "name": "draft_resume_tailoring",
-        "arguments": {
-          "tailoring_goal": "针对当前岗位匹配结果定制简历。用户补充信息：前端经验：使用 React 开发过内部管理页面；向量数据库：没有使用过；Dify：了解基础工作流配置；AI 编程工具：日常使用 Claude Code 和 Cursor；开源项目或博客：未提供（跳过）。请基于这些信息定制，并且只使用这些表述，不扩写为项目、年限或成果。"
-        }
+        "name": "get_resume_job_match",
+        "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "b9f29f811c83584e807ed26f532a46d0117869d5cbd89c3fe74df9f911ad6754",
+      "selected_schema_fingerprint": "7b2f47176c9215f7e5e274a232037b4e7074647f9646811ec20c0ab950df69e1",
       "decision_shape_fingerprint": "ae3b49c38645c9725261c44e8afa2d0166247f9e7daa87e2ec45bc85559a5952",
       "offered_tools": [
         "load_skill",
@@ -27,10 +25,29 @@
         "propose_career_fact",
         "search_capabilities"
       ],
-      "elapsed_ms": 1347.2,
-      "model_request_count": 1,
+      "elapsed_ms": 2249.1,
+      "model_request_count": 2,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [],
+      "decision_retry_events": [
+        {
+          "reason": "multiple_tool_calls",
+          "retried": true,
+          "raw_output": {
+            "content": "I need to check the match and job context before drafting. The user asked to customize a resume based on the current match result, and the five missing items have now been answered.\n\nLet me retrieve the active match and saved job.",
+            "tool_calls": [
+              {
+                "name": "get_resume_job_match",
+                "arguments": "{}"
+              },
+              {
+                "name": "get_saved_job",
+                "arguments": "{}"
+              }
+            ]
+          },
+          "decision_invocation": 1
+        }
+      ],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -38,18 +55,67 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:17:10.707325+00:00",
-      "elapsed_ms": 1348.8,
+      "recorded_at": "2026-10-11T07:26:28.602399+00:00",
+      "elapsed_ms": 2253.2,
       "steps": [
         {
           "tool_call": {
-            "name": "draft_resume_tailoring",
-            "arguments": {
-              "tailoring_goal": "针对当前岗位匹配结果定制简历。用户补充信息：前端经验：使用 React 开发过内部管理页面；向量数据库：没有使用过；Dify：了解基础工作流配置；AI 编程工具：日常使用 Claude Code 和 Cursor；开源项目或博客：未提供（跳过）。请基于这些信息定制，并且只使用这些表述，不扩写为项目、年限或成果。"
+            "name": "get_resume_job_match",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "7b2f47176c9215f7e5e274a232037b4e7074647f9646811ec20c0ab950df69e1",
+          "decision_shape_fingerprint": "ae3b49c38645c9725261c44e8afa2d0166247f9e7daa87e2ec45bc85559a5952",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "get_resume_job_match",
+            "draft_resume_tailoring",
+            "search_career_history",
+            "propose_career_fact",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2249.1,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "multiple_tool_calls",
+              "retried": true,
+              "raw_output": {
+                "content": "I need to check the match and job context before drafting. The user asked to customize a resume based on the current match result, and the five missing items have now been answered.\n\nLet me retrieve the active match and saved job.",
+                "tool_calls": [
+                  {
+                    "name": "get_resume_job_match",
+                    "arguments": "{}"
+                  },
+                  {
+                    "name": "get_saved_job",
+                    "arguments": "{}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
             }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:26:28.795266+00:00",
+      "elapsed_ms": 1241.3,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_resume_job_match",
+            "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "b9f29f811c83584e807ed26f532a46d0117869d5cbd89c3fe74df9f911ad6754",
+          "selected_schema_fingerprint": "7b2f47176c9215f7e5e274a232037b4e7074647f9646811ec20c0ab950df69e1",
           "decision_shape_fingerprint": "ae3b49c38645c9725261c44e8afa2d0166247f9e7daa87e2ec45bc85559a5952",
           "offered_tools": [
             "load_skill",
@@ -62,7 +128,7 @@
             "propose_career_fact",
             "search_capabilities"
           ],
-          "elapsed_ms": 1347.2,
+          "elapsed_ms": 1238.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -72,8 +138,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:17:10.624156+00:00",
-      "elapsed_ms": 1019.3,
+      "recorded_at": "2026-10-11T07:26:29.060192+00:00",
+      "elapsed_ms": 945.9,
       "steps": [
         {
           "tool_call": {
@@ -81,7 +147,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "b9f29f811c83584e807ed26f532a46d0117869d5cbd89c3fe74df9f911ad6754",
+          "selected_schema_fingerprint": "7b2f47176c9215f7e5e274a232037b4e7074647f9646811ec20c0ab950df69e1",
           "decision_shape_fingerprint": "ae3b49c38645c9725261c44e8afa2d0166247f9e7daa87e2ec45bc85559a5952",
           "offered_tools": [
             "load_skill",
@@ -94,39 +160,7 @@
             "propose_career_fact",
             "search_capabilities"
           ],
-          "elapsed_ms": 1017.0,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-09T18:17:10.611164+00:00",
-      "elapsed_ms": 939.1,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "get_resume_job_match",
-            "arguments": {}
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "b9f29f811c83584e807ed26f532a46d0117869d5cbd89c3fe74df9f911ad6754",
-          "decision_shape_fingerprint": "ae3b49c38645c9725261c44e8afa2d0166247f9e7daa87e2ec45bc85559a5952",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "get_resume_job_match",
-            "draft_resume_tailoring",
-            "search_career_history",
-            "propose_career_fact",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 937.3,
+          "elapsed_ms": 941.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

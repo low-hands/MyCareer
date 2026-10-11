@@ -2,20 +2,20 @@
   "scenario": "a_long_compacted_history_is_searched_in_one_page_in_call",
   "policy": "When omitted history is longer than the bounded read-call budget can scan, call read_conversation_span with focused query terms inside sequence 1 through through_sequence instead of walking positional chunks or guessing.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "2b79ee08122d7b707fcdb2e5a342829a164b27b53ff6e834a4bf6b8e423f1c9b",
-  "context_shape_fingerprint": "720c64c0e111845ac36282255287dc00fe96a9769230eb0da4bebf0e4e5c4f31",
-  "recorded_at": "2026-10-09T18:17:05.225413+00:00",
+  "prompt_fingerprint": "d28665af94d584746ef712f413b7d682bc9507b0d1868c6b21c4abe0a07d9243",
+  "context_shape_fingerprint": "e790a2cba954f2ac881bb2b6f451ab5709f8cca50d4b8dd2a594b59c825051ac",
+  "recorded_at": "2026-10-11T07:26:16.916517+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "read_conversation_span",
         "arguments": {
-          "query": "目标公司 算法工程师 岗位"
+          "query": "目标公司"
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
-      "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
+      "selected_schema_fingerprint": "72d49ebac6ebe9690f67e227946d012a586348d7fd1737ed8bb8e3dd2a4fe34b",
+      "decision_shape_fingerprint": "f01523df9b662d86a295cac0e909d4b6d2ea19dcbc8b9fc4c27b86d9b229d87c",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -26,7 +26,7 @@
         "search_career_episodes",
         "search_capabilities"
       ],
-      "elapsed_ms": 1116.9,
+      "elapsed_ms": 1181.3,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -37,19 +37,19 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:17:05.045822+00:00",
-      "elapsed_ms": 1118.0,
+      "recorded_at": "2026-10-11T07:26:13.662350+00:00",
+      "elapsed_ms": 1184.4,
       "steps": [
         {
           "tool_call": {
             "name": "read_conversation_span",
             "arguments": {
-              "query": "目标公司 算法工程师 岗位"
+              "query": "目标公司"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
-          "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
+          "selected_schema_fingerprint": "72d49ebac6ebe9690f67e227946d012a586348d7fd1737ed8bb8e3dd2a4fe34b",
+          "decision_shape_fingerprint": "f01523df9b662d86a295cac0e909d4b6d2ea19dcbc8b9fc4c27b86d9b229d87c",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -60,7 +60,7 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 1116.9,
+          "elapsed_ms": 1181.3,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -70,19 +70,19 @@
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:17:04.864589+00:00",
-      "elapsed_ms": 922.9,
+      "recorded_at": "2026-10-11T07:26:14.688869+00:00",
+      "elapsed_ms": 1024.6,
       "steps": [
         {
           "tool_call": {
             "name": "read_conversation_span",
             "arguments": {
-              "query": "目标公司 美团 算法工程师"
+              "query": "目标公司 目标岗位 算法工程师"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
-          "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
+          "selected_schema_fingerprint": "72d49ebac6ebe9690f67e227946d012a586348d7fd1737ed8bb8e3dd2a4fe34b",
+          "decision_shape_fingerprint": "f01523df9b662d86a295cac0e909d4b6d2ea19dcbc8b9fc4c27b86d9b229d87c",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -93,7 +93,7 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 919.5,
+          "elapsed_ms": 1019.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -103,19 +103,19 @@
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:17:05.225413+00:00",
-      "elapsed_ms": 1161.8,
+      "recorded_at": "2026-10-11T07:26:16.916517+00:00",
+      "elapsed_ms": 2557.8,
       "steps": [
         {
           "tool_call": {
             "name": "read_conversation_span",
             "arguments": {
-              "query": "目标公司 美团 算法工程师 已保存岗位"
+              "query": "目标公司 算法工程师 目标岗位"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "beefef8ef7f9eaa282a05a0dbe5d08e822225366989871588209c8eab21c3051",
-          "decision_shape_fingerprint": "19bf90024e63040897120526f5e6388d5dba801099f92ec032897a957fc4e42e",
+          "selected_schema_fingerprint": "72d49ebac6ebe9690f67e227946d012a586348d7fd1737ed8bb8e3dd2a4fe34b",
+          "decision_shape_fingerprint": "f01523df9b662d86a295cac0e909d4b6d2ea19dcbc8b9fc4c27b86d9b229d87c",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -126,10 +126,21 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 1160.4,
-          "model_request_count": 1,
+          "elapsed_ms": 2553.6,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "我检查了当前可见的记录，没有找到你指定过的目标公司名称。\n\n具体说明：\n- 摘要里的用户目标是「找算法工程师岗位」，明确决定是「先从已保存岗位里挑，不全国盲搜」，但**没有记录任何具体的目标公司名**。\n- 唯一在窗口里被提到的「美团」是一条消息里出现的对照岗位，它明确写着不是你的目标（而且这也不是公司层面的\"目标公司\"设定）。\n- 当前也没有活跃的目标岗位方向（`memory/current_targets.md` 显示 No active targets），已确认的职业记忆索引也是空的。\n\n为防止遗漏，我也可以去检索被压缩的早期聊天记录。要我去查一下 1–120 那段被摘要覆盖的历史里是否出现过目标公司名吗？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }

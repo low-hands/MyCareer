@@ -2,22 +2,17 @@
   "scenario": "overdue_brief_routes_to_the_action_list",
   "policy": "Tool observation facts are approved decision values. When the user explicitly asks for a conditional follow-up, use the overdue count rather than giving a generic answer or guessing the brief body.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "df54d2f2e0fe43dd61f644665324fda9380cefc8c5f284fecfa0378c079bd6fa",
+  "prompt_fingerprint": "4c74ffa7746ba153ec7707ae190ab037ad3bd36ee1640a4614d44d7cec91145d",
   "context_shape_fingerprint": "4f01d61c362426228a14e63b2cc775db5eeb2444c3d667f88636706317829086",
-  "recorded_at": "2026-10-09T18:16:54.881759+00:00",
+  "recorded_at": "2026-10-11T07:25:50.615503+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "list_action_items",
-        "arguments": {
-          "statuses": [
-            "open",
-            "snoozed"
-          ]
-        }
+        "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+      "selected_schema_fingerprint": "4926739b6e54de1fd423e02189f18dc4b1b1fda4aa5dc27d5326e23fc0da86da",
       "decision_shape_fingerprint": "2548770d1dec38517a24dbeceb178e174d082ca2ec510f315373d924e167d620",
       "offered_tools": [
         "load_skill",
@@ -27,7 +22,7 @@
         "list_action_items",
         "search_capabilities"
       ],
-      "elapsed_ms": 826.6,
+      "elapsed_ms": 1097.3,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -38,76 +33,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:16:53.927040+00:00",
-      "elapsed_ms": 830.5,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "list_action_items",
-            "arguments": {
-              "statuses": [
-                "open",
-                "snoozed"
-              ]
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
-          "decision_shape_fingerprint": "2548770d1dec38517a24dbeceb178e174d082ca2ec510f315373d924e167d620",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_daily_brief",
-            "list_action_items",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 826.6,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-09T18:16:54.385270+00:00",
-      "elapsed_ms": 843.1,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "list_action_items",
-            "arguments": {
-              "statuses": [
-                "open",
-                "snoozed"
-              ]
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
-          "decision_shape_fingerprint": "2548770d1dec38517a24dbeceb178e174d082ca2ec510f315373d924e167d620",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_daily_brief",
-            "list_action_items",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 840.9,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-09T18:16:54.881759+00:00",
-      "elapsed_ms": 1324.6,
+      "recorded_at": "2026-10-11T07:25:49.661398+00:00",
+      "elapsed_ms": 1099.5,
       "steps": [
         {
           "tool_call": {
@@ -115,7 +42,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "selected_schema_fingerprint": "4926739b6e54de1fd423e02189f18dc4b1b1fda4aa5dc27d5326e23fc0da86da",
           "decision_shape_fingerprint": "2548770d1dec38517a24dbeceb178e174d082ca2ec510f315373d924e167d620",
           "offered_tools": [
             "load_skill",
@@ -125,7 +52,65 @@
             "list_action_items",
             "search_capabilities"
           ],
-          "elapsed_ms": 1321.6,
+          "elapsed_ms": 1097.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:25:49.626759+00:00",
+      "elapsed_ms": 1026.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_action_items",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "4926739b6e54de1fd423e02189f18dc4b1b1fda4aa5dc27d5326e23fc0da86da",
+          "decision_shape_fingerprint": "2548770d1dec38517a24dbeceb178e174d082ca2ec510f315373d924e167d620",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1021.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:25:50.615503+00:00",
+      "elapsed_ms": 972.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_action_items",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "4926739b6e54de1fd423e02189f18dc4b1b1fda4aa5dc27d5326e23fc0da86da",
+          "decision_shape_fingerprint": "2548770d1dec38517a24dbeceb178e174d082ca2ec510f315373d924e167d620",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 968.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

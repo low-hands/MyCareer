@@ -2,15 +2,15 @@
   "scenario": "a_returned_span_body_is_used_not_the_window_decoy",
   "policy": "A read result whose receipt condenses a larger presenter output may also include body: the bounded text rendered from the same source shown to the user. You may reason from body when it is present. Ground the reply only in message, facts and body.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "dd7fb7e01655a1a2130a2f6acf060ba3af19850ec09975d4bf41497e2d4226b8",
-  "context_shape_fingerprint": "4235b6b7d98c26deaff8bc3972fdf661880a247129528496869ac5705396be50",
-  "recorded_at": "2026-10-09T18:17:06.457022+00:00",
+  "prompt_fingerprint": "22482899669e25b722dd3f5cb8dc997e0781021dfdbfdfeac0349ec2797f4cab",
+  "context_shape_fingerprint": "596b1be988e8398b455e446c44e9ef7812ea294ec614fb0d019adeb71da432d5",
+  "recorded_at": "2026-10-11T07:26:14.357411+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**（见最初的消息：“目标公司先定 Pinnacle Robotics”）。后面的美团 JD 只是窗口里的对照，不是你的目标公司。\",\"questions\":[]}",
+      "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**（会话序号 1 里提到的“目标公司先定 Pinnacle Robotics”）。窗口里那份美团 JD 只是对照用的，不是你指定的目标公司。\\n\\n另外提醒一下：目前还没有任何确认的目标岗位或硬性约束记录，城市也还没定；需要的话可以下一轮告诉我城市，我再帮你整理意向。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "91b5b4c3b4075fd2150d74dd0b77201f8147f2fed1ae225e39f542c8c27a9c4a",
-      "decision_shape_fingerprint": "72fa78d3d9da31577cd5f7eaea3aee077fde87ea2956071d61e7888cc3e5b721",
+      "selected_schema_fingerprint": "6f60629045069cccd8cc40c075aef52c2374b46bd95a1e858f12f2bc85f6cd5b",
+      "decision_shape_fingerprint": "e9b5cead6a5dd334e9612ccfbd9814571145ff418233d0765ed16942d73cd70f",
       "offered_tools": [
         "load_skill",
         "read_conversation_span",
@@ -21,10 +21,21 @@
         "start_mock_interview",
         "search_capabilities"
       ],
-      "elapsed_ms": 1505.1,
-      "model_request_count": 1,
+      "elapsed_ms": 3226.3,
+      "model_request_count": 2,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [],
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "你一开始指定的目标公司全名是 **Pinnacle Robotics**（第 1 条消息里明确说的：\"目标公司先定 Pinnacle Robotics\"，第 6 条也确认公司名以你指定的 Pinnacle Robotics 为准）。\n\n而窗口里出现的 **美团** 只是后来的对照，并不是你最初指定的目标。",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -32,14 +43,14 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:17:04.932509+00:00",
-      "elapsed_ms": 1509.2,
+      "recorded_at": "2026-10-11T07:26:14.804057+00:00",
+      "elapsed_ms": 3230.6,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**（见最初的消息：“目标公司先定 Pinnacle Robotics”）。后面的美团 JD 只是窗口里的对照，不是你的目标公司。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**（会话序号 1 里提到的“目标公司先定 Pinnacle Robotics”）。窗口里那份美团 JD 只是对照用的，不是你指定的目标公司。\\n\\n另外提醒一下：目前还没有任何确认的目标岗位或硬性约束记录，城市也还没定；需要的话可以下一轮告诉我城市，我再帮你整理意向。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "91b5b4c3b4075fd2150d74dd0b77201f8147f2fed1ae225e39f542c8c27a9c4a",
-          "decision_shape_fingerprint": "72fa78d3d9da31577cd5f7eaea3aee077fde87ea2956071d61e7888cc3e5b721",
+          "selected_schema_fingerprint": "6f60629045069cccd8cc40c075aef52c2374b46bd95a1e858f12f2bc85f6cd5b",
+          "decision_shape_fingerprint": "e9b5cead6a5dd334e9612ccfbd9814571145ff418233d0765ed16942d73cd70f",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -50,35 +61,7 @@
             "start_mock_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 1505.1,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-09T18:17:06.398854+00:00",
-      "elapsed_ms": 2593.7,
-      "steps": [
-        {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**（见会话第 1 条「目标公司先定 Pinnacle Robotics」，第 5、6 条也再次确认公司名以它为准）。窗口里的 美团 只是对照 JD，不是你指定的目标。\",\"questions\":[]}",
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "91b5b4c3b4075fd2150d74dd0b77201f8147f2fed1ae225e39f542c8c27a9c4a",
-          "decision_shape_fingerprint": "72fa78d3d9da31577cd5f7eaea3aee077fde87ea2956071d61e7888cc3e5b721",
-          "offered_tools": [
-            "load_skill",
-            "read_conversation_span",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "list_target_roles",
-            "propose_job_intent",
-            "start_mock_interview",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 2592.4,
+          "elapsed_ms": 3226.3,
           "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -87,7 +70,7 @@
               "retried": true,
               "forced_interaction": false,
               "raw_output": {
-                "content": "你一开始指定的目标公司全名是 **Pinnacle Robotics**（会话序号 1，你在“目标公司先定 Pinnacle Robotics”里明确说的；序号 6 也再次确认以你指定的这个名字为准）。\n\n补充一点：刚才窗口里那份 美团 JD 只是对照，不是你指定的目标公司。",
+                "content": "你一开始指定的目标公司全名是 **Pinnacle Robotics**（第 1 条消息里明确说的：\"目标公司先定 Pinnacle Robotics\"，第 6 条也确认公司名以你指定的 Pinnacle Robotics 为准）。\n\n而窗口里出现的 **美团** 只是后来的对照，并不是你最初指定的目标。",
                 "tool_calls": []
               },
               "decision_invocation": 1
@@ -99,14 +82,14 @@
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:17:06.457022+00:00",
-      "elapsed_ms": 2610.5,
+      "recorded_at": "2026-10-11T07:26:14.554662+00:00",
+      "elapsed_ms": 2891.1,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**（见会话开头：你说\\\"目标公司先定 Pinnacle Robotics\\\"，我在第 2、6 条也按这个名字确认过）。\\n\\n另外提醒一下：刚才窗口里出现的\\\"美团\\\"那份 JD 只是对照材料，不是你指定的目标公司，两者别混。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**（会话序号 1 你明确说“目标公司先定 Pinnacle Robotics”，序号 6 也确认以此为准）。窗口里那份美团 JD 只是对照材料，不是你的目标公司。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "91b5b4c3b4075fd2150d74dd0b77201f8147f2fed1ae225e39f542c8c27a9c4a",
-          "decision_shape_fingerprint": "72fa78d3d9da31577cd5f7eaea3aee077fde87ea2956071d61e7888cc3e5b721",
+          "selected_schema_fingerprint": "6f60629045069cccd8cc40c075aef52c2374b46bd95a1e858f12f2bc85f6cd5b",
+          "decision_shape_fingerprint": "e9b5cead6a5dd334e9612ccfbd9814571145ff418233d0765ed16942d73cd70f",
           "offered_tools": [
             "load_skill",
             "read_conversation_span",
@@ -117,7 +100,7 @@
             "start_mock_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 2609.5,
+          "elapsed_ms": 2887.8,
           "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -126,7 +109,46 @@
               "retried": true,
               "forced_interaction": false,
               "raw_output": {
-                "content": "你一开始指定的目标公司全名是 **Pinnacle Robotics**（会话序号 1 里你说“目标公司先定 Pinnacle Robotics”，序号 6 也按这个名称确认过）。\n\n至于刚才窗口里出现的“美团”，那只是对照用的岗位，不是你的目标公司。",
+                "content": "你一开始指定的目标公司是 **Pinnacle Robotics**（见第 1 条消息：「目标公司先定 Pinnacle Robotics」；第 5–6 条也再次确认公司名以你指定的 Pinnacle Robotics 为准）。\n\n补充一点背景：窗口里的「美团」那份只是你要求做的对照，并不是你指定的目标公司；按当前记录，目标公司仍是 Pinnacle Robotics。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:26:14.357411+00:00",
+      "elapsed_ms": 2088.6,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**（见会话序号 1）。窗口里那份 美团 只是对照，不是你的目标公司。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "6f60629045069cccd8cc40c075aef52c2374b46bd95a1e858f12f2bc85f6cd5b",
+          "decision_shape_fingerprint": "e9b5cead6a5dd334e9612ccfbd9814571145ff418233d0765ed16942d73cd70f",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "start_mock_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2085.4,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "你一开始指定的目标公司全名是 **Pinnacle Robotics**（见会话序号 1 的原始表述，序号 6 也确认以它为准）。\n\n顺带说明：窗口里的「美团」只是当时的对照对象，不是你指定的目标公司。城市这一项你之前在序号 7 说留到下一轮再定，目前仍未确认。",
                 "tool_calls": []
               },
               "decision_invocation": 1

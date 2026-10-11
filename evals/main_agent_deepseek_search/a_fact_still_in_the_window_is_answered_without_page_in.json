@@ -2,14 +2,14 @@
   "scenario": "a_fact_still_in_the_window_is_answered_without_page_in",
   "policy": "When the completed context already answers the current request, do not call another tool merely to reconstruct content that is absent: answer with action='final' and write the reply yourself.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "fe0587ea4a6830afa741a3ff02e594fad4a9971943d2e633077dbfc45caf1543",
+  "prompt_fingerprint": "819b58c197c0136993a723d508bc77bef52e5c57e55134939842804af6be927b",
   "context_shape_fingerprint": "2e18f48e368c000525073e07cfbf7d515bc94dc19d912febe412ceac48eafb1c",
-  "recorded_at": "2026-10-09T18:17:09.846661+00:00",
+  "recorded_at": "2026-10-11T07:26:23.096320+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\\n\\n需要说明的是：刚才窗口里出现的 美团 JD 只是对照材料，不是你指定的目标；目前也没有任何已保存的岗位、分析或调研记录，所以除此之外我没有可引用的其他公司记录。\",\"questions\":[]}",
+      "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\\n\\n说明：这个公司名只出现在当前对话的原生消息里（你开头那句「目标公司先定 Pinnacle Robotics」），并没有写入任何已保存的职业记忆或偏好记录——目前 career_memory 为空、已确认自由文本偏好也为「无」。所以这不是从档案里读出来的确认事实，而是本窗口你亲口说过的内容。\\n\\n另外提醒一点：窗口里出现过的「美团」只是对照，不是你指定的目标公司。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "335e552fa632378b9386156568851cb544abf9e5cd3eab9812bf863e76e1a45e",
+      "selected_schema_fingerprint": "44405b859bd973656716826317e77d2abdd190f40db76b17893a85f85157e322",
       "decision_shape_fingerprint": "bc6b92a534ac573489e4254248f0e2d879d97673e345387af65bcf9d5336587d",
       "offered_tools": [
         "load_skill",
@@ -20,7 +20,7 @@
         "start_mock_interview",
         "search_capabilities"
       ],
-      "elapsed_ms": 2728.7,
+      "elapsed_ms": 3149.5,
       "model_request_count": 2,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [
@@ -29,7 +29,7 @@
           "retried": true,
           "forced_interaction": false,
           "raw_output": {
-            "content": "Pinnacle Robotics。",
+            "content": "Pinnacle Robotics。\n\n从你本轮之前的原话看，你当时说的是「目标公司先定 Pinnacle Robotics」，这个全名只有你在对话里说过，我按你给的写法保留。\n\n另外提醒一句：窗口里那份美团 JD 只是对照材料，不是你的目标公司；目前也没有保存下来的岗位或分析记录，所以没有可核对的岗位信息。",
             "tool_calls": []
           },
           "decision_invocation": 1
@@ -42,13 +42,13 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:17:08.510409+00:00",
-      "elapsed_ms": 2734.9,
+      "recorded_at": "2026-10-11T07:26:20.893572+00:00",
+      "elapsed_ms": 3152.1,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\\n\\n需要说明的是：刚才窗口里出现的 美团 JD 只是对照材料，不是你指定的目标；目前也没有任何已保存的岗位、分析或调研记录，所以除此之外我没有可引用的其他公司记录。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\\n\\n说明：这个公司名只出现在当前对话的原生消息里（你开头那句「目标公司先定 Pinnacle Robotics」），并没有写入任何已保存的职业记忆或偏好记录——目前 career_memory 为空、已确认自由文本偏好也为「无」。所以这不是从档案里读出来的确认事实，而是本窗口你亲口说过的内容。\\n\\n另外提醒一点：窗口里出现过的「美团」只是对照，不是你指定的目标公司。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "335e552fa632378b9386156568851cb544abf9e5cd3eab9812bf863e76e1a45e",
+          "selected_schema_fingerprint": "44405b859bd973656716826317e77d2abdd190f40db76b17893a85f85157e322",
           "decision_shape_fingerprint": "bc6b92a534ac573489e4254248f0e2d879d97673e345387af65bcf9d5336587d",
           "offered_tools": [
             "load_skill",
@@ -59,7 +59,7 @@
             "start_mock_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 2728.7,
+          "elapsed_ms": 3149.5,
           "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -68,7 +68,7 @@
               "retried": true,
               "forced_interaction": false,
               "raw_output": {
-                "content": "Pinnacle Robotics。",
+                "content": "Pinnacle Robotics。\n\n从你本轮之前的原话看，你当时说的是「目标公司先定 Pinnacle Robotics」，这个全名只有你在对话里说过，我按你给的写法保留。\n\n另外提醒一句：窗口里那份美团 JD 只是对照材料，不是你的目标公司；目前也没有保存下来的岗位或分析记录，所以没有可核对的岗位信息。",
                 "tool_calls": []
               },
               "decision_invocation": 1
@@ -80,13 +80,13 @@
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:17:09.670820+00:00",
-      "elapsed_ms": 3271.1,
+      "recorded_at": "2026-10-11T07:26:23.004726+00:00",
+      "elapsed_ms": 2458.5,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的是 **Pinnacle Robotics**（你当时说“目标公司先定 Pinnacle Robotics”）。\\n\\n需要说明两点：\\n- 这目前只是你在对话里声明的目标，尚未保存为正式的求职意向记录（还没确认过）。\\n- 刚才提到的“美团”只是窗口里出现的一份对照 JD，不是你指定的目标公司。另外，当前也没有处于激活状态的 JD 或岗位快照，所以那份 JD 的完整内容我这边取不到；如果你想要针对它的分析，需要先把它选定/保存下来。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。这家是你明确设定的目标公司；窗口里出现的 美团 JD 只是对照材料，不是你的目标公司。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "335e552fa632378b9386156568851cb544abf9e5cd3eab9812bf863e76e1a45e",
+          "selected_schema_fingerprint": "44405b859bd973656716826317e77d2abdd190f40db76b17893a85f85157e322",
           "decision_shape_fingerprint": "bc6b92a534ac573489e4254248f0e2d879d97673e345387af65bcf9d5336587d",
           "offered_tools": [
             "load_skill",
@@ -97,7 +97,7 @@
             "start_mock_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 3269.2,
+          "elapsed_ms": 2453.5,
           "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -106,7 +106,7 @@
               "retried": true,
               "forced_interaction": false,
               "raw_output": {
-                "content": "Pinnacle Robotics。\n\n补充两点：\n\n- 你最初说的是「目标公司先定 Pinnacle Robotics」，之后还说「公司名不要搞错」，所以我一直以这个全名为准。\n- 上一轮那个「美团」的 JD 只是窗口里出现的对照，并不是你指定的目标公司，我也没有把它当成目标来用。\n\n另外，你之前说过转算法岗、薪资「先按岗位再谈」、城市下一轮再说——这些都还只是口头说法，没有正式记录为求职意向。如果你要我把「目标公司 Pinnacle Robotics + 算法岗」正式记下来，我可以先展示一份意向草稿给你确认。",
+                "content": "Pinnacle Robotics。这是你在这段对话开头明确指定的目标公司全名。",
                 "tool_calls": []
               },
               "decision_invocation": 1
@@ -118,13 +118,13 @@
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:17:09.846661+00:00",
-      "elapsed_ms": 3418.6,
+      "recorded_at": "2026-10-11T07:26:23.096320+00:00",
+      "elapsed_ms": 2473.4,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\\n\\n补充说明一点：当前窗口里没有任何已加载的岗位或 JD 实体（没有生效的投递、收藏岗位、岗位分析或 JD 快照），所以之前提到的「美团 JD」并不在可核对的实体里，我也没有依据去评价它。另外按你的设定，薪资按岗位再谈、招聘网站搜索仅在明确要求时才打开。\\n\\n需要我围绕 Pinnacle Robotics 的算法岗做点什么吗？比如确认求职意向（目标岗位方向/城市）、或者在你给出具体 JD 后再做岗位分析。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"Pinnacle Robotics —— 这是你在本次对话一开始指定的目标公司全名。第 5 轮里出现在窗口中的「美团」JD 只是窗口里的对照，不是这个目标，所以别把两者混在一起。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "335e552fa632378b9386156568851cb544abf9e5cd3eab9812bf863e76e1a45e",
+          "selected_schema_fingerprint": "44405b859bd973656716826317e77d2abdd190f40db76b17893a85f85157e322",
           "decision_shape_fingerprint": "bc6b92a534ac573489e4254248f0e2d879d97673e345387af65bcf9d5336587d",
           "offered_tools": [
             "load_skill",
@@ -135,7 +135,7 @@
             "start_mock_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 3415.6,
+          "elapsed_ms": 2470.0,
           "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -144,7 +144,7 @@
               "retried": true,
               "forced_interaction": false,
               "raw_output": {
-                "content": "Pinnacle Robotics。\n\n这是你在本次对话里明确点名的目标公司；刚才窗口里出现的 美团 只是对照，不是你指定的目标。需要的话我可以继续按 Pinnacle Robotics 准备，或先记录你的转算法岗意向。",
+                "content": "Pinnacle Robotics。这是你在这个窗口里明确指定的目标公司全名；「美团」只是你后来提到的窗口内对照 JD，不是原始目标。",
                 "tool_calls": []
               },
               "decision_invocation": 1

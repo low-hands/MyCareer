@@ -2,9 +2,9 @@
   "scenario": "an_approved_calendar_proposal_is_executed",
   "policy": "A request to execute a displayed calendar proposal may read the proposal or request execution through the runtime's bound approval gate. Natural-language approval alone never authorizes the write.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "76f741b8adefbf79bd063b2df7327fe9c33013f784aba4b1377abc421fb30dac",
+  "prompt_fingerprint": "973024578c7a2ed7d1d55eee928d3f26ac034e87dca25ab3d7c5ab1e1f05f4d7",
   "context_shape_fingerprint": "3fbe0877d42a4588c2eea0087a5acc2da3a44ae67008c1e07b4e645ac32c2ab5",
-  "recorded_at": "2026-10-09T18:16:49.575138+00:00",
+  "recorded_at": "2026-10-11T07:25:33.813955+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,7 +12,7 @@
         "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "ebf61021b4d808ba97eb3468438f8ab81dfe8db0683c6a216be723f4a663e065",
+      "selected_schema_fingerprint": "7c9bdc3341bde6f81b93875ae91d189c3cc395c9587b56cfd4d960f5bd78a0dc",
       "decision_shape_fingerprint": "fd5a9b58cb9e3795ce03a3a6dcf8e99a1387dc3317b957b688dba39580d025cb",
       "offered_tools": [
         "load_skill",
@@ -24,7 +24,7 @@
         "execute_calendar_proposal",
         "search_capabilities"
       ],
-      "elapsed_ms": 1327.1,
+      "elapsed_ms": 1558.0,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -35,8 +35,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:16:49.369813+00:00",
-      "elapsed_ms": 1331.3,
+      "recorded_at": "2026-10-11T07:25:32.566665+00:00",
+      "elapsed_ms": 1560.5,
       "steps": [
         {
           "tool_call": {
@@ -44,7 +44,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "ebf61021b4d808ba97eb3468438f8ab81dfe8db0683c6a216be723f4a663e065",
+          "selected_schema_fingerprint": "7c9bdc3341bde6f81b93875ae91d189c3cc395c9587b56cfd4d960f5bd78a0dc",
           "decision_shape_fingerprint": "fd5a9b58cb9e3795ce03a3a6dcf8e99a1387dc3317b957b688dba39580d025cb",
           "offered_tools": [
             "load_skill",
@@ -56,7 +56,7 @@
             "execute_calendar_proposal",
             "search_capabilities"
           ],
-          "elapsed_ms": 1327.1,
+          "elapsed_ms": 1558.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -66,8 +66,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:16:49.109569+00:00",
-      "elapsed_ms": 953.0,
+      "recorded_at": "2026-10-11T07:25:33.810449+00:00",
+      "elapsed_ms": 2119.2,
       "steps": [
         {
           "tool_call": {
@@ -75,7 +75,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "ebf61021b4d808ba97eb3468438f8ab81dfe8db0683c6a216be723f4a663e065",
+          "selected_schema_fingerprint": "7c9bdc3341bde6f81b93875ae91d189c3cc395c9587b56cfd4d960f5bd78a0dc",
           "decision_shape_fingerprint": "fd5a9b58cb9e3795ce03a3a6dcf8e99a1387dc3317b957b688dba39580d025cb",
           "offered_tools": [
             "load_skill",
@@ -87,7 +87,7 @@
             "execute_calendar_proposal",
             "search_capabilities"
           ],
-          "elapsed_ms": 950.9,
+          "elapsed_ms": 2116.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -97,8 +97,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:16:49.575138+00:00",
-      "elapsed_ms": 1177.5,
+      "recorded_at": "2026-10-11T07:25:33.813955+00:00",
+      "elapsed_ms": 2092.1,
       "steps": [
         {
           "tool_call": {
@@ -106,7 +106,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "ebf61021b4d808ba97eb3468438f8ab81dfe8db0683c6a216be723f4a663e065",
+          "selected_schema_fingerprint": "7c9bdc3341bde6f81b93875ae91d189c3cc395c9587b56cfd4d960f5bd78a0dc",
           "decision_shape_fingerprint": "fd5a9b58cb9e3795ce03a3a6dcf8e99a1387dc3317b957b688dba39580d025cb",
           "offered_tools": [
             "load_skill",
@@ -118,7 +118,7 @@
             "execute_calendar_proposal",
             "search_capabilities"
           ],
-          "elapsed_ms": 1176.4,
+          "elapsed_ms": 2089.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

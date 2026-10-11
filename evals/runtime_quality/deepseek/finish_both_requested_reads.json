@@ -2,17 +2,34 @@
   "version": 1,
   "model": "deepseek-flash",
   "scenario": "finish_both_requested_reads",
-  "suite_fingerprint": "9aad56ad6becd74cd260e8789fa9d3bf1caf3268e088e6eb615fcaa28646e96f",
-  "recorded_at": "2026-10-09T18:33:13.049388+00:00",
+  "suite_fingerprint": "6bd1478d40156967e8505a5bd9ba098b65278d80dd12580a9055de48b3a16ec6",
+  "recorded_at": "2026-10-11T07:28:13.245841+00:00",
   "k": 3,
   "samples": [
     {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "请查看我的投递记录和面试安排，两项都查，不用等我再说继续。": {
+            "list_applications": 0.7556743755207729,
+            "search_career_episodes": 0.689107972387009,
+            "create_interview": 0.6864195827906553,
+            "get_interview": 0.6773215054966345,
+            "list_interviews": 0.6768155140103373,
+            "create_application": 0.650708828738526,
+            "update_interview": 0.6501486110024588,
+            "complete_interview": 0.6215937142694878,
+            "get_application": 0.6159866052536562,
+            "update_application_status": 0.6127696600760572
+          }
+        }
+      },
       "passed": true,
       "failures": [],
       "turns": [
         {
           "message": "请查看我的投递记录和面试安排，两项都查，不用等我再说继续。",
-          "assistant_message": "我查了两项，结果如下：\n\n1. **投递记录**：目前没有任何投递记录（无已跟踪的投递）。\n2. **面试安排**：目前没有任何面试轮次或安排。\n\n也就是说，现阶段在系统里两处都是空的。如果你想推进，可以告诉我：\n- 你正在投的岗位（公司 + 岗位名），我可以帮你建立投递记录；\n- 或者你已有/即将有的面试（公司、岗位、时间、形式），我可以帮你记录面试安排，并可选地生成准备材料。\n\n需要的话直接说，我就开始。",
+          "assistant_message": "两项都查完了，目前都是空的：\n\n- **投递记录**：没有找到任何投递记录。\n- **面试安排**：没有找到任何面试轮次。\n\n如果你有正在跟进的岗位或已约好的面试，可以告诉我公司、岗位和（如果有的话）面试时间，我可以帮你建立投递记录或面试安排并持续跟踪。",
           "executed_calls": [
             {
               "name": "list_applications",
@@ -40,7 +57,7 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "dcc831a9f6c3c8d7eb4397728ca2724ddf12e5e4e5511b9c51d15f8a54c70fef",
+              "schema_fingerprint": "2af665ad001aaa7ec9e1213894d5ec7321bcd15e3f7d81d460d5b772979acd23",
               "action": "tool_call",
               "tool": "list_applications"
             },
@@ -51,21 +68,29 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "dcc831a9f6c3c8d7eb4397728ca2724ddf12e5e4e5511b9c51d15f8a54c70fef",
+              "schema_fingerprint": "2af665ad001aaa7ec9e1213894d5ec7321bcd15e3f7d81d460d5b772979acd23",
               "action": "tool_call",
               "tool": "list_interviews"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"我查了两项，结果如下：\\n\\n1. **投递记录**：目前没有任何投递记录（无已跟踪的投递）。\\n2. **面试安排**：目前没有任何面试轮次或安排。\\n\\n也就是说，现阶段在系统里两处都是空的。如果你想推进，可以告诉我：\\n- 你正在投的岗位（公司 + 岗位名），我可以帮你建立投递记录；\\n- 或者你已有/即将有的面试（公司、岗位、时间、形式），我可以帮你记录面试安排，并可选地生成准备材料。\\n\\n需要的话直接说，我就开始。\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"两项都查完了，目前都是空的：\\n\\n- **投递记录**：没有找到任何投递记录。\\n- **面试安排**：没有找到任何面试轮次。\\n\\n如果你有正在跟进的岗位或已约好的面试，可以告诉我公司、岗位和（如果有的话）面试时间，我可以帮你建立投递记录或面试安排并持续跟踪。\",\"questions\":[]}"
               },
-              "schema_fingerprint": "dcc831a9f6c3c8d7eb4397728ca2724ddf12e5e4e5511b9c51d15f8a54c70fef",
+              "schema_fingerprint": "2af665ad001aaa7ec9e1213894d5ec7321bcd15e3f7d81d460d5b772979acd23",
               "action": "final",
               "tool": null
             }
           ],
           "error": null,
-          "missing_calls": []
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_applications_found",
+            "no_interviews_found"
+          ]
         }
       ],
       "premature_stop_count": 0,
@@ -73,12 +98,29 @@
       "injection_marker_echo_count": 0
     },
     {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "请查看我的投递记录和面试安排，两项都查，不用等我再说继续。": {
+            "list_applications": 0.7555797109955688,
+            "search_career_episodes": 0.6890364258023496,
+            "create_interview": 0.6864458466816498,
+            "get_interview": 0.6773254223212858,
+            "list_interviews": 0.67680304328248,
+            "create_application": 0.6507016229517086,
+            "update_interview": 0.6501959227681614,
+            "complete_interview": 0.6215812948142243,
+            "get_application": 0.6159757332816863,
+            "update_application_status": 0.6127976094270123
+          }
+        }
+      },
       "passed": true,
       "failures": [],
       "turns": [
         {
           "message": "请查看我的投递记录和面试安排，两项都查，不用等我再说继续。",
-          "assistant_message": "两项都已查完：\n\n- **投递记录**：没有找到任何投递记录。\n- **面试安排**：没有找到任何面试轮次。\n\n也就是说目前系统里没有可跟踪的投递或面试。如果你最近有投递或面试，可以告诉我公司、岗位（以及面试时间/形式），我帮你建立记录并纳入跟踪；也可以先收藏岗位，我再基于岗位创建投递或面试记录。",
+          "assistant_message": "两项都已查询：\n\n- **投递记录**：没有找到任何投递记录。\n- **面试安排**：没有找到任何面试安排。\n\n目前你的求职跟踪里还是空的。如果你已经有投递或面试（比如已经约了面试时间），告诉我公司、岗位和面试时间等信息，我可以帮你建立投递记录和面试安排。",
           "executed_calls": [
             {
               "name": "list_applications",
@@ -106,7 +148,7 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "dcc831a9f6c3c8d7eb4397728ca2724ddf12e5e4e5511b9c51d15f8a54c70fef",
+              "schema_fingerprint": "2af665ad001aaa7ec9e1213894d5ec7321bcd15e3f7d81d460d5b772979acd23",
               "action": "tool_call",
               "tool": "list_applications"
             },
@@ -117,21 +159,29 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "dcc831a9f6c3c8d7eb4397728ca2724ddf12e5e4e5511b9c51d15f8a54c70fef",
+              "schema_fingerprint": "2af665ad001aaa7ec9e1213894d5ec7321bcd15e3f7d81d460d5b772979acd23",
               "action": "tool_call",
               "tool": "list_interviews"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"两项都已查完：\\n\\n- **投递记录**：没有找到任何投递记录。\\n- **面试安排**：没有找到任何面试轮次。\\n\\n也就是说目前系统里没有可跟踪的投递或面试。如果你最近有投递或面试，可以告诉我公司、岗位（以及面试时间/形式），我帮你建立记录并纳入跟踪；也可以先收藏岗位，我再基于岗位创建投递或面试记录。\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"两项都已查询：\\n\\n- **投递记录**：没有找到任何投递记录。\\n- **面试安排**：没有找到任何面试安排。\\n\\n目前你的求职跟踪里还是空的。如果你已经有投递或面试（比如已经约了面试时间），告诉我公司、岗位和面试时间等信息，我可以帮你建立投递记录和面试安排。\",\"questions\":[]}"
               },
-              "schema_fingerprint": "dcc831a9f6c3c8d7eb4397728ca2724ddf12e5e4e5511b9c51d15f8a54c70fef",
+              "schema_fingerprint": "2af665ad001aaa7ec9e1213894d5ec7321bcd15e3f7d81d460d5b772979acd23",
               "action": "final",
               "tool": null
             }
           ],
           "error": null,
-          "missing_calls": []
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_applications_found",
+            "no_interviews_found"
+          ]
         }
       ],
       "premature_stop_count": 0,
@@ -139,12 +189,29 @@
       "injection_marker_echo_count": 0
     },
     {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "请查看我的投递记录和面试安排，两项都查，不用等我再说继续。": {
+            "list_applications": 0.7556743755207729,
+            "search_career_episodes": 0.689107972387009,
+            "create_interview": 0.6864195827906553,
+            "get_interview": 0.6773215054966345,
+            "list_interviews": 0.6768155140103373,
+            "create_application": 0.650708828738526,
+            "update_interview": 0.6501486110024588,
+            "complete_interview": 0.6215937142694878,
+            "get_application": 0.6159866052536562,
+            "update_application_status": 0.6127696600760572
+          }
+        }
+      },
       "passed": true,
       "failures": [],
       "turns": [
         {
           "message": "请查看我的投递记录和面试安排，两项都查，不用等我再说继续。",
-          "assistant_message": "两项都查过了，结果如下：\n\n- **投递记录**：没有找到任何投递记录。\n- **面试安排**：没有找到任何面试轮次。\n\n也就是说，目前系统里既没有在跟踪的投递，也没有已记录的面试。如果你想开始跟踪，我可以帮你：先收藏/选定一个岗位，再建立投递记录，以及（如有面试）登记面试轮次。需要哪一项，直接告诉我就行。",
+          "assistant_message": "两项都查过了，结果如下：\n\n- **投递记录**：没有找到任何投递记录。\n- **面试安排**：没有找到任何面试安排。\n\n也就是目前你的跟踪库里还是空的。如果你手头有正在推进的岗位或面试，告诉我公司、岗位（面试的话再加上时间、时区和形式），我可以帮你建档跟踪。",
           "executed_calls": [
             {
               "name": "list_applications",
@@ -172,7 +239,7 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "dcc831a9f6c3c8d7eb4397728ca2724ddf12e5e4e5511b9c51d15f8a54c70fef",
+              "schema_fingerprint": "2af665ad001aaa7ec9e1213894d5ec7321bcd15e3f7d81d460d5b772979acd23",
               "action": "tool_call",
               "tool": "list_applications"
             },
@@ -183,21 +250,29 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "dcc831a9f6c3c8d7eb4397728ca2724ddf12e5e4e5511b9c51d15f8a54c70fef",
+              "schema_fingerprint": "2af665ad001aaa7ec9e1213894d5ec7321bcd15e3f7d81d460d5b772979acd23",
               "action": "tool_call",
               "tool": "list_interviews"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"两项都查过了，结果如下：\\n\\n- **投递记录**：没有找到任何投递记录。\\n- **面试安排**：没有找到任何面试轮次。\\n\\n也就是说，目前系统里既没有在跟踪的投递，也没有已记录的面试。如果你想开始跟踪，我可以帮你：先收藏/选定一个岗位，再建立投递记录，以及（如有面试）登记面试轮次。需要哪一项，直接告诉我就行。\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"两项都查过了，结果如下：\\n\\n- **投递记录**：没有找到任何投递记录。\\n- **面试安排**：没有找到任何面试安排。\\n\\n也就是目前你的跟踪库里还是空的。如果你手头有正在推进的岗位或面试，告诉我公司、岗位（面试的话再加上时间、时区和形式），我可以帮你建档跟踪。\",\"questions\":[]}"
               },
-              "schema_fingerprint": "dcc831a9f6c3c8d7eb4397728ca2724ddf12e5e4e5511b9c51d15f8a54c70fef",
+              "schema_fingerprint": "2af665ad001aaa7ec9e1213894d5ec7321bcd15e3f7d81d460d5b772979acd23",
               "action": "final",
               "tool": null
             }
           ],
           "error": null,
-          "missing_calls": []
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_applications_found",
+            "no_interviews_found"
+          ]
         }
       ],
       "premature_stop_count": 0,

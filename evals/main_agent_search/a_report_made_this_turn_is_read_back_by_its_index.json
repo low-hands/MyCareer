@@ -2,9 +2,9 @@
   "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
   "policy": "A tool observation carrying a reference names the report that call produced. When the report you need is not the active one, read it back by that index; omitting the selector would silently return whichever report is active.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "0b5c959ee1760538136222229325f8b35f0e081dd9d782ff9efa527b4bdb53c6",
+  "prompt_fingerprint": "b7fd05e30266e078303466b5e5e1f8ada1709611a1d45f9ed693949f86df6865",
   "context_shape_fingerprint": "2458e58fe0cd5d9272f77fae97c511a0bbecad0798cdc39a60a3cbe0e2728698",
-  "recorded_at": "2026-10-09T18:17:13.297940+00:00",
+  "recorded_at": "2026-10-11T07:26:30.236998+00:00",
   "steps": [
     {
       "tool_call": {
@@ -14,7 +14,7 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+      "selected_schema_fingerprint": "1c95e0ef79617c4871051095fcf06e782fecceeb73b6d8ee20f51fa49e1b73a3",
       "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
       "offered_tools": [
         "load_skill",
@@ -26,21 +26,10 @@
         "search_career_episodes",
         "search_capabilities"
       ],
-      "elapsed_ms": 4711.4,
-      "model_request_count": 2,
+      "elapsed_ms": 5569.3,
+      "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [
-        {
-          "reason": "text_rejected",
-          "retried": true,
-          "forced_interaction": false,
-          "raw_output": {
-            "content": "根据调研结果：\n\n- **示例科技**：已完成企业搜索产品调研，但当前工具返回的是摘要（receipt_only），需要读取完整报告才能看到竞争对手信息。\n- **另一家科技**：主要竞争对手为 **B 公司**。\n\n您想了解哪家公司的详细竞争对手信息？我可以读取对应的完整调研报告。",
-            "tool_calls": []
-          },
-          "decision_invocation": 1
-        }
-      ],
+      "decision_retry_events": [],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -48,8 +37,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:17:14.481261+00:00",
-      "elapsed_ms": 4715.1,
+      "recorded_at": "2026-10-11T07:26:20.448333+00:00",
+      "elapsed_ms": 5573.5,
       "steps": [
         {
           "tool_call": {
@@ -59,7 +48,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
+          "selected_schema_fingerprint": "1c95e0ef79617c4871051095fcf06e782fecceeb73b6d8ee20f51fa49e1b73a3",
           "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
           "offered_tools": [
             "load_skill",
@@ -71,89 +60,112 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 4711.4,
-          "model_request_count": 2,
+          "elapsed_ms": 5569.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:26:19.244589+00:00",
+      "elapsed_ms": 3174.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_440400"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "1c95e0ef79617c4871051095fcf06e782fecceeb73b6d8ee20f51fa49e1b73a3",
+          "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3170.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:26:30.236998+00:00",
+      "elapsed_ms": 13713.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_440400"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "1c95e0ef79617c4871051095fcf06e782fecceeb73b6d8ee20f51fa49e1b73a3",
+          "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 13710.1,
+          "model_request_count": 3,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
             {
-              "reason": "text_rejected",
+              "reason": "invalid_tool_arguments",
               "retried": true,
-              "forced_interaction": false,
               "raw_output": {
-                "content": "根据调研结果：\n\n- **示例科技**：已完成企业搜索产品调研，但当前工具返回的是摘要（receipt_only），需要读取完整报告才能看到竞争对手信息。\n- **另一家科技**：主要竞争对手为 **B 公司**。\n\n您想了解哪家公司的详细竞争对手信息？我可以读取对应的完整调研报告。",
-                "tool_calls": []
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": false,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
               },
               "decision_invocation": 1
             }
           ],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-09T18:17:12.388607+00:00",
-      "elapsed_ms": 2536.6,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "get_job_research",
-            "arguments": {
-              "reference": "report_440400"
+          "recording_retry_events": [
+            {
+              "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+              "decision_invocation": 1
             }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
-          "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "research_job",
-            "get_job_research",
-            "search_career_episodes",
-            "search_capabilities"
           ],
-          "elapsed_ms": 2533.0,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-09T18:17:13.297940+00:00",
-      "elapsed_ms": 2256.5,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "get_job_research",
-            "arguments": {
-              "reference": "report_440400"
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "dc9de5e66ccd4ff93538100624abe558b1231321df3f1259c5bb3f5ccbe43c3a",
-          "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "research_job",
-            "get_job_research",
-            "search_career_episodes",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 2254.4,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
+          "decision_invocations": 2
         }
       ]
     }

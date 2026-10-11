@@ -2,14 +2,17 @@
   "scenario": "saved_jd_body_drives_the_next_read_step",
   "policy": "A bounded observation body is approved presenter text from the read result. Use an explicit requirement stated in that body to choose the user's requested next operation without guessing from the receipt.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "63aedcc812e4259976611ee9a7da7414c1d3e1e7cc0abb0a10f4041d8b024e9b",
+  "prompt_fingerprint": "9ecc1679f4b9a62ce33cd3263d2964d06d15426c7686097f3d2442f40742dd09",
   "context_shape_fingerprint": "55820bf48f6f2198d501a39f4f7141c3382fd8eb4342d7e462a4e8514f57b864",
-  "recorded_at": "2026-10-09T18:16:58.547496+00:00",
+  "recorded_at": "2026-10-11T07:25:54.619274+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"该 JD 明确要求 Rust（\\\"必须熟悉 Rust，并有生产环境异步服务经验\\\"）。\\n\\n不过匹配这一步现在还不能执行：`match_resume_to_job` 目前被阻塞 —— 需要先对当前 JD 完成一次 `analyze_job` 分析，并同时选定一个岗位和一个简历版本；目前还没有简历版本被选定（可用简历列表为空），所以还没有可用来匹配的简历。\\n\\n因此流程应这样继续：\\n1) 我调用 `analyze_job` 分析\\\"示例科技 · 算法工程师\\\"这份 JD；\\n2) 你提供/选定一个简历版本（当前工作区里还没有简历记录，需要你先上传或指定简历）；\\n3) 之后我再调用 `match_resume_to_job` 完成匹配。\\n\\n需要我先执行第 1 步（JD 分析），并请你提供要匹配的简历吗？\",\"questions\":[]}",
+      "tool_call": {
+        "name": "analyze_job",
+        "arguments": {}
+      },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
+      "selected_schema_fingerprint": "8ccb28e97fd33d091bbe4eb97507bdbb132678d13ab9e917dd24ab573a2cbcc9",
       "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
       "offered_tools": [
         "load_skill",
@@ -20,7 +23,7 @@
         "create_interview",
         "search_capabilities"
       ],
-      "elapsed_ms": 1798.1,
+      "elapsed_ms": 1356.7,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -31,101 +34,16 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:16:57.402914+00:00",
-      "elapsed_ms": 1800.0,
+      "recorded_at": "2026-10-11T07:25:53.780066+00:00",
+      "elapsed_ms": 1360.3,
       "steps": [
-        {
-          "content": "{\"action\":\"final\",\"message\":\"该 JD 明确要求 Rust（\\\"必须熟悉 Rust，并有生产环境异步服务经验\\\"）。\\n\\n不过匹配这一步现在还不能执行：`match_resume_to_job` 目前被阻塞 —— 需要先对当前 JD 完成一次 `analyze_job` 分析，并同时选定一个岗位和一个简历版本；目前还没有简历版本被选定（可用简历列表为空），所以还没有可用来匹配的简历。\\n\\n因此流程应这样继续：\\n1) 我调用 `analyze_job` 分析\\\"示例科技 · 算法工程师\\\"这份 JD；\\n2) 你提供/选定一个简历版本（当前工作区里还没有简历记录，需要你先上传或指定简历）；\\n3) 之后我再调用 `match_resume_to_job` 完成匹配。\\n\\n需要我先执行第 1 步（JD 分析），并请你提供要匹配的简历吗？\",\"questions\":[]}",
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
-          "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "analyze_job",
-            "create_interview",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1798.1,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-09T18:16:57.349718+00:00",
-      "elapsed_ms": 1658.5,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "search_capabilities",
-            "arguments": {
-              "names": [
-                "analyze_job",
-                "match_resume_to_job",
-                "list_resumes"
-              ]
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
-          "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "analyze_job",
-            "create_interview",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 839.9,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        },
         {
           "tool_call": {
             "name": "analyze_job",
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "b473c54d6663ebb5600b50007a8bc17fe5eeb427659290cf609c62fbd2851a27",
-          "decision_shape_fingerprint": "5c558191c0487908b8cdac58603a34fe2811dc8c8ae009846598bd5353f04ab4",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "list_resumes",
-            "get_saved_job",
-            "analyze_job",
-            "create_interview",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 813.9,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-09T18:16:58.547496+00:00",
-      "elapsed_ms": 2652.4,
-      "steps": [
-        {
-          "content": "{\"action\":\"final\",\"message\":\"JD 里明确要求了 Rust（\\\"必须熟悉 Rust，并有生产环境异步服务经验\\\"），所以按你的条件应当继续做简历匹配。\\n\\n不过现在还无法执行匹配，缺两个前置条件：\\n\\n1. 岗位分析还没做——`match_resume_to_job` 的前置是先用 `analyze_job` 分析当前这个 JD，而 `has_active_job_analysis` 目前为 false。\\n2. 简历版本还没选定——虽然已有一条简历版本记录，但本轮没有可用的简历选择项（`resume_versions` 为空），需要先列出简历并选定一个版本。\\n\\n另外说明一点：上面这次读取的 JD 正文标注为节选（excerpt）且不可回读（readback unavailable），所以\\\"完整 JD\\\"这一点我无法确认；但节选内容里确实出现了明确要求 Rust 的表述，这一点是清楚的。\\n\\n要我继续吗？我可以先做岗位分析，再列出简历让你选定版本，然后进行匹配。\",\"questions\":[]}",
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
+          "selected_schema_fingerprint": "8ccb28e97fd33d091bbe4eb97507bdbb132678d13ab9e917dd24ab573a2cbcc9",
           "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
           "offered_tools": [
             "load_skill",
@@ -136,7 +54,67 @@
             "create_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 2650.4,
+          "elapsed_ms": 1356.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:25:53.825256+00:00",
+      "elapsed_ms": 1117.4,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "8ccb28e97fd33d091bbe4eb97507bdbb132678d13ab9e917dd24ab573a2cbcc9",
+          "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1114.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:25:54.619274+00:00",
+      "elapsed_ms": 1272.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "8ccb28e97fd33d091bbe4eb97507bdbb132678d13ab9e917dd24ab573a2cbcc9",
+          "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1267.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

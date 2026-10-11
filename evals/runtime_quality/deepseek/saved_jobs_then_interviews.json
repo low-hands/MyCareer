@@ -2,17 +2,34 @@
   "version": 1,
   "model": "deepseek-flash",
   "scenario": "saved_jobs_then_interviews",
-  "suite_fingerprint": "9aad56ad6becd74cd260e8789fa9d3bf1caf3268e088e6eb615fcaa28646e96f",
-  "recorded_at": "2026-10-09T18:33:13.047139+00:00",
+  "suite_fingerprint": "6bd1478d40156967e8505a5bd9ba098b65278d80dd12580a9055de48b3a16ec6",
+  "recorded_at": "2026-10-11T07:28:13.241430+00:00",
   "k": 3,
   "samples": [
     {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先找我保存过的平台工程师岗位，再查我的面试安排。两项都完成后给我汇总。": {
+            "search_career_episodes": 0.6694567323559165,
+            "create_interview": 0.6294247206560175,
+            "complete_interview": 0.6271615049552269,
+            "get_interview": 0.6206698222727958,
+            "find_saved_jobs": 0.6201362232252531,
+            "list_interviews": 0.615943529166908,
+            "compare_saved_jobs": 0.6027929626859062,
+            "prepare_interview": 0.5993866363491002,
+            "list_applications": 0.5986796765270455,
+            "confirm_job_intent": 0.5976168854232194
+          }
+        }
+      },
       "passed": true,
       "failures": [],
       "turns": [
         {
           "message": "先找我保存过的平台工程师岗位，再查我的面试安排。两项都完成后给我汇总。",
-          "assistant_message": "两项都已查完，汇总如下：\n\n**1. 已保存的“平台工程师”岗位**\n- 结果：没有找到匹配的已保存岗位。已按关键词“平台工程师”在你的已保存岗位中检索，未命中任何记录。\n\n**2. 面试安排**\n- 结果：目前没有任何面试安排（包括已安排、已完成或已取消的轮次在内都没有记录）。\n\n**小结**：你当前既没有保存过平台工程师方向的岗位，也没有在系统中的面试安排。如果之后你在招聘网站上看到合适的岗位，可以让我帮你打开搜索页面浏览；一旦有了目标岗位或面试邀约，也可以随时告诉我，我来帮你建档、跟踪进度和准备面试。",
+          "assistant_message": "两项都已完成，汇总如下：\n\n1. **已保存的「平台工程师」岗位**：没有找到匹配的已保存岗位（该结果为空，无法读取更详细的留档内容）。\n2. **面试安排**：没有找到任何面试记录（无已识别、已排期、已完成或已取消的面试）。\n\n因此目前没有可汇总的具体岗位或面试条目。如果你记得保存时用的岗位名称不同（比如「Platform Engineer」「SRE」「基础架构工程师」等），或者面试是通过其他渠道记录的，可以告诉我关键词，我再查一次；也可以直接从招聘网站找新的平台工程师岗位。",
           "executed_calls": [
             {
               "name": "find_saved_jobs",
@@ -42,7 +59,7 @@
                   }
                 }
               },
-              "schema_fingerprint": "ec167020dfc81e711106379c6993abb4419b840a9d0a00b3075424187c9c1d31",
+              "schema_fingerprint": "230e1e014a551086f12c9c6f5262a0384dca0d4f8d138c7ca7ef0d561f8b2bf3",
               "action": "tool_call",
               "tool": "find_saved_jobs"
             },
@@ -53,21 +70,29 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "ec167020dfc81e711106379c6993abb4419b840a9d0a00b3075424187c9c1d31",
+              "schema_fingerprint": "230e1e014a551086f12c9c6f5262a0384dca0d4f8d138c7ca7ef0d561f8b2bf3",
               "action": "tool_call",
               "tool": "list_interviews"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"两项都已查完，汇总如下：\\n\\n**1. 已保存的“平台工程师”岗位**\\n- 结果：没有找到匹配的已保存岗位。已按关键词“平台工程师”在你的已保存岗位中检索，未命中任何记录。\\n\\n**2. 面试安排**\\n- 结果：目前没有任何面试安排（包括已安排、已完成或已取消的轮次在内都没有记录）。\\n\\n**小结**：你当前既没有保存过平台工程师方向的岗位，也没有在系统中的面试安排。如果之后你在招聘网站上看到合适的岗位，可以让我帮你打开搜索页面浏览；一旦有了目标岗位或面试邀约，也可以随时告诉我，我来帮你建档、跟踪进度和准备面试。\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"两项都已完成，汇总如下：\\n\\n1. **已保存的「平台工程师」岗位**：没有找到匹配的已保存岗位（该结果为空，无法读取更详细的留档内容）。\\n2. **面试安排**：没有找到任何面试记录（无已识别、已排期、已完成或已取消的面试）。\\n\\n因此目前没有可汇总的具体岗位或面试条目。如果你记得保存时用的岗位名称不同（比如「Platform Engineer」「SRE」「基础架构工程师」等），或者面试是通过其他渠道记录的，可以告诉我关键词，我再查一次；也可以直接从招聘网站找新的平台工程师岗位。\",\"questions\":[]}"
               },
-              "schema_fingerprint": "ec167020dfc81e711106379c6993abb4419b840a9d0a00b3075424187c9c1d31",
+              "schema_fingerprint": "230e1e014a551086f12c9c6f5262a0384dca0d4f8d138c7ca7ef0d561f8b2bf3",
               "action": "final",
               "tool": null
             }
           ],
           "error": null,
-          "missing_calls": []
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_saved_jobs_found",
+            "no_interviews_found"
+          ]
         }
       ],
       "premature_stop_count": 0,
@@ -75,12 +100,29 @@
       "injection_marker_echo_count": 0
     },
     {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先找我保存过的平台工程师岗位，再查我的面试安排。两项都完成后给我汇总。": {
+            "search_career_episodes": 0.6693480574326622,
+            "create_interview": 0.6293548047053041,
+            "complete_interview": 0.627016083793427,
+            "get_interview": 0.6206210608687395,
+            "find_saved_jobs": 0.6201728611441287,
+            "list_interviews": 0.6159017319727053,
+            "compare_saved_jobs": 0.6027937388410164,
+            "prepare_interview": 0.5993463756945413,
+            "list_applications": 0.5986153081214562,
+            "confirm_job_intent": 0.5976082543737623
+          }
+        }
+      },
       "passed": true,
       "failures": [],
       "turns": [
         {
           "message": "先找我保存过的平台工程师岗位，再查我的面试安排。两项都完成后给我汇总。",
-          "assistant_message": "两项都已查完，汇总如下：\n\n**1. 已保存的「平台工程师」岗位**\n- 结果：没有找到匹配的已保存岗位。\n- 说明：这次是限定关键词「平台工程师」在已保存/浏览过的岗位里检索，返回为空。如果你保存时用的标题是别的写法（例如「Platform Engineer」「SRE」「基础架构工程师」等），我可以换关键词再找一次；也可以直接列出最近的已保存岗位，由你确认。\n\n**2. 面试安排**\n- 结果：目前没有任何面试记录（未排期、未完成、已取消的都没有）。\n\n**综合结论**\n- 已保存岗位和面试安排两边都是空的，暂时没有可汇总的实质内容。\n- 下一步建议（任选其一，告诉我即可）：\n  - 换关键词或列出最近已保存岗位，重新检索；\n  - 若你有已确定的面试（公司/岗位/时间），告诉我，我可以帮你建立面试记录并顺带做面试准备；\n  - 若你想找新的平台工程师岗位，我可以打开招聘网站搜索页供你浏览。",
+          "assistant_message": "两项都已完成，汇总如下：\n\n1. 已保存的岗位（关键词「平台工程师」）：没有找到匹配的已保存岗位。\n2. 面试安排：没有找到任何面试记录（含已排期、已完成、已取消等状态）。\n\n补充说明：两项结果都只返回了回执，没有可读回的明细内容，因此以上结论以工具返回状态为准，均为「无记录」，并非漏查。\n\n如果需要，我可以：\n- 按其他关键词或列出最近保存的岗位（不带筛选）再查一次；\n- 或在你提供公司/岗位信息后，另开搜索页浏览新的平台工程师职位。",
           "executed_calls": [
             {
               "name": "find_saved_jobs",
@@ -110,7 +152,7 @@
                   }
                 }
               },
-              "schema_fingerprint": "ec167020dfc81e711106379c6993abb4419b840a9d0a00b3075424187c9c1d31",
+              "schema_fingerprint": "230e1e014a551086f12c9c6f5262a0384dca0d4f8d138c7ca7ef0d561f8b2bf3",
               "action": "tool_call",
               "tool": "find_saved_jobs"
             },
@@ -121,21 +163,29 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "ec167020dfc81e711106379c6993abb4419b840a9d0a00b3075424187c9c1d31",
+              "schema_fingerprint": "230e1e014a551086f12c9c6f5262a0384dca0d4f8d138c7ca7ef0d561f8b2bf3",
               "action": "tool_call",
               "tool": "list_interviews"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"两项都已查完，汇总如下：\\n\\n**1. 已保存的「平台工程师」岗位**\\n- 结果：没有找到匹配的已保存岗位。\\n- 说明：这次是限定关键词「平台工程师」在已保存/浏览过的岗位里检索，返回为空。如果你保存时用的标题是别的写法（例如「Platform Engineer」「SRE」「基础架构工程师」等），我可以换关键词再找一次；也可以直接列出最近的已保存岗位，由你确认。\\n\\n**2. 面试安排**\\n- 结果：目前没有任何面试记录（未排期、未完成、已取消的都没有）。\\n\\n**综合结论**\\n- 已保存岗位和面试安排两边都是空的，暂时没有可汇总的实质内容。\\n- 下一步建议（任选其一，告诉我即可）：\\n  - 换关键词或列出最近已保存岗位，重新检索；\\n  - 若你有已确定的面试（公司/岗位/时间），告诉我，我可以帮你建立面试记录并顺带做面试准备；\\n  - 若你想找新的平台工程师岗位，我可以打开招聘网站搜索页供你浏览。\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"两项都已完成，汇总如下：\\n\\n1. 已保存的岗位（关键词「平台工程师」）：没有找到匹配的已保存岗位。\\n2. 面试安排：没有找到任何面试记录（含已排期、已完成、已取消等状态）。\\n\\n补充说明：两项结果都只返回了回执，没有可读回的明细内容，因此以上结论以工具返回状态为准，均为「无记录」，并非漏查。\\n\\n如果需要，我可以：\\n- 按其他关键词或列出最近保存的岗位（不带筛选）再查一次；\\n- 或在你提供公司/岗位信息后，另开搜索页浏览新的平台工程师职位。\",\"questions\":[]}"
               },
-              "schema_fingerprint": "ec167020dfc81e711106379c6993abb4419b840a9d0a00b3075424187c9c1d31",
+              "schema_fingerprint": "230e1e014a551086f12c9c6f5262a0384dca0d4f8d138c7ca7ef0d561f8b2bf3",
               "action": "final",
               "tool": null
             }
           ],
           "error": null,
-          "missing_calls": []
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_saved_jobs_found",
+            "no_interviews_found"
+          ]
         }
       ],
       "premature_stop_count": 0,
@@ -143,12 +193,29 @@
       "injection_marker_echo_count": 0
     },
     {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先找我保存过的平台工程师岗位，再查我的面试安排。两项都完成后给我汇总。": {
+            "search_career_episodes": 0.6694002745208807,
+            "create_interview": 0.629501291979892,
+            "complete_interview": 0.6271154916754291,
+            "get_interview": 0.6207450807859707,
+            "find_saved_jobs": 0.6201197753904193,
+            "list_interviews": 0.6160321063859979,
+            "compare_saved_jobs": 0.6028447883182632,
+            "prepare_interview": 0.5993743914202158,
+            "list_applications": 0.5986184826709751,
+            "confirm_job_intent": 0.5976560502363849
+          }
+        }
+      },
       "passed": true,
       "failures": [],
       "turns": [
         {
           "message": "先找我保存过的平台工程师岗位，再查我的面试安排。两项都完成后给我汇总。",
-          "assistant_message": "两项查询都已完成，结果如下：\n\n**1. 已保存的「平台工程师」岗位**\n- 在您已保存/查看过的岗位中搜索「平台工程师」，没有找到匹配记录。（`find_saved_jobs` 返回：没有找到匹配的已保存岗位）\n\n**2. 面试安排**\n- 当前没有任何面试轮次记录，包括已识别、已安排、已完成或已取消的。（`list_interviews` 返回：没有找到面试安排）\n\n**汇总：**目前与平台工程师相关的保存岗位为空，面试安排也为空，两者之间没有可交叉关联的内容。\n\n如果您觉得其中有遗漏，可能是以下原因：\n- 岗位是用别的关键词保存的（如「Platform Engineer」「SRE」「基础设施工程师」等），我可以换关键词再查一次；\n- 面试还未录入系统，如果最近有收到面试通知，告诉我公司、岗位和时间，我可以帮您建立面试记录。\n\n需要我用其他关键词重新搜索，或录入一场面试吗？",
+          "assistant_message": "两项查询都已完成，汇总如下：\n\n1. **已保存的「平台工程师」岗位**：没有找到匹配的已保存岗位。我按「平台工程师」关键词检索了你保存/浏览过的岗位库，结果为 0 条。\n2. **面试安排**：没有找到任何面试记录（包括已安排、已完成、已取消等任何状态的面试轮次都为 0）。\n\n因为两处都没有数据，目前没有可汇总的条目，也无法做岗位与面试的对应关联。\n\n补充说明：以上只反映你已保存岗位和已记录面试的情况——平台工程师岗位可能存在于招聘网站上但你没有保存过；面试也可能已约定但尚未记录进系统。\n\n如果你愿意，可以告诉我：\n- 是否要重新按其他关键词（比如「Platform Engineer」「SRE」「基础设施工程师」）或放宽条件再找一次已保存岗位；\n- 如果确有面试安排，把公司、岗位、时间、形式告诉我，我可以帮你新建面试记录（若同时有对应岗位或投递记录，我可以直接关联）。",
           "executed_calls": [
             {
               "name": "find_saved_jobs",
@@ -174,11 +241,12 @@
                 "tool_call": {
                   "name": "find_saved_jobs",
                   "arguments": {
-                    "query": "平台工程师"
+                    "query": "平台工程师",
+                    "limit": 10
                   }
                 }
               },
-              "schema_fingerprint": "ec167020dfc81e711106379c6993abb4419b840a9d0a00b3075424187c9c1d31",
+              "schema_fingerprint": "230e1e014a551086f12c9c6f5262a0384dca0d4f8d138c7ca7ef0d561f8b2bf3",
               "action": "tool_call",
               "tool": "find_saved_jobs"
             },
@@ -189,21 +257,29 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "ec167020dfc81e711106379c6993abb4419b840a9d0a00b3075424187c9c1d31",
+              "schema_fingerprint": "230e1e014a551086f12c9c6f5262a0384dca0d4f8d138c7ca7ef0d561f8b2bf3",
               "action": "tool_call",
               "tool": "list_interviews"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"两项查询都已完成，结果如下：\\n\\n**1. 已保存的「平台工程师」岗位**\\n- 在您已保存/查看过的岗位中搜索「平台工程师」，没有找到匹配记录。（`find_saved_jobs` 返回：没有找到匹配的已保存岗位）\\n\\n**2. 面试安排**\\n- 当前没有任何面试轮次记录，包括已识别、已安排、已完成或已取消的。（`list_interviews` 返回：没有找到面试安排）\\n\\n**汇总：**目前与平台工程师相关的保存岗位为空，面试安排也为空，两者之间没有可交叉关联的内容。\\n\\n如果您觉得其中有遗漏，可能是以下原因：\\n- 岗位是用别的关键词保存的（如「Platform Engineer」「SRE」「基础设施工程师」等），我可以换关键词再查一次；\\n- 面试还未录入系统，如果最近有收到面试通知，告诉我公司、岗位和时间，我可以帮您建立面试记录。\\n\\n需要我用其他关键词重新搜索，或录入一场面试吗？\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"两项查询都已完成，汇总如下：\\n\\n1. **已保存的「平台工程师」岗位**：没有找到匹配的已保存岗位。我按「平台工程师」关键词检索了你保存/浏览过的岗位库，结果为 0 条。\\n2. **面试安排**：没有找到任何面试记录（包括已安排、已完成、已取消等任何状态的面试轮次都为 0）。\\n\\n因为两处都没有数据，目前没有可汇总的条目，也无法做岗位与面试的对应关联。\\n\\n补充说明：以上只反映你已保存岗位和已记录面试的情况——平台工程师岗位可能存在于招聘网站上但你没有保存过；面试也可能已约定但尚未记录进系统。\\n\\n如果你愿意，可以告诉我：\\n- 是否要重新按其他关键词（比如「Platform Engineer」「SRE」「基础设施工程师」）或放宽条件再找一次已保存岗位；\\n- 如果确有面试安排，把公司、岗位、时间、形式告诉我，我可以帮你新建面试记录（若同时有对应岗位或投递记录，我可以直接关联）。\",\"questions\":[]}"
               },
-              "schema_fingerprint": "ec167020dfc81e711106379c6993abb4419b840a9d0a00b3075424187c9c1d31",
+              "schema_fingerprint": "230e1e014a551086f12c9c6f5262a0384dca0d4f8d138c7ca7ef0d561f8b2bf3",
               "action": "final",
               "tool": null
             }
           ],
           "error": null,
-          "missing_calls": []
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_saved_jobs_found",
+            "no_interviews_found"
+          ]
         }
       ],
       "premature_stop_count": 0,

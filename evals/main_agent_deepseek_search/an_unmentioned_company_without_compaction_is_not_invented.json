@@ -2,9 +2,9 @@
   "scenario": "an_unmentioned_company_without_compaction_is_not_invented",
   "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "7d2710b7e41a1ae005bf4ba6e3220629c286b0a4e87e26b443896890708793e4",
+  "prompt_fingerprint": "5efbf29b7bd9cac34abfc29e800a5b791aadaddba39e3e7275504c7c2eb380e1",
   "context_shape_fingerprint": "50fe34d484f6fd66869bc1ab8ded0fe6df1901306ded2c5eea550a3075bba81a",
-  "recorded_at": "2026-10-09T18:17:05.773190+00:00",
+  "recorded_at": "2026-10-11T07:26:17.736176+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,7 +12,7 @@
         "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "db458fb39a540945a6421160b4271bcb50b5853af700a1a764f9c40936372387",
+      "selected_schema_fingerprint": "44675d073e2655556e0e1b4b120e352611b720401ff033b4a8f7119f700817d8",
       "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
       "offered_tools": [
         "load_skill",
@@ -22,30 +22,16 @@
         "propose_job_intent",
         "search_capabilities"
       ],
-      "elapsed_ms": 3915.1,
-      "model_request_count": 3,
+      "elapsed_ms": 2994.8,
+      "model_request_count": 2,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [
-        {
-          "reason": "invalid_tool_arguments",
-          "retried": true,
-          "raw_output": {
-            "content": "",
-            "tool_calls": [
-              {
-                "name": "search_capabilities",
-                "arguments": "{\"query\": \"读取当前对话中摘要遗漏的消息片段\", \"names\": [\"read_conversation_span\"]}"
-              }
-            ]
-          },
-          "decision_invocation": 1
-        },
         {
           "reason": "text_rejected",
           "retried": true,
           "forced_interaction": false,
           "raw_output": {
-            "content": "I can't answer that from what's available — no target company is recorded anywhere in this conversation's state.\n\nWhat I can see:\n- Your stable profile (`memory/current_targets.md`) shows **\"No active targets\"**\n- No saved jobs, no application records, no interview records, no target roles are active\n- The only company name that has come up is **美团 (Meituan)**, but that was referenced as a comparison point (\"这份美团 JD 只是对照\"), and it was never confirmed as your target company\n- There are no archived constraints or career memory entries that name a target company\n\nSo: **your target company is not known to me.** It was never stated in a way that got recorded, and I won't guess it from the Meituan mention or from anything else.\n\nIf you tell me the company name, I can record it as your job intent (I'd show you the exact wording first for confirmation before anything is saved), and then we can actually assess that Meituan JD against it.",
+            "content": "I don't have a target company recorded for you — the active context shows no active targets, no saved jobs, and no target roles.\n\nThe last assistant message in this conversation (sequence 2) said the 美团 JD was \"只是对照\" (just a comparison) and that you hadn't told me your target company — but that message was a prior turn's assumption, not a fact you stated, and nothing in the runtime state stores a target company for you.\n\nSo I can't tell you your target company's full name: it was never provided, and there's no record I can retrieve it from. If you tell me the company (and role, if relevant), I can record it as your job intent or look for matching saved jobs.",
             "tool_calls": []
           },
           "decision_invocation": 1
@@ -58,8 +44,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:17:08.019974+00:00",
-      "elapsed_ms": 3917.8,
+      "recorded_at": "2026-10-11T07:26:17.554209+00:00",
+      "elapsed_ms": 2997.8,
       "steps": [
         {
           "tool_call": {
@@ -67,7 +53,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "db458fb39a540945a6421160b4271bcb50b5853af700a1a764f9c40936372387",
+          "selected_schema_fingerprint": "44675d073e2655556e0e1b4b120e352611b720401ff033b4a8f7119f700817d8",
           "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
           "offered_tools": [
             "load_skill",
@@ -77,30 +63,16 @@
             "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 3915.1,
-          "model_request_count": 3,
+          "elapsed_ms": 2994.8,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
-            {
-              "reason": "invalid_tool_arguments",
-              "retried": true,
-              "raw_output": {
-                "content": "",
-                "tool_calls": [
-                  {
-                    "name": "search_capabilities",
-                    "arguments": "{\"query\": \"读取当前对话中摘要遗漏的消息片段\", \"names\": [\"read_conversation_span\"]}"
-                  }
-                ]
-              },
-              "decision_invocation": 1
-            },
             {
               "reason": "text_rejected",
               "retried": true,
               "forced_interaction": false,
               "raw_output": {
-                "content": "I can't answer that from what's available — no target company is recorded anywhere in this conversation's state.\n\nWhat I can see:\n- Your stable profile (`memory/current_targets.md`) shows **\"No active targets\"**\n- No saved jobs, no application records, no interview records, no target roles are active\n- The only company name that has come up is **美团 (Meituan)**, but that was referenced as a comparison point (\"这份美团 JD 只是对照\"), and it was never confirmed as your target company\n- There are no archived constraints or career memory entries that name a target company\n\nSo: **your target company is not known to me.** It was never stated in a way that got recorded, and I won't guess it from the Meituan mention or from anything else.\n\nIf you tell me the company name, I can record it as your job intent (I'd show you the exact wording first for confirmation before anything is saved), and then we can actually assess that Meituan JD against it.",
+                "content": "I don't have a target company recorded for you — the active context shows no active targets, no saved jobs, and no target roles.\n\nThe last assistant message in this conversation (sequence 2) said the 美团 JD was \"只是对照\" (just a comparison) and that you hadn't told me your target company — but that message was a prior turn's assumption, not a fact you stated, and nothing in the runtime state stores a target company for you.\n\nSo I can't tell you your target company's full name: it was never provided, and there's no record I can retrieve it from. If you tell me the company (and role, if relevant), I can record it as your job intent or look for matching saved jobs.",
                 "tool_calls": []
               },
               "decision_invocation": 1
@@ -112,13 +84,16 @@
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:17:06.817112+00:00",
-      "elapsed_ms": 2374.7,
+      "recorded_at": "2026-10-11T07:26:17.131313+00:00",
+      "elapsed_ms": 2440.5,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"我没有你目标公司的记录可查，所以无法回答这个问题。\\n\\n我这边关于你的职业信息都没有已确认的记录：\\n\\n- **目标岗位/求职意向**：无（memory/current_targets.md 显示 \\\"No active targets\\\"，目标岗位列表也是空的）\\n- **目标公司**：没有任何来源记录过目标公司名称——包括本窗口之前的对话、已确认的职业档案和记忆索引\\n\\n第 1 条消息里提到的「美团」是作为对照的 JD，不是你说的目标公司；第 2 条消息也只是我问你目标公司，你还没回答。所以这个信息从未被记录过。\\n\\n另外要说明：目标公司名称本身不在我能记录的职业事实类型里（我能记录的是求职意向、岗位方向、薪资/城市等意向字段，以及你明确陈述并确认的职业事实）。如果你想让\\\"美团\\\"成为实际的目标，我可以帮你把它作为求职意向的目标公司方向记录下来，需要你先明确说一下，我展示后再由你确认。\\n\\n请直接告诉我这家公司的全名；如果你指的是之前聊过的某家公司，也请说明，我会去翻这通对话里遗漏的部分核对。\",\"questions\":[]}",
+          "tool_call": {
+            "name": "read_conversation_span",
+            "arguments": {}
+          },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "db458fb39a540945a6421160b4271bcb50b5853af700a1a764f9c40936372387",
+          "selected_schema_fingerprint": "44675d073e2655556e0e1b4b120e352611b720401ff033b4a8f7119f700817d8",
           "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
           "offered_tools": [
             "load_skill",
@@ -128,26 +103,37 @@
             "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 2372.4,
-          "model_request_count": 1,
+          "elapsed_ms": 2436.9,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "我这边没有记录到你的目标公司名称。\n\n当前资料里没有已保存的求职意向（`memory/current_targets.md` 显示“No active targets”），本次对话中也没有出现你目标公司的全名——刚提到“美团”时是作为对照用的 JD，而且上一轮正是说明你还没告诉我目标公司。\n\n所以我无法回答“全名叫什么”。你可以直接告诉我目标公司的全名，我就帮你记下来/继续处理。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:17:05.773190+00:00",
-      "elapsed_ms": 906.3,
+      "recorded_at": "2026-10-11T07:26:17.736176+00:00",
+      "elapsed_ms": 2926.7,
       "steps": [
         {
           "tool_call": {
-            "name": "fetch_archived_constraints",
+            "name": "read_conversation_span",
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "db458fb39a540945a6421160b4271bcb50b5853af700a1a764f9c40936372387",
+          "selected_schema_fingerprint": "44675d073e2655556e0e1b4b120e352611b720401ff033b4a8f7119f700817d8",
           "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
           "offered_tools": [
             "load_skill",
@@ -157,10 +143,21 @@
             "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 902.8,
-          "model_request_count": 1,
+          "elapsed_ms": 2923.4,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I don't have any target company on record for you.\n\nYour saved career profile shows **no active career targets** (\"当前目标岗位\"为空), and I have no confirmed target company or target role stored — either from this conversation or from saved memory. The 美团 JD was only a comparison point, not a target you had set.\n\nSo the honest answer to \"我的目标公司全名叫什么？\" is: **没有记录** — I don't have one, and I won't guess one.\n\nIf you'd like, tell me the company (and role), and I can record it as your job intent so it's available going forward.",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }

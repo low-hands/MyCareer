@@ -2,14 +2,14 @@
   "scenario": "a_missing_city_is_asked_for_not_guessed",
   "policy": "If the profile has no city or target role and the user did not give one this turn, ask for it instead of guessing or searching nationwide.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "b96d6aa53f474daf5f102133e0a43f686aeda08aa87de7db612216855573ac9a",
+  "prompt_fingerprint": "400d697dde07b2858c2e1b35152ac455655f2e065eb973b1e5b2482ecefad41e",
   "context_shape_fingerprint": "f0666a3515e7bd1dc205832ab30e27ed2d83207f6fd328740d4131d0ba8572ac",
-  "recorded_at": "2026-10-09T18:16:45.153092+00:00",
+  "recorded_at": "2026-10-11T07:25:13.537628+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"请问您想搜索什么职位关键词？另外，希望在哪个城市找工作？\",\"questions\":[]}",
+      "content": "{\"action\":\"ask_user\",\"message\":\"请问你想找什么类型的工作？请告诉我：\\n1. 职位关键词（例如：产品经理、Java开发、数据分析师等）\\n2. 工作城市\\n3. 工作类型（全职、实习或兼职）\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "52c0654512f42f2cba337fff67dcba1d383e7e233664c6a6758d52e16178fce2",
+      "selected_schema_fingerprint": "6de34256be1e8e880ab7bd05b341b90984e4f4542c38e0a5dce675af4a0a3b49",
       "decision_shape_fingerprint": "0af9d9681f345c18a7eda08fbc6ee29415024e8adaf7a77e834d27f80e79b93c",
       "offered_tools": [
         "load_skill",
@@ -21,10 +21,21 @@
         "list_resumes",
         "search_capabilities"
       ],
-      "elapsed_ms": 3015.2,
-      "model_request_count": 1,
+      "elapsed_ms": 13395.3,
+      "model_request_count": 2,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [],
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "我需要知道您想找什么类型的工作。请告诉我：\n\n1. 您想搜索的职位关键词是什么？（例如：产品经理、软件工程师、数据分析师等）\n2. 您想在哪个城市找工作？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -32,13 +43,13 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:16:45.079448+00:00",
-      "elapsed_ms": 3016.8,
+      "recorded_at": "2026-10-11T07:25:16.496046+00:00",
+      "elapsed_ms": 13398.1,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请问您想搜索什么职位关键词？另外，希望在哪个城市找工作？\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问你想找什么类型的工作？请告诉我：\\n1. 职位关键词（例如：产品经理、Java开发、数据分析师等）\\n2. 工作城市\\n3. 工作类型（全职、实习或兼职）\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "52c0654512f42f2cba337fff67dcba1d383e7e233664c6a6758d52e16178fce2",
+          "selected_schema_fingerprint": "6de34256be1e8e880ab7bd05b341b90984e4f4542c38e0a5dce675af4a0a3b49",
           "decision_shape_fingerprint": "0af9d9681f345c18a7eda08fbc6ee29415024e8adaf7a77e834d27f80e79b93c",
           "offered_tools": [
             "load_skill",
@@ -50,23 +61,34 @@
             "list_resumes",
             "search_capabilities"
           ],
-          "elapsed_ms": 3015.2,
-          "model_request_count": 1,
+          "elapsed_ms": 13395.3,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "我需要知道您想找什么类型的工作。请告诉我：\n\n1. 您想搜索的职位关键词是什么？（例如：产品经理、软件工程师、数据分析师等）\n2. 您想在哪个城市找工作？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:16:44.735108+00:00",
-      "elapsed_ms": 2671.7,
+      "recorded_at": "2026-10-11T07:25:09.879702+00:00",
+      "elapsed_ms": 6784.2,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请问你想找什么类型的职位？另外，希望在哪个城市工作？\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问您想找什么岗位？以及希望在哪个城市工作？\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "52c0654512f42f2cba337fff67dcba1d383e7e233664c6a6758d52e16178fce2",
+          "selected_schema_fingerprint": "6de34256be1e8e880ab7bd05b341b90984e4f4542c38e0a5dce675af4a0a3b49",
           "decision_shape_fingerprint": "0af9d9681f345c18a7eda08fbc6ee29415024e8adaf7a77e834d27f80e79b93c",
           "offered_tools": [
             "load_skill",
@@ -78,23 +100,34 @@
             "list_resumes",
             "search_capabilities"
           ],
-          "elapsed_ms": 2668.4,
-          "model_request_count": 1,
+          "elapsed_ms": 6781.1,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "要帮你找工作，我需要先了解你想找什么类型的职位。请告诉我：\n\n1. 你想搜索的职位关键词是什么？（例如：产品经理、Java开发、数据分析师等）\n2. 你在哪个城市找工作？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:16:45.153092+00:00",
-      "elapsed_ms": 3085.7,
+      "recorded_at": "2026-10-11T07:25:13.537628+00:00",
+      "elapsed_ms": 10443.2,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请问您想搜索什么岗位关键词？另外，您的目标城市是哪里？\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问您想找什么类型的职位（例如：产品经理、软件工程师等）？另外，您的目标工作城市是哪里？\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "52c0654512f42f2cba337fff67dcba1d383e7e233664c6a6758d52e16178fce2",
+          "selected_schema_fingerprint": "6de34256be1e8e880ab7bd05b341b90984e4f4542c38e0a5dce675af4a0a3b49",
           "decision_shape_fingerprint": "0af9d9681f345c18a7eda08fbc6ee29415024e8adaf7a77e834d27f80e79b93c",
           "offered_tools": [
             "load_skill",
@@ -106,10 +139,21 @@
             "list_resumes",
             "search_capabilities"
           ],
-          "elapsed_ms": 3084.3,
-          "model_request_count": 1,
+          "elapsed_ms": 10441.1,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "我来帮你找工作。为了在招聘网站上搜索合适的岗位，我需要知道你想找什么类型的工作。\n\n请告诉我：\n1. 你想找的职位关键词是什么？（例如：产品经理、Java开发、数据分析师等）\n2. 你想在哪个城市工作？\n3. 你是想找全职、兼职还是实习工作？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }

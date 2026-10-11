@@ -53,3 +53,8 @@ MAIN_AGENT_MODEL=deepseek-flash .venv/bin/python -m career_agent.cli eval trajec
 最终合并录制更新跟踪目录：Qwen 轨迹为 `evals/main_agent_search/`，DeepSeek 轨迹为 `evals/main_agent_deepseek_search/`，runtime 为 `evals/runtime_quality/{qwen,deepseek}/`。独立实验目录、冻结协议、完整报告和逐场景比较保留在本地 `docs/experiments/`；替换跟踪基线前先保存历史版本，不覆盖冻结 holdout。跟踪 cassettes 保留每场景全部 3 次样本，包括原始失败，不补采。
 
 采样前提交生产代码和测试，协议记录完整 revision、源码/场景/提示指纹、模型配置与固定次数。录制期间不再改提示/schema/判分，最终离线验证后更新跟踪基线。提示整理同时包含 P1 和结构重排，和历史版本的比较不能单独归因于其中一项。
+
+
+本次跟踪基线对应生产提交 `d65fae2642ada5cce8295382d317c5b5e005a96b`（2026-10-11）。两模型各 47 条轨迹、19 个 runtime 场景，每场景固定 3 次，原始失败全部保留。Qwen 轨迹 126/141、runtime 54/57（pass^3 18/19）；DeepSeek 轨迹 125/141、runtime 54/57（pass^3 17/19）。录制完成不代表行为全部通过。P1 与结构重排的效果不可分开归因。完整报告和逐场景比较保存在本地 `docs/experiments/final_prompt_cleanup_2026-10-11/`。
+
+原冻结协议中两项轨迹指纹误按原始 SCENARIOS 生成；实际 CLI 使用同一冻结提交中的 SEARCH_SCENARIOS。原协议保留，差异追加在本地 protocol-audit.json；录制指纹、场景、判分及次数未改，未补采。跟踪基线用实际生产评估器离线验证其有效性。

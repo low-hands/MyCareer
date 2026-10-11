@@ -1,0 +1,220 @@
+{
+  "version": 1,
+  "model": "deepseek-flash",
+  "scenario": "count_empty_resume_receipt",
+  "suite_fingerprint": "6bd1478d40156967e8505a5bd9ba098b65278d80dd12580a9055de48b3a16ec6",
+  "recorded_at": "2026-10-11T07:28:13.251264+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "我有几份简历？": {
+            "list_resumes": 0.669765710626042,
+            "get_resume_metadata": 0.6073443926673097,
+            "get_resume_tailoring_draft": 0.5931037631054072,
+            "draft_resume_tailoring": 0.5871889754976016,
+            "get_resume_job_match": 0.584679076631911,
+            "export_resume_artifact": 0.5788263409904166,
+            "finalize_resume_tailoring": 0.5640369229028447,
+            "match_resume_to_job": 0.5638323608755862,
+            "revise_resume_tailoring": 0.5587795832745915,
+            "review_resume_tailoring": 0.5568940545863362
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "我有几份简历？",
+          "assistant_message": "目前简历库里没有找到任何简历——一份也没有。我是通过 list_resumes 查询的，结果返回“没有找到匹配的简历”。\n\n如果你已经上传或保存过简历，可能是在别的账户下，或者尚未导入；你可以告诉我简历的名称或方向，我再帮你查一次。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前简历库里没有找到任何简历——一份也没有。我是通过 list_resumes 查询的，结果返回“没有找到匹配的简历”。\\n\\n如果你已经上传或保存过简历，可能是在别的账户下，或者尚未导入；你可以告诉我简历的名称或方向，我再帮你查一次。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "我有几份简历？": {
+            "list_resumes": 0.6697268468937868,
+            "get_resume_metadata": 0.6072614825382174,
+            "get_resume_tailoring_draft": 0.5930387034646789,
+            "draft_resume_tailoring": 0.5871366737641611,
+            "get_resume_job_match": 0.5845976161205054,
+            "export_resume_artifact": 0.5787555300628595,
+            "finalize_resume_tailoring": 0.5640010465763169,
+            "match_resume_to_job": 0.5637565883648575,
+            "revise_resume_tailoring": 0.5587773772738232,
+            "review_resume_tailoring": 0.5569039969382498
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "我有几份简历？",
+          "assistant_message": "目前我的简历库里没有找到任何简历记录，所以是 0 份。\n\n如果你之后上传或新建简历，我可以帮你列出并管理多个版本。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前我的简历库里没有找到任何简历记录，所以是 0 份。\\n\\n如果你之后上传或新建简历，我可以帮你列出并管理多个版本。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "我有几份简历？": {
+            "list_resumes": 0.669765710626042,
+            "get_resume_metadata": 0.6073443926673097,
+            "get_resume_tailoring_draft": 0.5931037631054072,
+            "draft_resume_tailoring": 0.5871889754976016,
+            "get_resume_job_match": 0.584679076631911,
+            "export_resume_artifact": 0.5788263409904166,
+            "finalize_resume_tailoring": 0.5640369229028447,
+            "match_resume_to_job": 0.5638323608755862,
+            "revise_resume_tailoring": 0.5587795832745915,
+            "review_resume_tailoring": 0.5568940545863362
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "我有几份简历？",
+          "assistant_message": "目前没有找到你名下的任何简历（简历库为空），所以是 0 份。如果你认为应该有简历，可能是尚未上传或未保存到简历库；你也可以告诉我简历名称或方向，我再帮你查一次。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有找到你名下的任何简历（简历库为空），所以是 0 份。如果你认为应该有简历，可能是尚未上传或未保存到简历库；你也可以告诉我简历名称或方向，我再帮你查一次。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

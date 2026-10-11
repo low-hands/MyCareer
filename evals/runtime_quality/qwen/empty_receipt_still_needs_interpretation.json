@@ -1,0 +1,234 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "empty_receipt_still_needs_interpretation",
+  "suite_fingerprint": "6bd1478d40156967e8505a5bd9ba098b65278d80dd12580a9055de48b3a16ec6",
+  "recorded_at": "2026-10-11T07:33:26.088798+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的面试安排，并说明没有安排时我下一步应该怎么准备。": {
+            "list_interviews": 0.7117341081561112,
+            "get_interview": 0.6920637982314596,
+            "prepare_interview": 0.6811395943980946,
+            "get_interview_preparation": 0.6795537855456356,
+            "create_interview": 0.6702186452035571,
+            "prepare_interview_calendar_sync": 0.6580145127332129,
+            "update_interview": 0.6495723186367338,
+            "complete_interview": 0.6439188003982238,
+            "list_calendar_links": 0.5948886541309625,
+            "record_interview_retro": 0.584523422560982
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的面试安排，并说明没有安排时我下一步应该怎么准备。",
+          "assistant_message": "目前没有面试安排。\n\n在没有具体面试的情况下，你可以从以下几个方面开始准备：\n\n1. **明确求职方向**：确定目标行业、岗位类型和城市偏好，这有助于后续针对性地准备。\n\n2. **完善简历**：确保简历内容完整、突出核心技能和项目经验，并根据不同岗位方向准备多个版本。\n\n3. **积累常见面试问题答案**：包括自我介绍、项目经历、优缺点、职业规划等通用问题的回答框架。\n\n4. **了解目标公司和行业**：关注行业动态、头部公司信息，为可能的面试积累背景知识。\n\n5. **练习模拟面试**：可以通过模拟面试工具进行实战演练，提升表达能力和应变能力。\n\n如果你已经有明确的求职意向或目标岗位，我可以帮你进一步制定更具体的准备计划。你目前是否有特定的行业或岗位方向？",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "limit": 20
+                  }
+                }
+              },
+              "schema_fingerprint": "c1ee5cb76787ef3de684f9884f3c4294826e780b80f250a2fb98c14949a5e12f",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有面试安排。\\n\\n在没有具体面试的情况下，你可以从以下几个方面开始准备：\\n\\n1. **明确求职方向**：确定目标行业、岗位类型和城市偏好，这有助于后续针对性地准备。\\n\\n2. **完善简历**：确保简历内容完整、突出核心技能和项目经验，并根据不同岗位方向准备多个版本。\\n\\n3. **积累常见面试问题答案**：包括自我介绍、项目经历、优缺点、职业规划等通用问题的回答框架。\\n\\n4. **了解目标公司和行业**：关注行业动态、头部公司信息，为可能的面试积累背景知识。\\n\\n5. **练习模拟面试**：可以通过模拟面试工具进行实战演练，提升表达能力和应变能力。\\n\\n如果你已经有明确的求职意向或目标岗位，我可以帮你进一步制定更具体的准备计划。你目前是否有特定的行业或岗位方向？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "c1ee5cb76787ef3de684f9884f3c4294826e780b80f250a2fb98c14949a5e12f",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的面试安排，并说明没有安排时我下一步应该怎么准备。": {
+            "list_interviews": 0.7117099250721897,
+            "get_interview": 0.6920585464225854,
+            "prepare_interview": 0.6811911044509948,
+            "get_interview_preparation": 0.6795822279499405,
+            "create_interview": 0.6702199663679946,
+            "prepare_interview_calendar_sync": 0.6579728484381889,
+            "update_interview": 0.6496098807668074,
+            "complete_interview": 0.6439042230972009,
+            "list_calendar_links": 0.5948210425563851,
+            "record_interview_retro": 0.5845817406823863
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的面试安排，并说明没有安排时我下一步应该怎么准备。",
+          "assistant_message": "目前没有找到任何面试安排。\n\n由于没有具体的面试日程，下一步的准备建议如下：\n\n1. **明确求职方向**：如果您还没有确定目标岗位或公司，可以先梳理您的职业目标和意向行业。\n2. **准备通用面试材料**：\n   - 更新并优化您的简历，确保突出与目标岗位匹配的核心技能。\n   - 准备常见的面试问题回答，例如自我介绍、项目经验总结、优缺点分析等。\n3. **模拟练习**：可以进行模拟面试练习，提升表达流畅度和临场反应能力。\n4. **关注投递进度**：如果您已经投递了岗位，可以查看投递记录的状态，必要时跟进申请进度。\n\n如果您希望开始准备特定岗位的面试，或者需要帮助梳理求职方向，请告诉我更多细节。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "limit": 20
+                  }
+                }
+              },
+              "schema_fingerprint": "c1ee5cb76787ef3de684f9884f3c4294826e780b80f250a2fb98c14949a5e12f",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有找到任何面试安排。\\n\\n由于没有具体的面试日程，下一步的准备建议如下：\\n\\n1. **明确求职方向**：如果您还没有确定目标岗位或公司，可以先梳理您的职业目标和意向行业。\\n2. **准备通用面试材料**：\\n   - 更新并优化您的简历，确保突出与目标岗位匹配的核心技能。\\n   - 准备常见的面试问题回答，例如自我介绍、项目经验总结、优缺点分析等。\\n3. **模拟练习**：可以进行模拟面试练习，提升表达流畅度和临场反应能力。\\n4. **关注投递进度**：如果您已经投递了岗位，可以查看投递记录的状态，必要时跟进申请进度。\\n\\n如果您希望开始准备特定岗位的面试，或者需要帮助梳理求职方向，请告诉我更多细节。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "c1ee5cb76787ef3de684f9884f3c4294826e780b80f250a2fb98c14949a5e12f",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的面试安排，并说明没有安排时我下一步应该怎么准备。": {
+            "list_interviews": 0.7117099250721897,
+            "get_interview": 0.6920585464225854,
+            "prepare_interview": 0.6811911044509948,
+            "get_interview_preparation": 0.6795822279499405,
+            "create_interview": 0.6702199663679946,
+            "prepare_interview_calendar_sync": 0.6579728484381889,
+            "update_interview": 0.6496098807668074,
+            "complete_interview": 0.6439042230972009,
+            "list_calendar_links": 0.5948210425563851,
+            "record_interview_retro": 0.5845817406823863
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的面试安排，并说明没有安排时我下一步应该怎么准备。",
+          "assistant_message": "目前没有已安排的面试。\n\n当没有面试安排时，你可以从以下几个方面进行准备：\n\n1. **明确求职方向**：确定目标岗位、行业和公司类型，这有助于针对性地准备。\n2. **完善简历**：根据目标岗位的要求优化简历内容，突出相关技能和经验。\n3. **研究目标公司**：了解心仪公司的业务、文化、近期动态和职位要求。\n4. **练习常见面试问题**：准备自我介绍、项目经历、优缺点等常规问题的回答。\n5. **模拟面试**：通过模拟面试来熟悉流程、提升表达能力和应对技巧。\n6. **积累作品集或案例**：整理能展示你能力的项目成果、代码、设计作品等。\n\n你想先从哪个方面开始？我可以帮你：\n- 列出并选择目标岗位方向\n- 查看或定制简历\n- 启动模拟面试练习\n- 搜索和分析感兴趣的岗位",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [
+                  "scheduled"
+                ],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "limit": 20,
+                    "statuses": [
+                      "scheduled"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "c1ee5cb76787ef3de684f9884f3c4294826e780b80f250a2fb98c14949a5e12f",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"ask_user\",\"message\":\"目前没有已安排的面试。\\n\\n当没有面试安排时，你可以从以下几个方面进行准备：\\n\\n1. **明确求职方向**：确定目标岗位、行业和公司类型，这有助于针对性地准备。\\n2. **完善简历**：根据目标岗位的要求优化简历内容，突出相关技能和经验。\\n3. **研究目标公司**：了解心仪公司的业务、文化、近期动态和职位要求。\\n4. **练习常见面试问题**：准备自我介绍、项目经历、优缺点等常规问题的回答。\\n5. **模拟面试**：通过模拟面试来熟悉流程、提升表达能力和应对技巧。\\n6. **积累作品集或案例**：整理能展示你能力的项目成果、代码、设计作品等。\\n\\n你想先从哪个方面开始？我可以帮你：\\n- 列出并选择目标岗位方向\\n- 查看或定制简历\\n- 启动模拟面试练习\\n- 搜索和分析感兴趣的岗位\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "c1ee5cb76787ef3de684f9884f3c4294826e780b80f250a2fb98c14949a5e12f",
+              "action": "ask_user",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

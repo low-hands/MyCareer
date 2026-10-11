@@ -2,20 +2,20 @@
   "scenario": "a_report_that_scrolled_out_of_the_catalogue_is_not_faked",
   "policy": "Only reports the projection still names can be read back. When the report the user asks about is not among them, say it can no longer be reached instead of sending some other report's handle.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "c91c5e4a626bde79331a5950f7b544532557dd041ea4f705547dc01e17013a97",
+  "prompt_fingerprint": "100e8c0a383e48e0b3cee458ff22a5e5c25040c8049875b0d92952dae760d8bf",
   "context_shape_fingerprint": "7dc8bc63cc400316563ba507e92c92ea31ce9eb9fd7f1f2b25265cfaa69c36b7",
-  "recorded_at": "2026-10-09T18:17:11.984388+00:00",
+  "recorded_at": "2026-10-11T07:26:18.557049+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "search_career_memory",
         "arguments": {
           "query": "Shopee 调研 竞争对手",
-          "limit": 10
+          "limit": 8
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "ec4c6128fecb9df8fba0b4dbf74c679115d48749ceaf0687f77d10656c9edd45",
+      "selected_schema_fingerprint": "6e830c970464abc1c283b658ffe0c7a217f28964f898a18338fa03d5c30057e3",
       "decision_shape_fingerprint": "445ca03f34bb6c3cfb923e49d61b5e12d5591cd5b633d7109230b3e67398a7bf",
       "offered_tools": [
         "load_skill",
@@ -25,7 +25,7 @@
         "search_career_episodes",
         "search_capabilities"
       ],
-      "elapsed_ms": 2628.4,
+      "elapsed_ms": 3270.4,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -36,19 +36,82 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:17:11.456505+00:00",
-      "elapsed_ms": 2631.6,
+      "recorded_at": "2026-10-11T07:26:14.872609+00:00",
+      "elapsed_ms": 3274.7,
       "steps": [
         {
           "tool_call": {
             "name": "search_career_memory",
             "arguments": {
               "query": "Shopee 调研 竞争对手",
+              "limit": 8
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "6e830c970464abc1c283b658ffe0c7a217f28964f898a18338fa03d5c30057e3",
+          "decision_shape_fingerprint": "445ca03f34bb6c3cfb923e49d61b5e12d5591cd5b633d7109230b3e67398a7bf",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3270.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:26:16.521441+00:00",
+      "elapsed_ms": 2984.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_349846"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "6e830c970464abc1c283b658ffe0c7a217f28964f898a18338fa03d5c30057e3",
+          "decision_shape_fingerprint": "445ca03f34bb6c3cfb923e49d61b5e12d5591cd5b633d7109230b3e67398a7bf",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2980.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:26:18.557049+00:00",
+      "elapsed_ms": 4214.3,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_career_memory",
+            "arguments": {
+              "query": "Shopee 竞争对手",
               "limit": 10
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "ec4c6128fecb9df8fba0b4dbf74c679115d48749ceaf0687f77d10656c9edd45",
+          "selected_schema_fingerprint": "6e830c970464abc1c283b658ffe0c7a217f28964f898a18338fa03d5c30057e3",
           "decision_shape_fingerprint": "445ca03f34bb6c3cfb923e49d61b5e12d5591cd5b633d7109230b3e67398a7bf",
           "offered_tools": [
             "load_skill",
@@ -58,71 +121,7 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 2628.4,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-09T18:17:11.979918+00:00",
-      "elapsed_ms": 2993.0,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "search_career_memory",
-            "arguments": {
-              "query": "Shopee 竞争对手 调研",
-              "limit": 8
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "ec4c6128fecb9df8fba0b4dbf74c679115d48749ceaf0687f77d10656c9edd45",
-          "decision_shape_fingerprint": "445ca03f34bb6c3cfb923e49d61b5e12d5591cd5b633d7109230b3e67398a7bf",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_job_research",
-            "search_career_episodes",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 2991.6,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-09T18:17:11.984388+00:00",
-      "elapsed_ms": 2714.6,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "search_career_memory",
-            "arguments": {
-              "query": "Shopee 竞争对手 调研",
-              "limit": 8
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "ec4c6128fecb9df8fba0b4dbf74c679115d48749ceaf0687f77d10656c9edd45",
-          "decision_shape_fingerprint": "445ca03f34bb6c3cfb923e49d61b5e12d5591cd5b633d7109230b3e67398a7bf",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_job_research",
-            "search_career_episodes",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 2713.7,
+          "elapsed_ms": 4210.3,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

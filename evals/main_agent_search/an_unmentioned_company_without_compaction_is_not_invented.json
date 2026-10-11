@@ -2,17 +2,14 @@
   "scenario": "an_unmentioned_company_without_compaction_is_not_invented",
   "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "7d2710b7e41a1ae005bf4ba6e3220629c286b0a4e87e26b443896890708793e4",
+  "prompt_fingerprint": "5efbf29b7bd9cac34abfc29e800a5b791aadaddba39e3e7275504c7c2eb380e1",
   "context_shape_fingerprint": "50fe34d484f6fd66869bc1ab8ded0fe6df1901306ded2c5eea550a3075bba81a",
-  "recorded_at": "2026-10-09T18:17:49.651665+00:00",
+  "recorded_at": "2026-10-11T07:28:23.960908+00:00",
   "steps": [
     {
-      "tool_call": {
-        "name": "list_target_roles",
-        "arguments": {}
-      },
+      "content": "{\"action\":\"ask_user\",\"message\":\"你还没有记录目标公司。目前系统里没有已确认的目标岗位或公司信息。\\n\\n请告诉我：\\n1. 你想申请的具体公司名称是什么？\\n2. 目标岗位方向是什么？\\n\\n或者，如果你刚才提到的\\\"美团 JD\\\"是指某个已收藏的岗位，我可以帮你查找已收藏的岗位列表来确认。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "db458fb39a540945a6421160b4271bcb50b5853af700a1a764f9c40936372387",
+      "selected_schema_fingerprint": "44675d073e2655556e0e1b4b120e352611b720401ff033b4a8f7119f700817d8",
       "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
       "offered_tools": [
         "load_skill",
@@ -22,10 +19,31 @@
         "propose_job_intent",
         "search_capabilities"
       ],
-      "elapsed_ms": 2694.9,
-      "model_request_count": 1,
+      "elapsed_ms": 12470.6,
+      "model_request_count": 3,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [],
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "根据当前记录，你还没有确认任何目标公司。\n\n从之前的对话来看，你提到过\"美团\"的 JD，但这只是作为对照参考，并没有正式设定为目标公司。\n\n你想把美团设为目标公司吗？还是你有其他明确的目标公司？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        },
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": true,
+          "raw_output": {
+            "content": "根据当前对话上下文，你提到的目标公司是 **美团**。\n\n不过，我注意到当前的工作记忆中并没有已确认的目标岗位方向或求职意向记录。如果你希望我基于这份美团 JD 提供更具体的分析或建议，我需要先了解：\n\n1. 你是否有已保存的美团岗位？\n2. 或者你希望我帮你查找相关岗位？\n\n请告诉我下一步你想做什么？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -33,16 +51,13 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:17:49.447782+00:00",
-      "elapsed_ms": 2697.9,
+      "recorded_at": "2026-10-11T07:28:31.311998+00:00",
+      "elapsed_ms": 12474.5,
       "steps": [
         {
-          "tool_call": {
-            "name": "list_target_roles",
-            "arguments": {}
-          },
+          "content": "{\"action\":\"ask_user\",\"message\":\"你还没有记录目标公司。目前系统里没有已确认的目标岗位或公司信息。\\n\\n请告诉我：\\n1. 你想申请的具体公司名称是什么？\\n2. 目标岗位方向是什么？\\n\\n或者，如果你刚才提到的\\\"美团 JD\\\"是指某个已收藏的岗位，我可以帮你查找已收藏的岗位列表来确认。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "db458fb39a540945a6421160b4271bcb50b5853af700a1a764f9c40936372387",
+          "selected_schema_fingerprint": "44675d073e2655556e0e1b4b120e352611b720401ff033b4a8f7119f700817d8",
           "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
           "offered_tools": [
             "load_skill",
@@ -52,18 +67,39 @@
             "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 2694.9,
-          "model_request_count": 1,
+          "elapsed_ms": 12470.6,
+          "model_request_count": 3,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "根据当前记录，你还没有确认任何目标公司。\n\n从之前的对话来看，你提到过\"美团\"的 JD，但这只是作为对照参考，并没有正式设定为目标公司。\n\n你想把美团设为目标公司吗？还是你有其他明确的目标公司？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "根据当前对话上下文，你提到的目标公司是 **美团**。\n\n不过，我注意到当前的工作记忆中并没有已确认的目标岗位方向或求职意向记录。如果你希望我基于这份美团 JD 提供更具体的分析或建议，我需要先了解：\n\n1. 你是否有已保存的美团岗位？\n2. 或者你希望我帮你查找相关岗位？\n\n请告诉我下一步你想做什么？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:17:49.979283+00:00",
-      "elapsed_ms": 2607.8,
+      "recorded_at": "2026-10-11T07:28:27.033247+00:00",
+      "elapsed_ms": 8035.6,
       "steps": [
         {
           "tool_call": {
@@ -71,7 +107,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "db458fb39a540945a6421160b4271bcb50b5853af700a1a764f9c40936372387",
+          "selected_schema_fingerprint": "44675d073e2655556e0e1b4b120e352611b720401ff033b4a8f7119f700817d8",
           "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
           "offered_tools": [
             "load_skill",
@@ -81,18 +117,29 @@
             "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 2605.6,
-          "model_request_count": 1,
+          "elapsed_ms": 8032.3,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "你之前提到的是\"美团\"，但还没有正式记录为目标公司或目标岗位。\n\n目前系统中没有已确认的目标岗位方向。你是想：\n1. 将美团相关的某个具体岗位设为目标？\n2. 还是先查看一下已有的目标岗位列表？\n\n我可以帮你列出当前的目标岗位候选，或者你可以告诉我你想针对美团的什么岗位类型（比如产品经理、后端开发、数据分析等），我来帮你记录求职意向。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:17:49.651665+00:00",
-      "elapsed_ms": 2250.5,
+      "recorded_at": "2026-10-11T07:28:23.960908+00:00",
+      "elapsed_ms": 4485.8,
       "steps": [
         {
           "tool_call": {
@@ -100,7 +147,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "db458fb39a540945a6421160b4271bcb50b5853af700a1a764f9c40936372387",
+          "selected_schema_fingerprint": "44675d073e2655556e0e1b4b120e352611b720401ff033b4a8f7119f700817d8",
           "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
           "offered_tools": [
             "load_skill",
@@ -110,7 +157,7 @@
             "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 2247.3,
+          "elapsed_ms": 4481.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

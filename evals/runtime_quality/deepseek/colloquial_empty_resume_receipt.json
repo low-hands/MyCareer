@@ -1,0 +1,217 @@
+{
+  "version": 1,
+  "model": "deepseek-flash",
+  "scenario": "colloquial_empty_resume_receipt",
+  "suite_fingerprint": "6bd1478d40156967e8505a5bd9ba098b65278d80dd12580a9055de48b3a16ec6",
+  "recorded_at": "2026-10-11T07:28:13.250868+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "帮我瞅瞅简历": {
+            "review_resume_tailoring": 0.7128690242736617,
+            "get_resume_tailoring_draft": 0.6592514551621147,
+            "revise_resume_tailoring": 0.641886651223466,
+            "draft_resume_tailoring": 0.624888566994127,
+            "get_resume_job_match": 0.6198073044978459,
+            "list_resumes": 0.6118508179127385,
+            "match_resume_to_job": 0.6099751910737028,
+            "get_resume_metadata": 0.5952513278342645,
+            "finalize_resume_tailoring": 0.5787653669199164
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "帮我瞅瞅简历",
+          "assistant_message": "我查了一下，你的简历库里目前没有找到任何简历（返回结果：no_resumes_found），所以暂时没有可以给你查看或评估的简历。\n\n可能的情况：简历还没有上传/导入到简历库，或者它在系统里不叫我能匹配到的名字。\n\n你可以这样做：\n1. 如果简历已经在系统里但用了别的名称或标签，告诉我名称、方向或标签（例如\"数据分析方向\"\"2026届校招版\"），我再帮你找一次；\n2. 如果还没导入，告诉我你想怎么处理（比如直接粘贴简历文本让我看，或先去导入），我按你的方式来。\n\n另外确认一下：你说的\"瞅瞅\"是想让我做哪一类事情——只是列出/查看简历基本信息，还是针对某个具体岗位做匹配分析、定制修改？如果有目标岗位，把岗位信息或链接给我，我可以顺带做岗位分析。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"我查了一下，你的简历库里目前没有找到任何简历（返回结果：no_resumes_found），所以暂时没有可以给你查看或评估的简历。\\n\\n可能的情况：简历还没有上传/导入到简历库，或者它在系统里不叫我能匹配到的名字。\\n\\n你可以这样做：\\n1. 如果简历已经在系统里但用了别的名称或标签，告诉我名称、方向或标签（例如\\\"数据分析方向\\\"\\\"2026届校招版\\\"），我再帮你找一次；\\n2. 如果还没导入，告诉我你想怎么处理（比如直接粘贴简历文本让我看，或先去导入），我按你的方式来。\\n\\n另外确认一下：你说的\\\"瞅瞅\\\"是想让我做哪一类事情——只是列出/查看简历基本信息，还是针对某个具体岗位做匹配分析、定制修改？如果有目标岗位，把岗位信息或链接给我，我可以顺带做岗位分析。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "帮我瞅瞅简历": {
+            "review_resume_tailoring": 0.7128690242736617,
+            "get_resume_tailoring_draft": 0.6592514551621147,
+            "revise_resume_tailoring": 0.641886651223466,
+            "draft_resume_tailoring": 0.624888566994127,
+            "get_resume_job_match": 0.6198073044978459,
+            "list_resumes": 0.6118508179127385,
+            "match_resume_to_job": 0.6099751910737028,
+            "get_resume_metadata": 0.5952513278342645,
+            "finalize_resume_tailoring": 0.5787653669199164
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "帮我瞅瞅简历",
+          "assistant_message": "我查了一下，你的简历库里目前没有找到任何简历记录（简历列表为空）。\n\n所以现在没有可以查看的简历内容。如果你希望我帮你处理简历，可以告诉我：\n1. 你是否有简历文件想上传/导入到简历库？\n2. 或者你其实想问的是别的，比如：根据某个岗位帮你写一份简历、做简历与岗位的匹配分析、或定制某份简历？\n\n告诉我你的具体需求，我再继续帮你。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"我查了一下，你的简历库里目前没有找到任何简历记录（简历列表为空）。\\n\\n所以现在没有可以查看的简历内容。如果你希望我帮你处理简历，可以告诉我：\\n1. 你是否有简历文件想上传/导入到简历库？\\n2. 或者你其实想问的是别的，比如：根据某个岗位帮你写一份简历、做简历与岗位的匹配分析、或定制某份简历？\\n\\n告诉我你的具体需求，我再继续帮你。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "帮我瞅瞅简历": {
+            "review_resume_tailoring": 0.7128690242736617,
+            "get_resume_tailoring_draft": 0.6592514551621147,
+            "revise_resume_tailoring": 0.641886651223466,
+            "draft_resume_tailoring": 0.624888566994127,
+            "get_resume_job_match": 0.6198073044978459,
+            "list_resumes": 0.6118508179127385,
+            "match_resume_to_job": 0.6099751910737028,
+            "get_resume_metadata": 0.5952513278342645,
+            "finalize_resume_tailoring": 0.5787653669199164
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "帮我瞅瞅简历",
+          "assistant_message": "我查了一下，你的简历库里目前没有任何简历记录——所以没有可以查看的版本。\n\n需要的话可以告诉我：\n- 你希望针对哪个方向/岗位准备简历？\n- 你手头有简历文件（或文本）想上传/录入吗？\n\n有了简历或方向信息，我就能帮你查看版本、针对具体岗位做匹配分析和定制了。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"我查了一下，你的简历库里目前没有任何简历记录——所以没有可以查看的版本。\\n\\n需要的话可以告诉我：\\n- 你希望针对哪个方向/岗位准备简历？\\n- 你手头有简历文件（或文本）想上传/录入吗？\\n\\n有了简历或方向信息，我就能帮你查看版本、针对具体岗位做匹配分析和定制了。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

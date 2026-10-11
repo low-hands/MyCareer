@@ -2,14 +2,14 @@
   "scenario": "planning_to_apply_does_not_create_an_application",
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "38fe48d06ebce31b728bc628807e57341d0f63f90274636b2d72407ecbe98e2d",
+  "prompt_fingerprint": "181314b8cb87408b528226315cc301469e66ccc603f47bbb5bfdc5a0fe01c735",
   "context_shape_fingerprint": "19863eb67cb394d3676b27e179a7258cc12b11bdc829c26f953d9c95f1736fec",
-  "recorded_at": "2026-10-09T18:16:46.308557+00:00",
+  "recorded_at": "2026-10-11T07:25:29.823987+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"明白，你指的应该是「示例科技 - 算法工程师（上海，30-50K）」这个岗位吧?\\n\\n不过投递记录只能在你**已经实际提交**申请后才能创建。请确认一下:\\n\\n1. 你是否已经真正提交了申请?(如果还没有，我可以先帮你看岗位分析、匹配度等准备工作)\\n2. 如果已经投递，方便告诉我提交时间吗?另外是否有对应的简历版本要一并关联?\",\"questions\":[]}",
+      "content": "{\"action\":\"ask_user\",\"message\":\"收到～你说的「准备投」是指已经提交了申请，还是还在准备阶段？如果是已经投出去了，我就为这份岗位（示例科技 · 算法工程师）建一条投递记录；如果还在准备，我可以先帮你分析这个 JD、匹配简历或准备投递材料。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "d5fd67bae4f1a9feb5b5382c9400cd72fdceea8dba6efe24364a20103dfc6952",
+      "selected_schema_fingerprint": "b78c11c029551aef7f96aa7e297367de5902b2cd8a5ded3ea64f7302c58f14bd",
       "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
       "offered_tools": [
         "load_skill",
@@ -22,7 +22,7 @@
         "get_interview_preparation",
         "search_capabilities"
       ],
-      "elapsed_ms": 1836.0,
+      "elapsed_ms": 2421.1,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -33,13 +33,13 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:16:47.077857+00:00",
-      "elapsed_ms": 1839.9,
+      "recorded_at": "2026-10-11T07:25:28.709851+00:00",
+      "elapsed_ms": 2424.6,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"明白，你指的应该是「示例科技 - 算法工程师（上海，30-50K）」这个岗位吧?\\n\\n不过投递记录只能在你**已经实际提交**申请后才能创建。请确认一下:\\n\\n1. 你是否已经真正提交了申请?(如果还没有，我可以先帮你看岗位分析、匹配度等准备工作)\\n2. 如果已经投递，方便告诉我提交时间吗?另外是否有对应的简历版本要一并关联?\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"收到～你说的「准备投」是指已经提交了申请，还是还在准备阶段？如果是已经投出去了，我就为这份岗位（示例科技 · 算法工程师）建一条投递记录；如果还在准备，我可以先帮你分析这个 JD、匹配简历或准备投递材料。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "d5fd67bae4f1a9feb5b5382c9400cd72fdceea8dba6efe24364a20103dfc6952",
+          "selected_schema_fingerprint": "b78c11c029551aef7f96aa7e297367de5902b2cd8a5ded3ea64f7302c58f14bd",
           "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
           "offered_tools": [
             "load_skill",
@@ -52,7 +52,7 @@
             "get_interview_preparation",
             "search_capabilities"
           ],
-          "elapsed_ms": 1836.0,
+          "elapsed_ms": 2421.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -62,37 +62,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:16:47.204943+00:00",
-      "elapsed_ms": 1857.3,
-      "steps": [
-        {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请确认两点，我才能记录投递：\\n\\n1. 就是这个岗位吗？——**算法工程师 @ 示例科技（上海，30-50K）**（如果不是，请告诉我公司或岗位名称）。\\n2. 你是否**已经实际提交**了投递？只有已提交的申请才能登记为投递记录。\\n\\n如果已提交，也请顺便告诉我投递日期（例如 2026-10-10）；如果不记得，可以跳过。\",\"questions\":[]}",
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "d5fd67bae4f1a9feb5b5382c9400cd72fdceea8dba6efe24364a20103dfc6952",
-          "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "analyze_job",
-            "propose_job_intent",
-            "create_application",
-            "get_interview_preparation",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1854.2,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-09T18:16:46.308557+00:00",
-      "elapsed_ms": 944.8,
+      "recorded_at": "2026-10-11T07:25:29.796318+00:00",
+      "elapsed_ms": 1151.1,
       "steps": [
         {
           "tool_call": {
@@ -102,7 +73,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "d5fd67bae4f1a9feb5b5382c9400cd72fdceea8dba6efe24364a20103dfc6952",
+          "selected_schema_fingerprint": "b78c11c029551aef7f96aa7e297367de5902b2cd8a5ded3ea64f7302c58f14bd",
           "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
           "offered_tools": [
             "load_skill",
@@ -115,7 +86,36 @@
             "get_interview_preparation",
             "search_capabilities"
           ],
-          "elapsed_ms": 943.5,
+          "elapsed_ms": 1146.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:25:29.823987+00:00",
+      "elapsed_ms": 1111.9,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请确认：你已经在示例科技「算法工程师」（上海，30-50K）这个岗位正式提交了投递吗？我会据此创建投递记录。另外，如果有指定使用的简历版本，可以一并告诉我（没有也可以）。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "b78c11c029551aef7f96aa7e297367de5902b2cd8a5ded3ea64f7302c58f14bd",
+          "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "propose_job_intent",
+            "create_application",
+            "get_interview_preparation",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1109.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

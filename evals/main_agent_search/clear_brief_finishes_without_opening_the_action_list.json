@@ -2,14 +2,14 @@
   "scenario": "clear_brief_finishes_without_opening_the_action_list",
   "policy": "Tool observation facts are approved decision values. When the user explicitly asks for a conditional follow-up, finish when the overdue count is zero instead of opening the action list.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "df54d2f2e0fe43dd61f644665324fda9380cefc8c5f284fecfa0378c079bd6fa",
+  "prompt_fingerprint": "4c74ffa7746ba153ec7707ae190ab037ad3bd36ee1640a4614d44d7cec91145d",
   "context_shape_fingerprint": "370de30aa7f9707dc24625fe093b1a985f6009feddd2a0b2431eb65d3d74908a",
-  "recorded_at": "2026-10-09T18:17:21.803560+00:00",
+  "recorded_at": "2026-10-11T07:27:01.530324+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"今日简报显示有4项今日到期事项，但没有逾期事项。按照您的要求，无需打开行动清单选择处理顺序，本次任务已完成。\",\"questions\":[]}",
+      "content": "{\"action\":\"final\",\"message\":\"今日简报显示有 4 项今日到期事项和 9 项等待中事项，但没有逾期事项。按照您的要求，无需打开行动清单，任务已完成。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+      "selected_schema_fingerprint": "4926739b6e54de1fd423e02189f18dc4b1b1fda4aa5dc27d5326e23fc0da86da",
       "decision_shape_fingerprint": "eea18c9d898b215f18115e888f60c2bcca4efadb3f5c53bac39e3ea916de1bbd",
       "offered_tools": [
         "load_skill",
@@ -19,7 +19,7 @@
         "list_action_items",
         "search_capabilities"
       ],
-      "elapsed_ms": 3035.9,
+      "elapsed_ms": 4059.7,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -30,13 +30,13 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-09T18:17:20.752776+00:00",
-      "elapsed_ms": 3039.7,
+      "recorded_at": "2026-10-11T07:27:00.181920+00:00",
+      "elapsed_ms": 4063.6,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"今日简报显示有4项今日到期事项，但没有逾期事项。按照您的要求，无需打开行动清单选择处理顺序，本次任务已完成。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"今日简报显示有 4 项今日到期事项和 9 项等待中事项，但没有逾期事项。按照您的要求，无需打开行动清单，任务已完成。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "selected_schema_fingerprint": "4926739b6e54de1fd423e02189f18dc4b1b1fda4aa5dc27d5326e23fc0da86da",
           "decision_shape_fingerprint": "eea18c9d898b215f18115e888f60c2bcca4efadb3f5c53bac39e3ea916de1bbd",
           "offered_tools": [
             "load_skill",
@@ -46,7 +46,7 @@
             "list_action_items",
             "search_capabilities"
           ],
-          "elapsed_ms": 3035.9,
+          "elapsed_ms": 4059.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -56,13 +56,13 @@
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:17:21.144933+00:00",
-      "elapsed_ms": 3121.0,
+      "recorded_at": "2026-10-11T07:27:00.783617+00:00",
+      "elapsed_ms": 3350.0,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"今日简报显示没有逾期事项（0 个逾期，4 个今天到期，9 个等待中）。按照你的要求，无需打开行动清单，流程结束。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"今日简报显示没有逾期事项，无需处理。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "selected_schema_fingerprint": "4926739b6e54de1fd423e02189f18dc4b1b1fda4aa5dc27d5326e23fc0da86da",
           "decision_shape_fingerprint": "eea18c9d898b215f18115e888f60c2bcca4efadb3f5c53bac39e3ea916de1bbd",
           "offered_tools": [
             "load_skill",
@@ -72,7 +72,7 @@
             "list_action_items",
             "search_capabilities"
           ],
-          "elapsed_ms": 3118.0,
+          "elapsed_ms": 3346.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -82,13 +82,13 @@
       ]
     },
     {
-      "recorded_at": "2026-10-09T18:17:21.803560+00:00",
-      "elapsed_ms": 3277.3,
+      "recorded_at": "2026-10-11T07:27:01.530324+00:00",
+      "elapsed_ms": 3956.2,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"今日简报显示有 4 个今日到期事项和 9 个等待中事项，但没有逾期项目。按照您的要求，无需打开行动清单，任务已完成。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"今日职业简报已生成，包含 13 个待办事项（4 个今日到期，9 个等待中），但没有逾期事项。按照您的要求，无需打开行动清单选择处理项。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "selected_schema_fingerprint": "4926739b6e54de1fd423e02189f18dc4b1b1fda4aa5dc27d5326e23fc0da86da",
           "decision_shape_fingerprint": "eea18c9d898b215f18115e888f60c2bcca4efadb3f5c53bac39e3ea916de1bbd",
           "offered_tools": [
             "load_skill",
@@ -98,7 +98,7 @@
             "list_action_items",
             "search_capabilities"
           ],
-          "elapsed_ms": 3273.1,
+          "elapsed_ms": 3953.4,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
