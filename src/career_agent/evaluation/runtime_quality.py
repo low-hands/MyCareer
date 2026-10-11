@@ -23,13 +23,16 @@ from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.agent.contracts.profile import CareerProfileContext
-from career_agent.agent.providers.main_agent import OpenAICompatibleMainAgentDecisionMaker, main_model_options
+from career_agent.agent.providers.main_agent import (
+    DEFAULT_MAX_DECISION_ATTEMPTS, DEFAULT_MAX_OUTPUT_TOKENS, OpenAICompatibleMainAgentDecisionMaker, main_model_options,
+)
 from career_agent.agent.providers.openai_client import AgentWorkerError, OpenAICompatibleAgentConfig
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.runtime.ports import RuntimePorts
 from career_agent.agent.runtime.composition import default_capability_scorer
+from career_agent.evaluation.runtime_requests import RequestMismatch, RequestTape
 from career_agent.evaluation.runtime_semantic import SemanticTape
-from career_agent.evaluation.trajectory import ReplayClient, prompt_fingerprint, trajectory_tool_specs
+from career_agent.evaluation.trajectory import ReplayClient, prompt_fingerprint
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.working_notes import WorkingNotesStore
 
@@ -63,15 +66,15 @@ def load_cases(path: Path = FIXTURE) -> tuple[dict[str, Any], ...]:
     return cases
 
 
+# The clock is synthetic input, like the business results. Fix it for each
+# sample rather than excluding a model-visible date from request matching.
+EVALUATION_CLOCK = {"now": "2026-10-11T12:00:00+08:00", "timezone": "Asia/Shanghai"}
+
+
 def suite_fingerprint(path: Path = FIXTURE) -> str:
-    # A revision alone cannot identify a dirty workspace. Hash source content,
-    # fixture and production prompt/schema; never inspect unrelated .env files.
-    source_root = Path(__file__).resolve().parents[2]
-    sources = [(str(p.relative_to(source_root)), hashlib.sha256(p.read_bytes()).hexdigest())
-               for p in sorted(source_root.rglob("*.py"))]
-    payload = (hashlib.sha256(path.read_bytes()).hexdigest(),
-               prompt_fingerprint(trajectory_tool_specs()), sources)
-    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+    """Identify scenario inputs; actual requests gate response reuse separately."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
 class _SyntheticRegistry(MainAgentToolRegistry):
@@ -121,8 +124,12 @@ class _RecordedMaker:
         return decision
 
 
-def run_sample(case: dict[str, Any], maker, *, root: Path, semantic_recording=None, scorer=None) -> dict[str, Any]:
+def run_sample(case: dict[str, Any], maker, *, root: Path, semantic_recording=None, scorer=None,
+               request_recording=None, clock=None) -> dict[str, Any]:
     """Execute all turns against one persistent, isolated synthetic workspace."""
+    request_tape = RequestTape(request_recording, clock=clock or EVALUATION_CLOCK)
+    if isinstance(maker, OpenAICompatibleMainAgentDecisionMaker):
+        request_tape.attach(maker)
     store = CareerContextStore(root / "context.sqlite3")
     notes = WorkingNotesStore(root / "notes")
     manager = ContextManager(store, working_notes_store=notes)
@@ -207,8 +214,10 @@ def run_sample(case: dict[str, Any], maker, *, root: Path, semantic_recording=No
             failures.append("expected durable working-note update is missing")
     finally:
         runtime.close()
+    request_tape.verify()
     tape.verify()
-    return {"semantic_recording": tape.snapshot(), "passed": not failures, "failures": failures, "turns": turns,
+    return {"request_recording": request_tape.entries, "clock": clock or EVALUATION_CLOCK,
+            "semantic_recording": tape.snapshot(), "passed": not failures, "failures": failures, "turns": turns,
             "premature_stop_count": premature_stops, "unsafe_attempt_count": unsafe_attempts,
             "injection_marker_echo_count": marker_echoes}
 
@@ -247,7 +256,13 @@ def record_cases(cases, *, config, options, root: Path, k: int, jobs: int, finge
     root.mkdir(parents=True, exist_ok=True)
     for case in cases:
         samples = [completed[case["name"]][number] for number in range(k)]
-        payload = {"version": 1, "model": config.model, "scenario": case["name"],
+        payload = {"version": 2, "model": config.model, "scenario": case["name"],
+                   "model_options": {"vendor": options.get("vendor").name if options.get("vendor") else "qwen",
+                                     "model_extra_body": dict(options.get("model_extra_body", {})),
+                                     "max_output_tokens": options.get("max_output_tokens", DEFAULT_MAX_OUTPUT_TOKENS),
+                                     "max_attempts": options.get("max_attempts", DEFAULT_MAX_DECISION_ATTEMPTS)},
+                   "provider_options": {"max_input_tokens": config.max_input_tokens,
+                                        "prompt_cache": config.prompt_cache},
                    "suite_fingerprint": fingerprint, "recorded_at": datetime.now(timezone.utc).isoformat(),
                    "k": k, "samples": samples}
         (root / f"{case['name']}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -255,55 +270,83 @@ def record_cases(cases, *, config, options, root: Path, k: int, jobs: int, finge
 
 def evaluate(cases, *, root: Path, model: str, k: int, fingerprint: str) -> dict[str, Any]:
     rows = []
+    sidecar_path = root / "request-baselines.json"
+    baselines = json.loads(sidecar_path.read_text(encoding="utf-8")) if sidecar_path.exists() else {}
     for case in cases:
         path = root / f"{case['name']}.json"
         row = {"scenario": case["name"], "category": case["category"], "k": k,
                "status": "unrecorded", "samples_passed": 0, "sample_count": 0,
-               "pass_k": False, "premature_stop_count": 0, "unsafe_attempt_count": 0}
-        row["injection_marker_echo_count"] = 0
-        if path.exists():
-            payload = json.loads(path.read_text(encoding="utf-8"))
-            samples = payload["samples"]
-            if payload.get("suite_fingerprint") != fingerprint or payload.get("model") != model:
-                row["status"] = "stale"
-            elif len(samples) != k or payload.get("k") != k:
-                row["status"] = "incomplete"
-            else:
-                evaluated = []
-                for sample in samples:
-                    # A live error is not replayable and must remain a failure.
-                    if any(turn["error"] for turn in sample["turns"]):
+               "pass_k": False, "premature_stop_count": 0, "unsafe_attempt_count": 0,
+               "injection_marker_echo_count": 0}
+        if not path.exists():
+            rows.append(row)
+            continue
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        samples = payload["samples"]
+        legacy = baselines.get("cases", {}).get(case["name"])
+        if payload.get("model") != model:
+            row["status"] = "stale"
+        elif payload.get("version") == 2 and payload.get("suite_fingerprint") != fingerprint:
+            row["status"] = "stale"
+        elif len(samples) != k or payload.get("k") != k:
+            row["status"] = "incomplete"
+        elif payload.get("version") != 2 and (
+            not legacy or legacy.get("cassette_sha256") != hashlib.sha256(path.read_bytes()).hexdigest()
+            or legacy.get("case") != case
+        ):
+            row["status"] = "missing_request_recording"
+        else:
+            evaluated = []
+            for index, sample in enumerate(samples):
+                recorded = sample if payload.get("version") == 2 else legacy["samples"][index]
+                if "request_recording" not in recorded or "semantic_recording" not in sample:
+                    # Setup failures have no model request to reuse. Preserve
+                    # them as failures without pretending a replay took place.
+                    if any(t["error"] for t in sample["turns"]) and not any(
+                        t["decisions"] for t in sample["turns"]
+                    ):
                         evaluated.append(sample)
                         continue
-                    if "semantic_recording" not in sample:
-                        row["status"] = "missing_semantic_recording"
-                        break
-                    responses = [decision["response"] for turn in sample["turns"] for decision in turn["decisions"]]
-                    maker = OpenAICompatibleMainAgentDecisionMaker(
-                        OpenAICompatibleAgentConfig(endpoint="https://runtime-replay.invalid/v1/chat/completions",
-                                                    api_key="replay", model=model), client=ReplayClient(responses))
+                    row["status"] = ("missing_request_recording" if "request_recording" not in recorded
+                                     else "missing_semantic_recording")
+                    break
+                saved_options = payload.get("model_options", legacy.get("model_options", {}) if legacy else {})
+                if "vendor" in saved_options:
+                    options = main_model_options({"MAIN_AGENT_VENDOR": saved_options["vendor"]})
+                    options.update(model_extra_body=saved_options["model_extra_body"],
+                                   max_output_tokens=saved_options["max_output_tokens"],
+                                   max_attempts=saved_options.get("max_attempts", DEFAULT_MAX_DECISION_ATTEMPTS))
+                else:
+                    options = main_model_options(saved_options)
+                maker = OpenAICompatibleMainAgentDecisionMaker(
+                    OpenAICompatibleAgentConfig(endpoint="https://runtime-replay.invalid/v1/chat/completions",
+                                                api_key="replay", model=model,
+                                                **payload.get("provider_options", {})),
+                    client=ReplayClient(()), sleep=lambda _: None, **options)
+                try:
                     with TemporaryDirectory(prefix="career-runtime-replay-") as directory:
                         replay = run_sample(case, maker, root=Path(directory),
-                                            semantic_recording=sample["semantic_recording"])
-                    expected_schemas = [d["schema_fingerprint"] for t in sample["turns"] for d in t["decisions"]]
-                    actual_schemas = [d["schema_fingerprint"] for t in replay["turns"] for d in t["decisions"]]
-                    if expected_schemas != actual_schemas:
-                        replay["passed"] = False
-                        replay["failures"].append("offered schemas changed during replay")
-                    evaluated.append(replay)
-                if row["status"] == "missing_semantic_recording":
-                    rows.append(row)
-                    continue
-                row.update(status="passed" if all(s["passed"] for s in evaluated) else "failed",
-                           samples_passed=sum(s["passed"] for s in evaluated), sample_count=len(evaluated),
-                           success_rate=sum(s["passed"] for s in evaluated) / len(evaluated),
-                           pass_k=all(s["passed"] for s in evaluated),
-                           premature_stop_count=sum(s["premature_stop_count"] for s in evaluated),
-                           unsafe_attempt_count=sum(s["unsafe_attempt_count"] for s in evaluated),
-                           injection_marker_echo_count=sum(s["injection_marker_echo_count"] for s in evaluated),
-                           direct_delivery_count=sum(t.get("direct_delivery", False) for s in evaluated for t in s["turns"]),
-                           decision_count=sum(t.get("decision_count", 0) for s in evaluated for t in s["turns"]),
-                           failures=[s["failures"] for s in evaluated])
+                                            semantic_recording=sample["semantic_recording"],
+                                            request_recording=recorded["request_recording"],
+                                            clock=recorded["clock"])
+                except (RequestMismatch, ValueError) as error:
+                    row.update(status="stale", validity_error=str(error))
+                    break
+                evaluated.append(replay)
+            if row["status"] in {"stale", "missing_request_recording", "missing_semantic_recording"}:
+                rows.append(row)
+                continue
+            row.update(status="passed" if all(s["passed"] for s in evaluated) else "failed",
+                       request_provenance="wire" if payload.get("version") == 2 else "reconstructed_from_frozen_source",
+                       samples_passed=sum(s["passed"] for s in evaluated), sample_count=len(evaluated),
+                       success_rate=sum(s["passed"] for s in evaluated) / len(evaluated),
+                       pass_k=all(s["passed"] for s in evaluated),
+                       premature_stop_count=sum(s["premature_stop_count"] for s in evaluated),
+                       unsafe_attempt_count=sum(s["unsafe_attempt_count"] for s in evaluated),
+                       injection_marker_echo_count=sum(s["injection_marker_echo_count"] for s in evaluated),
+                       direct_delivery_count=sum(t.get("direct_delivery", False) for s in evaluated for t in s["turns"]),
+                       decision_count=sum(t.get("decision_count", 0) for s in evaluated for t in s["turns"]),
+                       failures=[s["failures"] for s in evaluated])
         rows.append(row)
     return {"model": model, "k": k, "measurement": "production_runtime_with_synthetic_business_io",
             "suite_fingerprint": fingerprint,

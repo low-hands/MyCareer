@@ -84,7 +84,7 @@ def test_attack_only_final_reply_cannot_pass_after_required_reads(tmp_path):
 
 def _save(root, case, samples, *, fingerprint="test-fingerprint", model="test", k=3):
     (root / f"{case['name']}.json").write_text(json.dumps({
-        "suite_fingerprint": fingerprint, "model": model, "k": k, "samples": samples,
+        "version": 2, "suite_fingerprint": fingerprint, "model": model, "k": k, "samples": samples,
     }), encoding="utf-8")
 
 
@@ -209,3 +209,123 @@ def test_actual_semantic_scores_are_replayed_as_selection_inputs(tmp_path, monke
                         semantic_recording=json.loads(json.dumps(sample["semantic_recording"])))
     assert replay["passed"]
     assert replay["turns"][0]["decisions"] == sample["turns"][0]["decisions"]
+
+
+def test_request_change_is_stale_before_recorded_response_is_used(tmp_path, monkeypatch):
+    case = load_cases()[0]
+    sample = run_sample(case, _maker(_responses(case)), root=tmp_path / "live")
+    _save(tmp_path, case, [sample], k=1)
+    original = OpenAICompatibleMainAgentDecisionMaker._system_prompt
+    monkeypatch.setattr(OpenAICompatibleMainAgentDecisionMaker, "_system_prompt",
+                        staticmethod(lambda *args, **kwargs: original(*args, **kwargs) + " Changed instruction."))
+    report = evaluate((case,), root=tmp_path, model="test", k=1, fingerprint="test-fingerprint")
+    assert report["results"][0]["status"] == "stale"
+    assert "model request 1" in report["results"][0]["validity_error"]
+    assert report["results"][0]["sample_count"] == 0
+
+
+def test_legacy_recording_without_request_provenance_is_not_assumed_valid(tmp_path):
+    case = load_cases()[0]
+    _save(tmp_path, case, [{}], k=1)
+    path = tmp_path / f"{case['name']}.json"
+    payload = json.loads(path.read_text())
+    payload["version"] = 1
+    path.write_text(json.dumps(payload))
+    assert evaluate((case,), root=tmp_path, model="test", k=1,
+                    fingerprint="test-fingerprint")["results"][0]["status"] == "missing_request_recording"
+
+
+def test_request_identity_checks_content_and_ignores_transport_only_changes(tmp_path):
+    from career_agent.evaluation.runtime_requests import request_fingerprint
+    request = {"messages": [{"role": "user", "content": "证据原文"}], "tools": [],
+               "timeout": 30, "extra_body": {"prompt_cache_key": "one", "enable_thinking": False}}
+    same = dict(request, timeout=1, extra_body={"prompt_cache_key": "two", "enable_thinking": False})
+    assert request_fingerprint(request) == request_fingerprint(same)
+    assert request_fingerprint(request) != request_fingerprint(dict(request, tools=[{"name": "other"}]))
+    assert request_fingerprint(request) != request_fingerprint(dict(request, messages=[{"role": "user", "content": "另一条证据"}]))
+    assert request_fingerprint(request) != request_fingerprint(dict(request, extra_body={"enable_thinking": True}))
+
+
+def test_delivery_changes_reuse_responses_when_requests_are_unchanged(tmp_path, monkeypatch):
+    from career_agent.agent.presentation.presenter import TurnPresenter
+    case = next(c for c in load_cases() if c["name"] == "single_brief_body_is_delivered")
+    sample = run_sample(case, _maker(_responses(case)), root=tmp_path / "live")
+    _save(tmp_path, case, [sample], k=1)
+    original = TurnPresenter._undelivered_bodies
+    monkeypatch.setattr(TurnPresenter, "_undelivered_bodies",
+                        lambda self, *args, **kwargs: original(self, *args, **kwargs) + "\n展示说明。")
+    report = evaluate((case,), root=tmp_path, model="test", k=1, fingerprint="test-fingerprint")
+    assert report["results"][0]["status"] == "passed"
+    assert report["results"][0]["samples_passed"] == 1
+
+
+def test_model_visible_observation_changes_are_stale(tmp_path, monkeypatch):
+    case = load_cases()[0]
+    sample = run_sample(case, _maker(_responses(case)), root=tmp_path / "live")
+    _save(tmp_path, case, [sample], k=1)
+    original = runtime_quality._SyntheticRegistry.invoke_atomic_tool
+    def changed(self, name, arguments):
+        result = original(self, name, arguments)
+        return result.model_copy(update={"message": "工具结果发生变化。"}) if name in runtime_quality._READ_RESULTS else result
+    monkeypatch.setattr(runtime_quality._SyntheticRegistry, "invoke_atomic_tool", changed)
+    report = evaluate((case,), root=tmp_path, model="test", k=1, fingerprint="test-fingerprint")
+    assert report["results"][0]["status"] == "stale"
+
+
+def test_provider_retries_are_recorded_and_matched_individually(tmp_path):
+    from career_agent.agent.providers.openai_client import AgentWorkerError
+    case = load_cases()[0]
+    client = ReplayClient(_responses(case))
+    original = client._next
+    failed = False
+    def first_request_fails(kwargs):
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise AgentWorkerError("MAIN_AGENT_TRANSPORT_ERROR", "synthetic", retryable=True)
+        return original(kwargs)
+    client._next = first_request_fails
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(endpoint="https://offline.invalid/v1/chat/completions", api_key="replay", model="test"),
+        client=client, sleep=lambda _: None)
+    sample = run_sample(case, maker, root=tmp_path / "live")
+    assert "error" in sample["request_recording"][0]
+    assert sample["request_recording"][0]["fingerprint"] == sample["request_recording"][1]["fingerprint"]
+    _save(tmp_path, case, [sample], k=1)
+    assert evaluate((case,), root=tmp_path, model="test", k=1,
+                    fingerprint="test-fingerprint")["results"][0]["status"] == "passed"
+
+
+@pytest.mark.parametrize("vendor,prompt_cache", [("qwen", "implicit"), ("qwen", "explicit"), ("deepseek", "implicit")])
+def test_v2_recording_replays_the_recorded_generation_options(tmp_path, monkeypatch, vendor, prompt_cache):
+    from career_agent.agent.providers.main_agent import main_model_options
+    case = load_cases()[0]
+    options = main_model_options({"MAIN_AGENT_VENDOR": vendor, "MAIN_AGENT_ENABLE_THINKING": "false"})
+    options["max_output_tokens"] = 2048
+    monkeypatch.setattr(runtime_quality, "default_capability_scorer", lambda: None)
+    def scripted_record(case, config, options, scorer):
+        maker = OpenAICompatibleMainAgentDecisionMaker(config, client=ReplayClient(_responses(case)), **options)
+        return run_sample(case, maker, root=tmp_path / "live", scorer=scorer)
+    monkeypatch.setattr(runtime_quality, "_live_sample", scripted_record)
+    config = OpenAICompatibleAgentConfig(endpoint="https://offline.invalid/v1/chat/completions", api_key="replay", model="test", prompt_cache=prompt_cache)
+    runtime_quality.record_cases((case,), config=config, options=options, root=tmp_path, k=1, jobs=1, fingerprint="test")
+    assert evaluate((case,), root=tmp_path, model="test", k=1, fingerprint="test")["results"][0]["status"] == "passed"
+
+
+def test_terminal_model_protocol_failure_is_kept_and_replayed(tmp_path):
+    from career_agent.evaluation.runtime_requests import _response_object
+    case = load_cases()[0]
+    client = ReplayClient(())
+    client._next = lambda kwargs: _response_object({"choices": [{"message": {"content": "unfinished plain text", "tool_calls": []}}]})
+    maker = OpenAICompatibleMainAgentDecisionMaker(
+        OpenAICompatibleAgentConfig(endpoint="https://offline.invalid/v1/chat/completions", api_key="replay", model="test"),
+        client=client)
+    sample = run_sample(case, maker, root=tmp_path / "live")
+    assert not sample["passed"]
+    assert sample["turns"][0]["error"]
+    assert len(sample["request_recording"]) > 1
+    _save(tmp_path, case, [sample], k=1)
+    row = evaluate((case,), root=tmp_path, model="test", k=1, fingerprint="test-fingerprint")["results"][0]
+    assert row["status"] == "failed"
+    assert row["failures"] == [sample["failures"]]
+    assert row["sample_count"] == 1

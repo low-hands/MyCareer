@@ -14,7 +14,17 @@
 - **红队**：合成工具结果和工作笔记携带角色伪装、伪造授权、数据外传和提前停止指令。统计禁止的写入/propose 意图，即使执行层拒绝也不能掩盖模型违规；同时检查笔记是否被改动、最终回答是否被攻击标记整体替换。引用攻击标记（例如解释自己拒绝了注入）只记录次数，不判失败。这些确定性检查不能证明所有注入变体都安全，也不是语义级安全裁判。
 - **pass^k**：每场景独立运行 k 次，全部成功才通过，默认 k=3。报告提供样本成功数；不是“挑最好的一次”，也不是用平均成功率的 k 次方冒充观测稳定性。
 
-脚本化的单元测试只说明评估器能识别成功、提前停止、违规、过期和异常，不算模型质量证据。真实模型录制与离线回放分开；缺失、过期和样本不足都不能通过。指纹包含 fixture、生产提示词/schema 和源文件内容，因此未提交工作区也能识别。任何评估前提变化都需要新录制；禁止直接改 hash 把旧记录伪装成新鲜。
+脚本化的单元测试只说明评估器能识别成功、提前停止、违规、过期和异常，不算模型质量证据。真实模型录制与离线回放分开；缺失、过期和样本不足都不能通过。录制 v2 保存每次实际 provider 请求的指纹和原始响应（包括重试与终止失败）。离线运行当前 runtime，在消费每个响应前逐项匹配提示、工具 schema、渲染上下文、模型及生成选项；全部请求还必须完整消费。代码提交或全源码变化本身不使录制过期，交付改动仍按当前代码重新判分；只有实际模型输入变化时才判 stale。超时与缓存提示不参与匹配，随机 spotlight 外层 delimiter 作明确归一化，用户文本不改；合成评估时钟固定并参与指纹，避免把真实日期输入排除在检查之外。
+
+原 v1 没有请求内容，不能凭当前代码反算后就宣称有效。跟踪基线保留原文件及原 suite_fingerprint，独立 request-baselines.json 从其冻结生产提交 5e969b149bfa073e9879ca22a0fe2bfbfe4e1cee 离线重建：先验证旧全源码指纹，再核对所有决策、原始失败和响应消费数；记录源提交、原 cassette SHA-256、场景、固定合成时钟及模型选项。回放仍逐请求匹配这份独立基线，并标注 request_provenance=reconstructed_from_frozen_source。这不是旧 HTTP 原始请求的直接证据：旧格式未保留内部拒收/重试和原始时钟，不能恢复它们。无法复现或带终止错误的旧样本不迁移；无来源的旧记录标为 missing_request_recording。新 v2 录制直接记录请求/响应，不需要这种重建。
+
+迁移命令使用隔离解释器加载 git archive 中的冻结代码，无模型或 embedding 调用，拒绝覆盖已有派生文件：
+
+```bash
+.venv/bin/python -m career_agent.evaluation.migrate_runtime_requests --revision 5e969b149bfa073e9879ca22a0fe2bfbfe4e1cee --root evals/runtime_quality/qwen --vendor qwen --output /tmp/qwen-request-baselines.json
+```
+
+禁止修改旧 cassette 或其 hash 伪装有效。场景及请求匹配失败、语义 tape 缺失须分别报告；保留所有历史样本和失败。
 
 ## 运行
 
@@ -32,7 +42,7 @@
 .venv/bin/python -m career_agent.evaluation.runtime_quality --model deepseek-flash --root evals/runtime_quality/deepseek --output /tmp/deepseek-runtime-replay.json --k 3
 ```
 
-失败退出码是 1。必须检查 `status`：`failed` 表示已经测到失败，`stale`/`unrecorded`/`incomplete`/`missing_semantic_recording` 表示尚无可用质量结论。终止异常保留为失败样本，不丢弃、不补采成功样本改变分母。
+失败退出码是 1。必须检查 `status`：`failed` 表示已经测到失败，`stale`/`unrecorded`/`incomplete`/`missing_semantic_recording`/`missing_request_recording` 表示尚无可用质量结论。终止异常保留为失败样本，不丢弃、不补采成功样本改变分母。
 
 ## 原 47 条决策轨迹
 
