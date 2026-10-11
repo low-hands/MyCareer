@@ -329,3 +329,43 @@ def test_terminal_model_protocol_failure_is_kept_and_replayed(tmp_path):
     assert row["status"] == "failed"
     assert row["failures"] == [sample["failures"]]
     assert row["sample_count"] == 1
+
+
+@pytest.mark.parametrize("failure_type", [ValueError, RuntimeError])
+def test_unrelated_replay_bug_is_not_disguised_as_stale(tmp_path, monkeypatch, failure_type):
+    case = load_cases()[0]
+    sample = run_sample(case, _maker(_responses(case)), root=tmp_path / "live")
+    _save(tmp_path, case, [sample], k=1)
+    def broken_replay(*args, **kwargs):
+        raise failure_type("production regression")
+    monkeypatch.setattr(runtime_quality, "run_sample", broken_replay)
+    with pytest.raises(failure_type, match="production regression"):
+        evaluate((case,), root=tmp_path, model="test", k=1, fingerprint="test-fingerprint")
+
+
+def test_recorded_semantic_mismatch_is_stale_without_initializing_embedding(tmp_path, monkeypatch):
+    case = load_cases()[0]
+    sample = run_sample(case, _maker(_responses(case)), root=tmp_path / "live")
+    sample["semantic_recording"]["catalogue_digest"] = "old catalogue"
+    _save(tmp_path, case, [sample], k=1)
+    monkeypatch.setattr(runtime_quality, "default_capability_scorer",
+                        lambda: pytest.fail("offline replay initialized embedding"))
+    row = evaluate((case,), root=tmp_path, model="test", k=1,
+                   fingerprint="test-fingerprint")["results"][0]
+    assert row["status"] == "stale"
+    assert row["validity_error"] == "recorded semantic catalogue changed"
+
+
+def test_runtime_value_error_remains_a_failure_despite_unused_recorded_responses(tmp_path, monkeypatch):
+    case = load_cases()[0]
+    sample = run_sample(case, _maker(_responses(case)), root=tmp_path / "live")
+    _save(tmp_path, case, [sample], k=1)
+    def broken_turn(*args, **kwargs):
+        raise ValueError("production turn regression")
+    monkeypatch.setattr(runtime_quality.MainAgentRuntime, "run_turn", broken_turn)
+    row = evaluate((case,), root=tmp_path, model="test", k=1,
+                   fingerprint="test-fingerprint")["results"][0]
+    assert row["status"] == "failed"
+    assert row["sample_count"] == 1
+    assert row["samples_passed"] == 0
+    assert row["failures"][0][0] == "turn 1: runtime error ValueError"

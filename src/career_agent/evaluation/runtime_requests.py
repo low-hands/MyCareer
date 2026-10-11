@@ -131,8 +131,8 @@ class RequestTape:
 
         maker._request = request
 
-    def verify(self):
+    def verify(self, *, allow_unused=False):
         if self.mismatch:
             raise RequestMismatch(self.mismatch)
-        if self.expected is not None and len(self.entries) != len(self.expected):
+        if not allow_unused and self.expected is not None and len(self.entries) != len(self.expected):
             raise RequestMismatch("recorded model requests were not all consumed")

@@ -31,7 +31,7 @@ from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime
 from career_agent.agent.runtime.ports import RuntimePorts
 from career_agent.agent.runtime.composition import default_capability_scorer
 from career_agent.evaluation.runtime_requests import RequestMismatch, RequestTape
-from career_agent.evaluation.runtime_semantic import SemanticTape
+from career_agent.evaluation.runtime_semantic import SemanticRecordingMismatch, SemanticTape
 from career_agent.evaluation.trajectory import ReplayClient, prompt_fingerprint
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.working_notes import WorkingNotesStore
@@ -214,7 +214,10 @@ def run_sample(case: dict[str, Any], maker, *, root: Path, semantic_recording=No
             failures.append("expected durable working-note update is missing")
     finally:
         runtime.close()
-    request_tape.verify()
+    # A runtime fault is already a failed sample. Unconsumed responses must
+    # not turn that code regression into a recording-validity error; a real
+    # request mismatch is still raised by verify even with allow_unused.
+    request_tape.verify(allow_unused=any(turn["error"] for turn in turns))
     tape.verify()
     return {"request_recording": request_tape.entries, "clock": clock or EVALUATION_CLOCK,
             "semantic_recording": tape.snapshot(), "passed": not failures, "failures": failures, "turns": turns,
@@ -329,7 +332,7 @@ def evaluate(cases, *, root: Path, model: str, k: int, fingerprint: str) -> dict
                                             semantic_recording=sample["semantic_recording"],
                                             request_recording=recorded["request_recording"],
                                             clock=recorded["clock"])
-                except (RequestMismatch, ValueError) as error:
+                except (RequestMismatch, SemanticRecordingMismatch) as error:
                     row.update(status="stale", validity_error=str(error))
                     break
                 evaluated.append(replay)

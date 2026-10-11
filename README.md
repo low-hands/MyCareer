@@ -145,7 +145,11 @@ CONVERSATION_SUMMARY_AGENT_MAX_OUTPUT_TOKENS=1200
 CONVERSATION_SUMMARY_AGENT_CONTEXT_WINDOW_TOKENS=65536
 ```
 
-摘要 worker 在启动时校验输入预算能否容纳一条最大长度消息、活动事实及请求框架；明显偏小的配置直接报配置错误，不等后台进入重试。默认 32000 保持有效。这是最低容量校验：已有摘要的其他字段仍占预算，不能保证任意最大长度内容组合都能放下。
+摘要 worker 在启动时校验输入预算能否容纳一条最大长度消息、活动事实及请求框架；明显偏小的配置直接报配置错误，不等后台进入重试。默认 32000 保持有效。
+
+当前保守下限约 27.7k token（随模型名、请求框架及输出配置略有变化）。未单独配置摘要 worker 时，它沿用 `MAIN_AGENT_MAX_INPUT_TOKENS`；主模型输入上限降到 24k、16k 或其他低于该下限的值，会导致启动报配置错误，即使普通中文样本实际放得下。此时需完整设置独立的 `CONVERSATION_SUMMARY_AGENT_BASE_URL`、`_API_KEY`、`_MODEL`，并将 `_MAX_INPUT_TOKENS` 设为 32000 或更高，同时满足该 worker 的输入加输出不超过 `_CONTEXT_WINDOW_TOKENS`。
+
+这是最低容量校验：已有摘要的其他字段仍占预算，不能保证任意最大长度内容组合都能放下。
 
 岗位调研单独配置为支持 Responses `web_search` 的 GPT 通道；这里必须填写完整的 URL、密钥和模型：
 
