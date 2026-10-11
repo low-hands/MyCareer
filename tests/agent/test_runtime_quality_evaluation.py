@@ -37,6 +37,51 @@ def test_fixture_covers_all_missing_runtime_categories():
     assert all(case.get("tool_injection") or case.get("initial_notes") for case in cases if case["category"] == "prompt_injection")
 
 
+def test_fixed_clock_drives_manager_and_episode_tools_even_in_future(tmp_path, monkeypatch):
+    from datetime import datetime
+    from career_agent.domain.episodes import CareerEpisodeDraft
+    from career_agent.storage.episodes import SQLiteCareerEpisodeStore
+    from career_agent.agent.runtime import decision_messages
+
+    monkeypatch.setattr(decision_messages, "runtime_clock", lambda: {
+        "now": "2027-10-11T12:00:00+08:00", "timezone": "Asia/Shanghai",
+    })
+    managers, registries = [], []
+    manager_class = runtime_quality.ContextManager
+    registry_class = runtime_quality._SyntheticRegistry
+
+    def manager_factory(*args, **kwargs):
+        manager = manager_class(*args, **kwargs)
+        episode_store = SQLiteCareerEpisodeStore(tmp_path / "episodes.sqlite3")
+        episode_store.upsert(CareerEpisodeDraft(user_id="eval-user", kind="application",
+            source_run_id="year-boundary", title="字节跳动投递", summary="已投递。",
+            occurred_at=datetime.fromisoformat("2025-12-31T20:00:00+00:00")))
+        manager._episode_store = episode_store
+        managers.append(manager)
+        return manager
+
+    def registry_factory(*args, **kwargs):
+        registry = registry_class(*args, **kwargs)
+        registry._episode_store = managers[-1]._episode_store
+        registries.append(registry)
+        return registry
+
+    monkeypatch.setattr(runtime_quality, "ContextManager", manager_factory)
+    monkeypatch.setattr(runtime_quality, "_SyntheticRegistry", registry_factory)
+    case = load_cases()[0]
+    fixed = {"now": "2026-10-11T12:00:00+08:00", "timezone": "Asia/Shanghai"}
+    sample = run_sample(case, _maker(_responses(case)), root=tmp_path / "sample", clock=fixed)
+    assert sample["clock"] == fixed
+    assert managers[0].now().isoformat() == fixed["now"]
+    assert registries[0]._episode_clock().isoformat() == fixed["now"]
+    projected = managers[0]._episode_context(user_id="eval-user", conversation_id="new", user_message="字节跳动")
+    assert projected[0].relative_year == "今年"
+    result = registries[0]._search_career_episodes({"user_id": "eval-user", "query": "字节跳动"})
+    assert result.payload["items"][0]["relative_year"] == "今年"
+    assert result.payload["items"][0]["local_date"] == "2026-01-01"
+    assert result.payload["relative_year_reference"] == fixed["now"]
+
+
 @pytest.mark.parametrize("case", load_cases(), ids=lambda case: case["name"])
 def test_scripted_success_validates_harness_not_model_quality(tmp_path, case):
     result = run_sample(case, _maker(_responses(case)), root=tmp_path)

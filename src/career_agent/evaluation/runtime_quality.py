@@ -17,6 +17,8 @@ from pathlib import Path
 import subprocess
 from tempfile import TemporaryDirectory
 from typing import Any
+from collections.abc import Callable
+from zoneinfo import ZoneInfo
 
 from career_agent.agent.capabilities.catalog import CAPABILITIES
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
@@ -78,10 +80,11 @@ def suite_fingerprint(path: Path = FIXTURE) -> str:
 
 
 class _SyntheticRegistry(MainAgentToolRegistry):
-    def __init__(self, notes: WorkingNotesStore, case: dict[str, Any]):
+    def __init__(self, notes: WorkingNotesStore, case: dict[str, Any], *,
+                 episode_clock: Callable[[], datetime] | None = None):
         super().__init__(resume_store=object(), application_service=object(),
                          interview_service=object(), job_repository=object(),
-                         working_notes_store=notes)
+                         working_notes_store=notes, episode_clock=episode_clock)
         self.case = case
         self.calls: list[dict[str, Any]] = []
         if any("get_daily_brief" in turn["required_calls"] for turn in case["turns"]):
@@ -127,17 +130,22 @@ class _RecordedMaker:
 def run_sample(case: dict[str, Any], maker, *, root: Path, semantic_recording=None, scorer=None,
                request_recording=None, clock=None) -> dict[str, Any]:
     """Execute all turns against one persistent, isolated synthetic workspace."""
-    request_tape = RequestTape(request_recording, clock=clock or EVALUATION_CLOCK)
+    sample_clock = dict(clock or EVALUATION_CLOCK)
+    fixed_now = datetime.fromisoformat(sample_clock["now"])
+    if fixed_now.utcoffset() is None:
+        raise ValueError("evaluation clock must include a timezone offset")
+    fixed_now = fixed_now.astimezone(ZoneInfo(sample_clock["timezone"]))
+    request_tape = RequestTape(request_recording, clock=sample_clock)
     if isinstance(maker, OpenAICompatibleMainAgentDecisionMaker):
         request_tape.attach(maker)
     store = CareerContextStore(root / "context.sqlite3")
     notes = WorkingNotesStore(root / "notes")
-    manager = ContextManager(store, working_notes_store=notes)
+    manager = ContextManager(store, working_notes_store=notes, clock=lambda: fixed_now)
     manager.upsert_profile(CareerProfileContext(user_id="eval-user"))
     initial_notes = case.get("initial_notes", "")
     if initial_notes:
         notes.replace(user_id="eval-user", markdown=initial_notes, expected_revision="empty")
-    tools = _SyntheticRegistry(notes, case)
+    tools = _SyntheticRegistry(notes, case, episode_clock=lambda: fixed_now)
     logged = _RecordedMaker(maker)
     tape = SemanticTape(scorer if scorer is not None else
                         (default_capability_scorer() if semantic_recording is None else None),
@@ -219,7 +227,7 @@ def run_sample(case: dict[str, Any], maker, *, root: Path, semantic_recording=No
     # request mismatch is still raised by verify even with allow_unused.
     request_tape.verify(allow_unused=any(turn["error"] for turn in turns))
     tape.verify()
-    return {"request_recording": request_tape.entries, "clock": clock or EVALUATION_CLOCK,
+    return {"request_recording": request_tape.entries, "clock": sample_clock,
             "semantic_recording": tape.snapshot(), "passed": not failures, "failures": failures, "turns": turns,
             "premature_stop_count": premature_stops, "unsafe_attempt_count": unsafe_attempts,
             "injection_marker_echo_count": marker_echoes}
