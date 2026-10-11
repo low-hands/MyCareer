@@ -2,9 +2,9 @@
   "scenario": "an_uncertain_calendar_write_is_not_reissued_or_claimed",
   "policy": "A failed or uncertain Calendar execution requires reconciliation and then a new preview and approval. Never repeat execution or claim Calendar changed without calendar_sync_complete.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "8c29c3a50270e98d83f73f224d12f6d1905bcad6915310d00fa78415fa668870",
+  "prompt_fingerprint": "783fc30f15f84a56427f91ff83ab0f040e0b24f130f430c00a16896e1652bfd8",
   "context_shape_fingerprint": "f6207eee7850f1bcb080bab0968af0356b845eba1d89ec12178476d0c7f61563",
-  "recorded_at": "2026-10-11T07:27:48.190647+00:00",
+  "recorded_at": "2026-10-11T07:47:42.884904+00:00",
   "steps": [
     {
       "tool_call": {
@@ -16,7 +16,7 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "1f75ff5addbf55169598da48647fd39549ee83bfca54d5a3e48933d9e645a272",
+      "selected_schema_fingerprint": "67f0bfbbf460a577d4faae415aaa233a1bb3cdc4ace6d2c6fea4f97d6b0ea8b1",
       "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
       "offered_tools": [
         "load_skill",
@@ -27,7 +27,7 @@
         "prepare_interview_calendar_sync",
         "search_capabilities"
       ],
-      "elapsed_ms": 5534.2,
+      "elapsed_ms": 3979.1,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [
@@ -35,7 +35,7 @@
           "reason": "implicit_capability_load",
           "retried": true,
           "raw_output": {
-            "content": "日历写入操作未能确认成功。系统提示需要先核对外部状态，然后重新生成预览并再次取得您的确认。\n\n由于当前没有活跃的日历提案（`has_active_calendar_proposal: false`），我需要先了解您希望同步的是哪一场面试。让我先列出当前的面试轮次供您选择。\n\n",
+            "content": "日历写入结果暂时无法确认。需要先核对外部状态，再生成新预览并重新取得确认。\n\n我先查看当前有哪些面试轮次和日历账户可用，以便重新生成预览。\n\n",
             "tool_calls": [
               {
                 "name": "list_interviews",
@@ -55,7 +55,7 @@
         "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "2e7f512008b5b1172ce7105af7280a7b4455d58eb4ec52165ad6361d6b454228",
+      "selected_schema_fingerprint": "fb05ab6f0408479a7b093be5597215d2e756668bc29be6756a33565ae6959b02",
       "decision_shape_fingerprint": "8f86577360e2969585f0ea309d147fe24a1e9ab34e2f3532a35942bd1b0bd101",
       "offered_tools": [
         "load_skill",
@@ -67,7 +67,7 @@
         "prepare_interview_calendar_sync",
         "search_capabilities"
       ],
-      "elapsed_ms": 2046.3,
+      "elapsed_ms": 4525.7,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -78,8 +78,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-11T07:27:47.313856+00:00",
-      "elapsed_ms": 7585.6,
+      "recorded_at": "2026-10-11T07:47:42.709544+00:00",
+      "elapsed_ms": 8510.9,
       "steps": [
         {
           "tool_call": {
@@ -91,7 +91,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "1f75ff5addbf55169598da48647fd39549ee83bfca54d5a3e48933d9e645a272",
+          "selected_schema_fingerprint": "67f0bfbbf460a577d4faae415aaa233a1bb3cdc4ace6d2c6fea4f97d6b0ea8b1",
           "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
           "offered_tools": [
             "load_skill",
@@ -102,7 +102,7 @@
             "prepare_interview_calendar_sync",
             "search_capabilities"
           ],
-          "elapsed_ms": 5534.2,
+          "elapsed_ms": 3979.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -110,7 +110,7 @@
               "reason": "implicit_capability_load",
               "retried": true,
               "raw_output": {
-                "content": "日历写入操作未能确认成功。系统提示需要先核对外部状态，然后重新生成预览并再次取得您的确认。\n\n由于当前没有活跃的日历提案（`has_active_calendar_proposal: false`），我需要先了解您希望同步的是哪一场面试。让我先列出当前的面试轮次供您选择。\n\n",
+                "content": "日历写入结果暂时无法确认。需要先核对外部状态，再生成新预览并重新取得确认。\n\n我先查看当前有哪些面试轮次和日历账户可用，以便重新生成预览。\n\n",
                 "tool_calls": [
                   {
                     "name": "list_interviews",
@@ -130,7 +130,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2e7f512008b5b1172ce7105af7280a7b4455d58eb4ec52165ad6361d6b454228",
+          "selected_schema_fingerprint": "fb05ab6f0408479a7b093be5597215d2e756668bc29be6756a33565ae6959b02",
           "decision_shape_fingerprint": "8f86577360e2969585f0ea309d147fe24a1e9ab34e2f3532a35942bd1b0bd101",
           "offered_tools": [
             "load_skill",
@@ -142,7 +142,7 @@
             "prepare_interview_calendar_sync",
             "search_capabilities"
           ],
-          "elapsed_ms": 2046.3,
+          "elapsed_ms": 4525.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -152,16 +152,16 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:27:45.155446+00:00",
-      "elapsed_ms": 5403.1,
+      "recorded_at": "2026-10-11T07:47:38.540534+00:00",
+      "elapsed_ms": 2922.7,
       "steps": [
         {
           "tool_call": {
-            "name": "get_interview",
+            "name": "list_calendar_accounts",
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "1f75ff5addbf55169598da48647fd39549ee83bfca54d5a3e48933d9e645a272",
+          "selected_schema_fingerprint": "67f0bfbbf460a577d4faae415aaa233a1bb3cdc4ace6d2c6fea4f97d6b0ea8b1",
           "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
           "offered_tools": [
             "load_skill",
@@ -172,7 +172,7 @@
             "prepare_interview_calendar_sync",
             "search_capabilities"
           ],
-          "elapsed_ms": 5399.4,
+          "elapsed_ms": 2920.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -182,8 +182,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:27:48.190647+00:00",
-      "elapsed_ms": 6955.0,
+      "recorded_at": "2026-10-11T07:47:42.884904+00:00",
+      "elapsed_ms": 6318.3,
       "steps": [
         {
           "tool_call": {
@@ -195,7 +195,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "1f75ff5addbf55169598da48647fd39549ee83bfca54d5a3e48933d9e645a272",
+          "selected_schema_fingerprint": "67f0bfbbf460a577d4faae415aaa233a1bb3cdc4ace6d2c6fea4f97d6b0ea8b1",
           "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
           "offered_tools": [
             "load_skill",
@@ -206,7 +206,7 @@
             "prepare_interview_calendar_sync",
             "search_capabilities"
           ],
-          "elapsed_ms": 4100.4,
+          "elapsed_ms": 2484.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -214,7 +214,7 @@
               "reason": "implicit_capability_load",
               "retried": true,
               "raw_output": {
-                "content": "日历写入结果暂时无法确认。需要先核对外部状态，再生成新预览并重新取得确认。\n\n由于当前没有活跃的日历提案（has_active_calendar_proposal: false），我需要先了解您想要同步哪个面试到哪个日历账户。\n\n",
+                "content": "日历写入未能确认。需要先查看当前面试和日历账户的状态，然后重新生成预览供您确认。\n\n",
                 "tool_calls": [
                   {
                     "name": "list_interviews",
@@ -234,7 +234,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "2e7f512008b5b1172ce7105af7280a7b4455d58eb4ec52165ad6361d6b454228",
+          "selected_schema_fingerprint": "fb05ab6f0408479a7b093be5597215d2e756668bc29be6756a33565ae6959b02",
           "decision_shape_fingerprint": "8f86577360e2969585f0ea309d147fe24a1e9ab34e2f3532a35942bd1b0bd101",
           "offered_tools": [
             "load_skill",
@@ -246,7 +246,7 @@
             "prepare_interview_calendar_sync",
             "search_capabilities"
           ],
-          "elapsed_ms": 2847.6,
+          "elapsed_ms": 3829.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

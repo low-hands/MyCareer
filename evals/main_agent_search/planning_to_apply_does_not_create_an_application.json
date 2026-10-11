@@ -2,14 +2,14 @@
   "scenario": "planning_to_apply_does_not_create_an_application",
   "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "181314b8cb87408b528226315cc301469e66ccc603f47bbb5bfdc5a0fe01c735",
+  "prompt_fingerprint": "061fe24b9f2df413770573ed2da293f2b3c332bb7413a0194297c98633ff50a1",
   "context_shape_fingerprint": "19863eb67cb394d3676b27e179a7258cc12b11bdc829c26f953d9c95f1736fec",
-  "recorded_at": "2026-10-11T07:25:58.564754+00:00",
+  "recorded_at": "2026-10-11T07:45:56.191169+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"请问你是否已经实际向示例科技的算法工程师岗位提交了申请？\",\"questions\":[]}",
+      "content": "{\"action\":\"ask_user\",\"message\":\"好的，我看到您准备投递“示例科技”的“算法工程师”岗位。\\n\\n为了帮您创建投递记录，我需要确认一下：您是否已经通过外部渠道（如公司官网、招聘平台等）正式提交了申请？\\n\\n另外，如果您有针对这个岗位定制的简历版本，请告诉我；如果没有，我可以使用默认方式记录这次投递。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "b78c11c029551aef7f96aa7e297367de5902b2cd8a5ded3ea64f7302c58f14bd",
+      "selected_schema_fingerprint": "036bdd0685a8c10bcb3e38961d7c8cc8b0f4bc27c1d0d7ba52e8082343bb93ba",
       "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
       "offered_tools": [
         "load_skill",
@@ -22,10 +22,31 @@
         "get_interview_preparation",
         "search_capabilities"
       ],
-      "elapsed_ms": 4197.1,
-      "model_request_count": 1,
+      "elapsed_ms": 12032.3,
+      "model_request_count": 3,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [],
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "我看到你已收藏了一个岗位：示例科技的算法工程师（上海，30-50K）。\n\n你说准备投这个岗位了，我需要确认你是否已经实际提交了申请。请问你已经完成投递了吗？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        },
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": true,
+          "raw_output": {
+            "content": "我看到你有一个已收藏的岗位：示例科技的算法工程师（上海，30-50K）。\n\n在创建投递记录之前，我需要确认你是否已经实际提交了申请。请告诉我：你是否已经向这个岗位正式投递了简历？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -33,13 +54,13 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-11T07:25:54.397710+00:00",
-      "elapsed_ms": 4200.2,
+      "recorded_at": "2026-10-11T07:45:58.649717+00:00",
+      "elapsed_ms": 12035.4,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请问你是否已经实际向示例科技的算法工程师岗位提交了申请？\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"好的，我看到您准备投递“示例科技”的“算法工程师”岗位。\\n\\n为了帮您创建投递记录，我需要确认一下：您是否已经通过外部渠道（如公司官网、招聘平台等）正式提交了申请？\\n\\n另外，如果您有针对这个岗位定制的简历版本，请告诉我；如果没有，我可以使用默认方式记录这次投递。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "b78c11c029551aef7f96aa7e297367de5902b2cd8a5ded3ea64f7302c58f14bd",
+          "selected_schema_fingerprint": "036bdd0685a8c10bcb3e38961d7c8cc8b0f4bc27c1d0d7ba52e8082343bb93ba",
           "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
           "offered_tools": [
             "load_skill",
@@ -52,37 +73,8 @@
             "get_interview_preparation",
             "search_capabilities"
           ],
-          "elapsed_ms": 4197.1,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-11T07:26:10.957672+00:00",
-      "elapsed_ms": 17345.1,
-      "steps": [
-        {
-          "content": "{\"action\":\"ask_user\",\"message\":\"你提到准备投递岗位，我看到已收藏的岗位是：\\n\\n1. 示例科技 - 算法工程师（上海，30-50K）\\n\\n请问你是否已经实际向该岗位提交了申请？如果是，我可以帮你创建投递记录。\",\"questions\":[]}",
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "b78c11c029551aef7f96aa7e297367de5902b2cd8a5ded3ea64f7302c58f14bd",
-          "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "analyze_job",
-            "propose_job_intent",
-            "create_application",
-            "get_interview_preparation",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 17341.2,
-          "model_request_count": 4,
+          "elapsed_ms": 12032.3,
+          "model_request_count": 3,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
             {
@@ -90,7 +82,7 @@
               "retried": true,
               "forced_interaction": false,
               "raw_output": {
-                "content": "我看到您已收藏了一个岗位：示例科技的算法工程师（上海，30-50K）。\n\n要创建投递记录，我需要确认您是否已经实际提交了申请。请问您是否已经向这个岗位投递了简历？",
+                "content": "我看到你已收藏了一个岗位：示例科技的算法工程师（上海，30-50K）。\n\n你说准备投这个岗位了，我需要确认你是否已经实际提交了申请。请问你已经完成投递了吗？",
                 "tool_calls": []
               },
               "decision_invocation": 1
@@ -100,22 +92,8 @@
               "retried": true,
               "forced_interaction": true,
               "raw_output": {
-                "content": "我看到你有一个已收藏的岗位：示例科技的算法工程师（上海，30-50K）。\n\n要创建投递记录，我需要确认你是否已经实际提交了申请。请问你已经向这个岗位投递简历了吗？",
+                "content": "我看到你有一个已收藏的岗位：示例科技的算法工程师（上海，30-50K）。\n\n在创建投递记录之前，我需要确认你是否已经实际提交了申请。请告诉我：你是否已经向这个岗位正式投递了简历？",
                 "tool_calls": []
-              },
-              "decision_invocation": 1
-            },
-            {
-              "reason": "invalid_interaction",
-              "retried": true,
-              "raw_output": {
-                "content": "",
-                "tool_calls": [
-                  {
-                    "name": "respond_to_user",
-                    "arguments": "{\"message\": \"已确认你准备投递“示例科技 - 算法工程师”岗位。请问你是否已经完成了外部投递？如果已完成，我可以为你创建投递记录进行跟踪。\", \"questions\": \n[{\"question_id\": \"q1\", \"prompt\": \"是否已完成外部投递？\", \"kind\": \"single\", \"options\": [{\"value\": \"yes\", \"label\": \"已完成\", \"meaning\": \"choice\"}, {\"value\": \"no\", \"label\": \"尚未完成\", \"meaning\": \"none\"}], \"allow_free_text\": false, \"allow_skip\": false}]\n\n, \"requires_user_input\": true}"
-                  }
-                ]
               },
               "decision_invocation": 1
             }
@@ -126,13 +104,13 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:25:58.564754+00:00",
-      "elapsed_ms": 4821.7,
+      "recorded_at": "2026-10-11T07:45:54.282666+00:00",
+      "elapsed_ms": 3774.4,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请问您已经向示例科技的算法工程师岗位提交申请了吗？\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问你是否已经实际向示例科技的算法工程师岗位提交了申请？如果是，请告诉我你使用的是哪份简历版本。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "b78c11c029551aef7f96aa7e297367de5902b2cd8a5ded3ea64f7302c58f14bd",
+          "selected_schema_fingerprint": "036bdd0685a8c10bcb3e38961d7c8cc8b0f4bc27c1d0d7ba52e8082343bb93ba",
           "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
           "offered_tools": [
             "load_skill",
@@ -145,7 +123,36 @@
             "get_interview_preparation",
             "search_capabilities"
           ],
-          "elapsed_ms": 4817.4,
+          "elapsed_ms": 3772.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:56.191169+00:00",
+      "elapsed_ms": 4525.4,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问你是否已经向示例科技的算法工程师岗位提交了申请？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "036bdd0685a8c10bcb3e38961d7c8cc8b0f4bc27c1d0d7ba52e8082343bb93ba",
+          "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "propose_job_intent",
+            "create_application",
+            "get_interview_preparation",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4522.3,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

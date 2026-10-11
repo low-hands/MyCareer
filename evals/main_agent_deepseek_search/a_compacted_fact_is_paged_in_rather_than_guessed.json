@@ -2,19 +2,19 @@
   "scenario": "a_compacted_fact_is_paged_in_rather_than_guessed",
   "policy": "When through_sequence and recent_from_sequence expose an omitted-history gap (or recent_from_sequence is greater than 1), and the fact the user asks for is absent from both conversation_summary in working-memory data and the native prior chat turns, call read_conversation_span for sequence 1 through through_sequence before answering; never substitute another company or nearby fact from the recent window.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "22482899669e25b722dd3f5cb8dc997e0781021dfdbfdfeac0349ec2797f4cab",
+  "prompt_fingerprint": "3c1b0c21eb87f3f16c53a8ea68f7bd65c9292e0154527dd375376ad4b24d0cb0",
   "context_shape_fingerprint": "c20b83d4d21c765c30c07efd86f616e18a21b0af158fb0e3b2ac2b2f0a506944",
-  "recorded_at": "2026-10-11T07:26:12.266314+00:00",
+  "recorded_at": "2026-10-11T07:46:00.150263+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "read_conversation_span",
         "arguments": {
-          "query": "目标公司 美团 算法工程师"
+          "query": "目标公司 全名 算法工程师"
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "6f60629045069cccd8cc40c075aef52c2374b46bd95a1e858f12f2bc85f6cd5b",
+      "selected_schema_fingerprint": "75e3144b34262a2d2057558b9ea01ded25aed612c309531bfc17e89ce64ba977",
       "decision_shape_fingerprint": "920b6364e6d4e9e2f25156b85ed417f51cd6dec0a14cc039f5a6bc129b6dde77",
       "offered_tools": [
         "load_skill",
@@ -26,7 +26,7 @@
         "start_mock_interview",
         "search_capabilities"
       ],
-      "elapsed_ms": 1255.2,
+      "elapsed_ms": 907.1,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -37,18 +37,18 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-11T07:26:11.571296+00:00",
-      "elapsed_ms": 1260.5,
+      "recorded_at": "2026-10-11T07:45:58.949260+00:00",
+      "elapsed_ms": 912.2,
       "steps": [
         {
           "tool_call": {
             "name": "read_conversation_span",
             "arguments": {
-              "query": "目标公司 美团 算法工程师"
+              "query": "目标公司 全名 算法工程师"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "6f60629045069cccd8cc40c075aef52c2374b46bd95a1e858f12f2bc85f6cd5b",
+          "selected_schema_fingerprint": "75e3144b34262a2d2057558b9ea01ded25aed612c309531bfc17e89ce64ba977",
           "decision_shape_fingerprint": "920b6364e6d4e9e2f25156b85ed417f51cd6dec0a14cc039f5a6bc129b6dde77",
           "offered_tools": [
             "load_skill",
@@ -60,7 +60,7 @@
             "start_mock_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 1255.2,
+          "elapsed_ms": 907.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -70,18 +70,18 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:26:12.474425+00:00",
-      "elapsed_ms": 1135.8,
+      "recorded_at": "2026-10-11T07:46:00.299923+00:00",
+      "elapsed_ms": 1349.2,
       "steps": [
         {
           "tool_call": {
             "name": "read_conversation_span",
             "arguments": {
-              "query": "目标公司 美团 指定 公司名"
+              "query": "目标公司 指定 美团 算法工程师 城市"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "6f60629045069cccd8cc40c075aef52c2374b46bd95a1e858f12f2bc85f6cd5b",
+          "selected_schema_fingerprint": "75e3144b34262a2d2057558b9ea01ded25aed612c309531bfc17e89ce64ba977",
           "decision_shape_fingerprint": "920b6364e6d4e9e2f25156b85ed417f51cd6dec0a14cc039f5a6bc129b6dde77",
           "offered_tools": [
             "load_skill",
@@ -93,7 +93,7 @@
             "start_mock_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 1132.3,
+          "elapsed_ms": 1345.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -103,18 +103,18 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:26:12.266314+00:00",
-      "elapsed_ms": 892.0,
+      "recorded_at": "2026-10-11T07:46:00.150263+00:00",
+      "elapsed_ms": 1034.5,
       "steps": [
         {
           "tool_call": {
             "name": "read_conversation_span",
             "arguments": {
-              "query": "目标公司 算法工程师 岗位"
+              "query": "目标公司 目标岗位 算法工程师"
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "6f60629045069cccd8cc40c075aef52c2374b46bd95a1e858f12f2bc85f6cd5b",
+          "selected_schema_fingerprint": "75e3144b34262a2d2057558b9ea01ded25aed612c309531bfc17e89ce64ba977",
           "decision_shape_fingerprint": "920b6364e6d4e9e2f25156b85ed417f51cd6dec0a14cc039f5a6bc129b6dde77",
           "offered_tools": [
             "load_skill",
@@ -126,7 +126,7 @@
             "start_mock_interview",
             "search_capabilities"
           ],
-          "elapsed_ms": 888.7,
+          "elapsed_ms": 1031.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

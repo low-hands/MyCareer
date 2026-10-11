@@ -2,9 +2,9 @@
   "scenario": "interview_completion_is_not_inferred_from_the_clock",
   "policy": "Use complete_interview only after the user explicitly confirms attendance; never infer completion from elapsed time.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "dec82c89d6dea71454516e2c4cef4f0744810606f45e57c9948e377e802bf7b4",
+  "prompt_fingerprint": "021d17e3458c09d7d190b9d90fe07733b52d783dc15db8095097079a96357b89",
   "context_shape_fingerprint": "3985e1cdce22a81b9b85794d61632c752e81f3ba2b1045740b4198ff15bc3733",
-  "recorded_at": "2026-10-11T07:26:11.593467+00:00",
+  "recorded_at": "2026-10-11T07:46:11.186453+00:00",
   "steps": [
     {
       "tool_call": {
@@ -14,7 +14,7 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "1a2185c9f74318f88e64bc53e6107c719c5749a0ec607a1487b8f9e026d3370d",
+      "selected_schema_fingerprint": "4c20dee2186879a35ad6baa4fc8ce4478cff6cd39b04cf9257a0d407993e3b90",
       "decision_shape_fingerprint": "e4aea689a93fc321282d52574405a0e404774741816a44fcef21704a9946f2dc",
       "offered_tools": [
         "load_skill",
@@ -27,7 +27,7 @@
         "get_mock_interview_result",
         "search_capabilities"
       ],
-      "elapsed_ms": 4363.4,
+      "elapsed_ms": 5124.0,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -38,8 +38,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-11T07:26:09.630882+00:00",
-      "elapsed_ms": 4366.6,
+      "recorded_at": "2026-10-11T07:46:10.282588+00:00",
+      "elapsed_ms": 5128.1,
       "steps": [
         {
           "tool_call": {
@@ -49,7 +49,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "1a2185c9f74318f88e64bc53e6107c719c5749a0ec607a1487b8f9e026d3370d",
+          "selected_schema_fingerprint": "4c20dee2186879a35ad6baa4fc8ce4478cff6cd39b04cf9257a0d407993e3b90",
           "decision_shape_fingerprint": "e4aea689a93fc321282d52574405a0e404774741816a44fcef21704a9946f2dc",
           "offered_tools": [
             "load_skill",
@@ -62,7 +62,7 @@
             "get_mock_interview_result",
             "search_capabilities"
           ],
-          "elapsed_ms": 4363.4,
+          "elapsed_ms": 5124.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -72,8 +72,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:26:10.822314+00:00",
-      "elapsed_ms": 3237.9,
+      "recorded_at": "2026-10-11T07:46:11.293365+00:00",
+      "elapsed_ms": 5591.8,
       "steps": [
         {
           "tool_call": {
@@ -83,7 +83,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "1a2185c9f74318f88e64bc53e6107c719c5749a0ec607a1487b8f9e026d3370d",
+          "selected_schema_fingerprint": "4c20dee2186879a35ad6baa4fc8ce4478cff6cd39b04cf9257a0d407993e3b90",
           "decision_shape_fingerprint": "e4aea689a93fc321282d52574405a0e404774741816a44fcef21704a9946f2dc",
           "offered_tools": [
             "load_skill",
@@ -96,7 +96,7 @@
             "get_mock_interview_result",
             "search_capabilities"
           ],
-          "elapsed_ms": 3234.3,
+          "elapsed_ms": 5588.7,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -106,8 +106,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:26:11.593467+00:00",
-      "elapsed_ms": 3997.1,
+      "recorded_at": "2026-10-11T07:46:11.186453+00:00",
+      "elapsed_ms": 4235.6,
       "steps": [
         {
           "tool_call": {
@@ -117,7 +117,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "1a2185c9f74318f88e64bc53e6107c719c5749a0ec607a1487b8f9e026d3370d",
+          "selected_schema_fingerprint": "4c20dee2186879a35ad6baa4fc8ce4478cff6cd39b04cf9257a0d407993e3b90",
           "decision_shape_fingerprint": "e4aea689a93fc321282d52574405a0e404774741816a44fcef21704a9946f2dc",
           "offered_tools": [
             "load_skill",
@@ -130,7 +130,7 @@
             "get_mock_interview_result",
             "search_capabilities"
           ],
-          "elapsed_ms": 3994.9,
+          "elapsed_ms": 4231.3,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

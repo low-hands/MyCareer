@@ -2,8 +2,8 @@
   "version": 1,
   "model": "deepseek-flash",
   "scenario": "single_empty_interview_receipt",
-  "suite_fingerprint": "6bd1478d40156967e8505a5bd9ba098b65278d80dd12580a9055de48b3a16ec6",
-  "recorded_at": "2026-10-11T07:28:13.249675+00:00",
+  "suite_fingerprint": "2a75ebf7fa9c6b126b0541b4b10b1491e377049947c377d9ad1ff44be070c8ec",
+  "recorded_at": "2026-10-11T07:48:01.955326+00:00",
   "k": 3,
   "samples": [
     {
@@ -11,16 +11,16 @@
         "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
         "queries": {
           "请查看我的面试安排。": {
-            "list_interviews": 0.7720368872905465,
-            "get_interview": 0.7513787467049421,
-            "update_interview": 0.706309814026617,
-            "create_interview": 0.6974392271053798,
-            "prepare_interview_calendar_sync": 0.6923735531268989,
-            "complete_interview": 0.6597773602076358,
-            "list_calendar_links": 0.6400893099468009,
-            "get_interview_preparation": 0.6242119914788791,
-            "prepare_interview": 0.6139135929362284,
-            "record_interview_retro": 0.6082154446124711
+            "list_interviews": 0.7721326101765401,
+            "get_interview": 0.7514422211102662,
+            "update_interview": 0.7063885529162779,
+            "create_interview": 0.6974825558858221,
+            "prepare_interview_calendar_sync": 0.6924776560868202,
+            "complete_interview": 0.6598710605469827,
+            "list_calendar_links": 0.6403120715046395,
+            "get_interview_preparation": 0.6240720340688181,
+            "prepare_interview": 0.6140197696998294,
+            "record_interview_retro": 0.6083867613567999
           }
         }
       },
@@ -29,7 +29,7 @@
       "turns": [
         {
           "message": "请查看我的面试安排。",
-          "assistant_message": "我查了你的面试安排，目前没有任何记录（包括已排期、已完成或已取消的面试轮次）。\n\n如果你已经收到面试通知，告诉我公司、岗位和时间（最好附上时区、形式，比如电话/视频/现场），我可以帮你把它纳入跟踪并安排日程。若你希望关联到某个已保存的岗位或投递记录，也可以直接说明，我来帮你对应。",
+          "assistant_message": "目前没有查到你名下任何面试安排（identified / scheduled / completed / cancelled 均为空）。\n\n如果你想安排面试跟踪，可以告诉我：\n- 面试的公司与岗位（若已有对应的已收藏岗位或投递记录，我会直接关联，不再让你重复信息）\n- 面试时间（具体日期时间即可，默认按 Asia/Shanghai 时区）\n- 形式（线上／线下／电话等）与准备重点\n\n另外，如果只做面试准备，不一定要先建跟踪记录——我也可以先给一版临时准备方案（涉及 JD 和简历细节的建议需要你补充材料后才可用）。要现在建一条面试记录吗？",
           "executed_calls": [
             {
               "name": "list_interviews",
@@ -49,15 +49,15 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "c1ee5cb76787ef3de684f9884f3c4294826e780b80f250a2fb98c14949a5e12f",
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
               "action": "tool_call",
               "tool": "list_interviews"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"我查了你的面试安排，目前没有任何记录（包括已排期、已完成或已取消的面试轮次）。\\n\\n如果你已经收到面试通知，告诉我公司、岗位和时间（最好附上时区、形式，比如电话/视频/现场），我可以帮你把它纳入跟踪并安排日程。若你希望关联到某个已保存的岗位或投递记录，也可以直接说明，我来帮你对应。\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"目前没有查到你名下任何面试安排（identified / scheduled / completed / cancelled 均为空）。\\n\\n如果你想安排面试跟踪，可以告诉我：\\n- 面试的公司与岗位（若已有对应的已收藏岗位或投递记录，我会直接关联，不再让你重复信息）\\n- 面试时间（具体日期时间即可，默认按 Asia/Shanghai 时区）\\n- 形式（线上／线下／电话等）与准备重点\\n\\n另外，如果只做面试准备，不一定要先建跟踪记录——我也可以先给一版临时准备方案（涉及 JD 和简历细节的建议需要你补充材料后才可用）。要现在建一条面试记录吗？\",\"questions\":[]}"
               },
-              "schema_fingerprint": "c1ee5cb76787ef3de684f9884f3c4294826e780b80f250a2fb98c14949a5e12f",
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
               "action": "final",
               "tool": null
             }
@@ -82,16 +82,16 @@
         "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
         "queries": {
           "请查看我的面试安排。": {
-            "list_interviews": 0.7721160245359445,
-            "get_interview": 0.7514006501392195,
-            "update_interview": 0.7062918281672248,
-            "create_interview": 0.6974078327182229,
-            "prepare_interview_calendar_sync": 0.6924337206674711,
-            "complete_interview": 0.6597795018562554,
-            "list_calendar_links": 0.6401410097197242,
-            "get_interview_preparation": 0.6242364674078986,
-            "prepare_interview": 0.6139622917975087,
-            "record_interview_retro": 0.6082521284388359
+            "list_interviews": 0.772064404136424,
+            "get_interview": 0.7513715573500777,
+            "update_interview": 0.7064023209138611,
+            "create_interview": 0.6975220404695813,
+            "prepare_interview_calendar_sync": 0.6924311990970157,
+            "complete_interview": 0.6598918997751938,
+            "list_calendar_links": 0.640352268038721,
+            "get_interview_preparation": 0.6240397772387007,
+            "prepare_interview": 0.6139629941559427,
+            "record_interview_retro": 0.6083961041732847
           }
         }
       },
@@ -100,7 +100,7 @@
       "turns": [
         {
           "message": "请查看我的面试安排。",
-          "assistant_message": "目前没有查询到任何面试安排（包括已识别、已排期、已完成和已取消的面试轮次都没有记录）。\n\n如果你想记录下来，可以告诉我公司和岗位，我可以帮你建立一条面试轮次（若已有对应投递记录也可以直接关联）。",
+          "assistant_message": "我查看了你的面试安排：目前没有找到任何面试轮次（包括已安排、待定、已完成或已取消的记录）。\n\n如果你最近确实有面试，可以告诉我公司、岗位和时间，我可以帮你创建并跟踪（若已有对应的投递记录，也可以直接关联并更新状态）。",
           "executed_calls": [
             {
               "name": "list_interviews",
@@ -120,15 +120,15 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "c1ee5cb76787ef3de684f9884f3c4294826e780b80f250a2fb98c14949a5e12f",
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
               "action": "tool_call",
               "tool": "list_interviews"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"目前没有查询到任何面试安排（包括已识别、已排期、已完成和已取消的面试轮次都没有记录）。\\n\\n如果你想记录下来，可以告诉我公司和岗位，我可以帮你建立一条面试轮次（若已有对应投递记录也可以直接关联）。\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"我查看了你的面试安排：目前没有找到任何面试轮次（包括已安排、待定、已完成或已取消的记录）。\\n\\n如果你最近确实有面试，可以告诉我公司、岗位和时间，我可以帮你创建并跟踪（若已有对应的投递记录，也可以直接关联并更新状态）。\",\"questions\":[]}"
               },
-              "schema_fingerprint": "c1ee5cb76787ef3de684f9884f3c4294826e780b80f250a2fb98c14949a5e12f",
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
               "action": "final",
               "tool": null
             }
@@ -153,16 +153,16 @@
         "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
         "queries": {
           "请查看我的面试安排。": {
-            "list_interviews": 0.7721160245359445,
-            "get_interview": 0.7514006501392195,
-            "update_interview": 0.7062918281672248,
-            "create_interview": 0.6974078327182229,
-            "prepare_interview_calendar_sync": 0.6924337206674711,
-            "complete_interview": 0.6597795018562554,
-            "list_calendar_links": 0.6401410097197242,
-            "get_interview_preparation": 0.6242364674078986,
-            "prepare_interview": 0.6139622917975087,
-            "record_interview_retro": 0.6082521284388359
+            "list_interviews": 0.7721326101765401,
+            "get_interview": 0.7514422211102662,
+            "update_interview": 0.7063885529162779,
+            "create_interview": 0.6974825558858221,
+            "prepare_interview_calendar_sync": 0.6924776560868202,
+            "complete_interview": 0.6598710605469827,
+            "list_calendar_links": 0.6403120715046395,
+            "get_interview_preparation": 0.6240720340688181,
+            "prepare_interview": 0.6140197696998294,
+            "record_interview_retro": 0.6083867613567999
           }
         }
       },
@@ -171,7 +171,7 @@
       "turns": [
         {
           "message": "请查看我的面试安排。",
-          "assistant_message": "我查询了你的面试记录，目前没有找到任何面试安排（包括已识别、已排期、已完成或已取消的轮次）。\n\n如果你最近收到过面试通知，可以直接告诉我公司、岗位和时间，我可以帮你建立面试跟踪记录；如果需要，也可以先为你生成一份面试准备材料。",
+          "assistant_message": "我查了一下，目前没有任何面试记录——系统里没有已识别、已安排、已完成或已取消的面试轮次。\n\n如果你手头有面试（或刚收到面试通知），可以告诉我公司、岗位和时间，我帮你创建一条面试记录并跟踪；也可以顺便准备针对该岗位的面试材料。",
           "executed_calls": [
             {
               "name": "list_interviews",
@@ -191,15 +191,15 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "c1ee5cb76787ef3de684f9884f3c4294826e780b80f250a2fb98c14949a5e12f",
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
               "action": "tool_call",
               "tool": "list_interviews"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"我查询了你的面试记录，目前没有找到任何面试安排（包括已识别、已排期、已完成或已取消的轮次）。\\n\\n如果你最近收到过面试通知，可以直接告诉我公司、岗位和时间，我可以帮你建立面试跟踪记录；如果需要，也可以先为你生成一份面试准备材料。\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"我查了一下，目前没有任何面试记录——系统里没有已识别、已安排、已完成或已取消的面试轮次。\\n\\n如果你手头有面试（或刚收到面试通知），可以告诉我公司、岗位和时间，我帮你创建一条面试记录并跟踪；也可以顺便准备针对该岗位的面试材料。\",\"questions\":[]}"
               },
-              "schema_fingerprint": "c1ee5cb76787ef3de684f9884f3c4294826e780b80f250a2fb98c14949a5e12f",
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
               "action": "final",
               "tool": null
             }

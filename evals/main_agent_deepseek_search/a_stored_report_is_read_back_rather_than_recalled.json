@@ -2,9 +2,9 @@
   "scenario": "a_stored_report_is_read_back_rather_than_recalled",
   "policy": "A native chat turn ending in a runtime resources line may carry a stored report handle whose full contents are not present. To discuss that report, read it back with the matching tool by passing that exact handle.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "96153507bd79274b89fc724f85f80f55512c76ae6c5dd825df00a2df90784458",
+  "prompt_fingerprint": "4f3dc70a8f01c2cd449efcb868e9b153865ff85930cb960259c8d853e78a1ef5",
   "context_shape_fingerprint": "6870b9be60f58b242200c44bb7cdbe61d9f7030dda2dccbbbcdc767e3921ad85",
-  "recorded_at": "2026-10-11T07:25:36.318607+00:00",
+  "recorded_at": "2026-10-11T07:45:26.616728+00:00",
   "steps": [
     {
       "tool_call": {
@@ -14,7 +14,7 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "f4ea92c29ece3e354bb198c122d80d6df7a9e95057c7f6e0893a4eee891aae53",
+      "selected_schema_fingerprint": "82de3138637298cdbe2472ca233871993521b21e2e9ce27153810db35cfabbe8",
       "decision_shape_fingerprint": "0d324e864ba122b60e1a571dd2a4d90c7e013e56fd5023fa8b16a81666aa9529",
       "offered_tools": [
         "load_skill",
@@ -27,7 +27,7 @@
         "search_career_episodes",
         "search_capabilities"
       ],
-      "elapsed_ms": 1083.5,
+      "elapsed_ms": 1258.0,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -38,8 +38,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-11T07:25:34.777592+00:00",
-      "elapsed_ms": 1089.0,
+      "recorded_at": "2026-10-11T07:45:26.169300+00:00",
+      "elapsed_ms": 1261.7,
       "steps": [
         {
           "tool_call": {
@@ -49,7 +49,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "f4ea92c29ece3e354bb198c122d80d6df7a9e95057c7f6e0893a4eee891aae53",
+          "selected_schema_fingerprint": "82de3138637298cdbe2472ca233871993521b21e2e9ce27153810db35cfabbe8",
           "decision_shape_fingerprint": "0d324e864ba122b60e1a571dd2a4d90c7e013e56fd5023fa8b16a81666aa9529",
           "offered_tools": [
             "load_skill",
@@ -62,7 +62,7 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 1083.5,
+          "elapsed_ms": 1258.0,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -72,8 +72,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:25:35.196201+00:00",
-      "elapsed_ms": 1376.6,
+      "recorded_at": "2026-10-11T07:45:26.135880+00:00",
+      "elapsed_ms": 971.2,
       "steps": [
         {
           "tool_call": {
@@ -83,7 +83,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "f4ea92c29ece3e354bb198c122d80d6df7a9e95057c7f6e0893a4eee891aae53",
+          "selected_schema_fingerprint": "82de3138637298cdbe2472ca233871993521b21e2e9ce27153810db35cfabbe8",
           "decision_shape_fingerprint": "0d324e864ba122b60e1a571dd2a4d90c7e013e56fd5023fa8b16a81666aa9529",
           "offered_tools": [
             "load_skill",
@@ -96,7 +96,7 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 1373.0,
+          "elapsed_ms": 967.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -106,18 +106,18 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:25:36.318607+00:00",
-      "elapsed_ms": 2492.6,
+      "recorded_at": "2026-10-11T07:45:26.616728+00:00",
+      "elapsed_ms": 1117.8,
       "steps": [
         {
           "tool_call": {
             "name": "get_job_research",
             "arguments": {
-              "reference": "report_9ca510"
+              "selection_index": 1
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "f4ea92c29ece3e354bb198c122d80d6df7a9e95057c7f6e0893a4eee891aae53",
+          "selected_schema_fingerprint": "82de3138637298cdbe2472ca233871993521b21e2e9ce27153810db35cfabbe8",
           "decision_shape_fingerprint": "0d324e864ba122b60e1a571dd2a4d90c7e013e56fd5023fa8b16a81666aa9529",
           "offered_tools": [
             "load_skill",
@@ -130,21 +130,10 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 2489.3,
-          "model_request_count": 2,
+          "elapsed_ms": 1114.4,
+          "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": false,
-              "raw_output": {
-                "content": "I can't read that out of the report.\n\nThe research report (reference `report_9ca510`) was delivered alongside my earlier reply, but its contents aren't in my current context — I only have the reference and the summary line I already gave you. To answer about competitors, I need to read the stored report itself.\n\nWould you like me to read the saved report back so I can tell you what it says about competitors?",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            }
-          ],
+          "decision_retry_events": [],
           "recording_retry_events": [],
           "decision_invocations": 1
         }

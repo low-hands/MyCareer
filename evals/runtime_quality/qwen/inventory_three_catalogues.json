@@ -2,8 +2,8 @@
   "version": 1,
   "model": "qwen3.7-plus",
   "scenario": "inventory_three_catalogues",
-  "suite_fingerprint": "6bd1478d40156967e8505a5bd9ba098b65278d80dd12580a9055de48b3a16ec6",
-  "recorded_at": "2026-10-11T07:33:26.078377+00:00",
+  "suite_fingerprint": "2a75ebf7fa9c6b126b0541b4b10b1491e377049947c377d9ad1ff44be070c8ec",
+  "recorded_at": "2026-10-11T07:52:54.575725+00:00",
   "k": 3,
   "samples": [
     {
@@ -11,16 +11,16 @@
         "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
         "queries": {
           "先查看我的简历，再查看投递记录，最后查看面试安排。三项都查完后再一起告诉我结果。": {
-            "list_applications": 0.7141395010884931,
-            "get_interview": 0.6814605184432307,
+            "list_applications": 0.7141592117604731,
+            "get_interview": 0.6815773467776008,
             "search_career_episodes": 0.6710749915988612,
-            "list_interviews": 0.6693682931298343,
-            "create_interview": 0.6536965601042807,
-            "get_resume_job_match": 0.6520240932818094,
-            "update_interview": 0.6319428619640537,
+            "list_interviews": 0.6692931161433,
+            "create_interview": 0.6537740469273564,
+            "get_resume_job_match": 0.652138208616642,
+            "update_interview": 0.6319977736834177,
             "complete_interview": 0.6313652352482992,
             "get_mock_interview_result": 0.6013017955491403,
-            "create_application": 0.6002515479852424
+            "create_application": 0.6003410548944249
           }
         }
       },
@@ -29,7 +29,7 @@
       "turns": [
         {
           "message": "先查看我的简历，再查看投递记录，最后查看面试安排。三项都查完后再一起告诉我结果。",
-          "assistant_message": "已完成三项查询，结果如下：\n\n1. **简历**：没有找到匹配的简历。\n2. **投递记录**：没有找到投递记录。\n3. **面试安排**：没有找到面试安排。\n\n目前系统中暂无相关数据。如需创建或管理这些信息，可以告诉我具体需求。",
+          "assistant_message": "已按您的要求完成三项查询，结果如下：\n\n1. **简历**：没有找到匹配的简历。\n2. **投递记录**：没有找到投递记录。\n3. **面试安排**：没有找到面试安排。\n\n目前系统中暂无相关记录。如果您需要创建简历、跟踪投递或安排面试，请告诉我具体需求。",
           "executed_calls": [
             {
               "name": "search_capabilities",
@@ -127,7 +127,7 @@
                   }
                 }
               },
-              "schema_fingerprint": "2af665ad001aaa7ec9e1213894d5ec7321bcd15e3f7d81d460d5b772979acd23",
+              "schema_fingerprint": "c537d5af9909d1b391ff371885818d499ff3bf8f5272f46a1dce64604ab966bc",
               "action": "tool_call",
               "tool": "search_capabilities"
             },
@@ -138,7 +138,7 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "c26df00c2ccacd5c9e8cad72d1277a47488dee8fe2583aab16facd33cbfc8500",
+              "schema_fingerprint": "0605c23f31a2f15a55bfc10a127b1846a79cfe05cf037789cbcac1a6f73600d3",
               "action": "tool_call",
               "tool": "list_resumes"
             },
@@ -149,7 +149,7 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "c26df00c2ccacd5c9e8cad72d1277a47488dee8fe2583aab16facd33cbfc8500",
+              "schema_fingerprint": "0605c23f31a2f15a55bfc10a127b1846a79cfe05cf037789cbcac1a6f73600d3",
               "action": "tool_call",
               "tool": "list_applications"
             },
@@ -160,15 +160,15 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "c26df00c2ccacd5c9e8cad72d1277a47488dee8fe2583aab16facd33cbfc8500",
+              "schema_fingerprint": "0605c23f31a2f15a55bfc10a127b1846a79cfe05cf037789cbcac1a6f73600d3",
               "action": "tool_call",
               "tool": "list_interviews"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"已完成三项查询，结果如下：\\n\\n1. **简历**：没有找到匹配的简历。\\n2. **投递记录**：没有找到投递记录。\\n3. **面试安排**：没有找到面试安排。\\n\\n目前系统中暂无相关数据。如需创建或管理这些信息，可以告诉我具体需求。\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"已按您的要求完成三项查询，结果如下：\\n\\n1. **简历**：没有找到匹配的简历。\\n2. **投递记录**：没有找到投递记录。\\n3. **面试安排**：没有找到面试安排。\\n\\n目前系统中暂无相关记录。如果您需要创建简历、跟踪投递或安排面试，请告诉我具体需求。\",\"questions\":[]}"
               },
-              "schema_fingerprint": "c26df00c2ccacd5c9e8cad72d1277a47488dee8fe2583aab16facd33cbfc8500",
+              "schema_fingerprint": "0605c23f31a2f15a55bfc10a127b1846a79cfe05cf037789cbcac1a6f73600d3",
               "action": "final",
               "tool": null
             }
@@ -196,16 +196,16 @@
         "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
         "queries": {
           "先查看我的简历，再查看投递记录，最后查看面试安排。三项都查完后再一起告诉我结果。": {
-            "list_applications": 0.7140385969170077,
-            "get_interview": 0.6814571886985191,
-            "search_career_episodes": 0.6710532274666422,
-            "list_interviews": 0.6694106603699495,
-            "create_interview": 0.6536934767053496,
-            "get_resume_job_match": 0.6520174841032069,
-            "update_interview": 0.6319076755148902,
-            "complete_interview": 0.6313909108286013,
-            "get_mock_interview_result": 0.6012932036218157,
-            "create_application": 0.6001165103098047
+            "list_applications": 0.7141592117604731,
+            "get_interview": 0.6815773467776008,
+            "search_career_episodes": 0.6710749915988612,
+            "list_interviews": 0.6692931161433,
+            "create_interview": 0.6537740469273564,
+            "get_resume_job_match": 0.652138208616642,
+            "update_interview": 0.6319977736834177,
+            "complete_interview": 0.6313652352482992,
+            "get_mock_interview_result": 0.6013017955491403,
+            "create_application": 0.6003410548944249
           }
         }
       },
@@ -214,7 +214,7 @@
       "turns": [
         {
           "message": "先查看我的简历，再查看投递记录，最后查看面试安排。三项都查完后再一起告诉我结果。",
-          "assistant_message": "已完成三项查询，结果如下：\n\n1. **简历**：没有找到匹配的简历。\n2. **投递记录**：没有找到投递记录。\n3. **面试安排**：没有找到面试安排。\n\n目前系统中暂无相关记录。如需添加简历、跟踪投递或记录面试，请告诉我具体信息。",
+          "assistant_message": "已完成三项查询，结果如下：\n\n1. **简历**：没有找到匹配的简历。\n2. **投递记录**：没有找到投递记录。\n3. **面试安排**：没有找到面试安排。\n\n目前系统中暂无相关数据。如需添加简历、创建投递记录或安排面试，请告知具体需求。",
           "executed_calls": [
             {
               "name": "search_capabilities",
@@ -269,7 +269,9 @@
                   }
                 },
                 "names": [
-                  "list_resumes"
+                  "list_resumes",
+                  "list_applications",
+                  "list_interviews"
                 ],
                 "limit": 5
               }
@@ -307,12 +309,14 @@
                   "name": "search_capabilities",
                   "arguments": {
                     "names": [
-                      "list_resumes"
+                      "list_resumes",
+                      "list_applications",
+                      "list_interviews"
                     ]
                   }
                 }
               },
-              "schema_fingerprint": "2af665ad001aaa7ec9e1213894d5ec7321bcd15e3f7d81d460d5b772979acd23",
+              "schema_fingerprint": "c537d5af9909d1b391ff371885818d499ff3bf8f5272f46a1dce64604ab966bc",
               "action": "tool_call",
               "tool": "search_capabilities"
             },
@@ -323,7 +327,7 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "c26df00c2ccacd5c9e8cad72d1277a47488dee8fe2583aab16facd33cbfc8500",
+              "schema_fingerprint": "0605c23f31a2f15a55bfc10a127b1846a79cfe05cf037789cbcac1a6f73600d3",
               "action": "tool_call",
               "tool": "list_resumes"
             },
@@ -334,7 +338,7 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "c26df00c2ccacd5c9e8cad72d1277a47488dee8fe2583aab16facd33cbfc8500",
+              "schema_fingerprint": "0605c23f31a2f15a55bfc10a127b1846a79cfe05cf037789cbcac1a6f73600d3",
               "action": "tool_call",
               "tool": "list_applications"
             },
@@ -345,15 +349,15 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "c26df00c2ccacd5c9e8cad72d1277a47488dee8fe2583aab16facd33cbfc8500",
+              "schema_fingerprint": "0605c23f31a2f15a55bfc10a127b1846a79cfe05cf037789cbcac1a6f73600d3",
               "action": "tool_call",
               "tool": "list_interviews"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"已完成三项查询，结果如下：\\n\\n1. **简历**：没有找到匹配的简历。\\n2. **投递记录**：没有找到投递记录。\\n3. **面试安排**：没有找到面试安排。\\n\\n目前系统中暂无相关记录。如需添加简历、跟踪投递或记录面试，请告诉我具体信息。\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"已完成三项查询，结果如下：\\n\\n1. **简历**：没有找到匹配的简历。\\n2. **投递记录**：没有找到投递记录。\\n3. **面试安排**：没有找到面试安排。\\n\\n目前系统中暂无相关数据。如需添加简历、创建投递记录或安排面试，请告知具体需求。\",\"questions\":[]}"
               },
-              "schema_fingerprint": "c26df00c2ccacd5c9e8cad72d1277a47488dee8fe2583aab16facd33cbfc8500",
+              "schema_fingerprint": "0605c23f31a2f15a55bfc10a127b1846a79cfe05cf037789cbcac1a6f73600d3",
               "action": "final",
               "tool": null
             }
@@ -381,16 +385,16 @@
         "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
         "queries": {
           "先查看我的简历，再查看投递记录，最后查看面试安排。三项都查完后再一起告诉我结果。": {
-            "list_applications": 0.7140385969170077,
-            "get_interview": 0.6814571886985191,
+            "list_applications": 0.7140584399965263,
+            "get_interview": 0.6815739491158086,
             "search_career_episodes": 0.6710532274666422,
-            "list_interviews": 0.6694106603699495,
-            "create_interview": 0.6536934767053496,
-            "get_resume_job_match": 0.6520174841032069,
-            "update_interview": 0.6319076755148902,
+            "list_interviews": 0.6693354110751403,
+            "create_interview": 0.6537711126165909,
+            "get_resume_job_match": 0.6521315965848146,
+            "update_interview": 0.6319625844533518,
             "complete_interview": 0.6313909108286013,
             "get_mock_interview_result": 0.6012932036218157,
-            "create_application": 0.6001165103098047
+            "create_application": 0.6002060544604954
           }
         }
       },
@@ -399,7 +403,7 @@
       "turns": [
         {
           "message": "先查看我的简历，再查看投递记录，最后查看面试安排。三项都查完后再一起告诉我结果。",
-          "assistant_message": "已按您的要求完成三项查询，结果如下：\n\n1. **简历**：当前没有找到任何简历记录。\n2. **投递记录**：当前没有找到任何投递记录。\n3. **面试安排**：当前没有找到任何面试安排。\n\n如果您需要开始建立求职档案，可以考虑先上传或创建一份简历，或者告诉我您想关注的岗位方向，我可以协助您进行下一步操作。",
+          "assistant_message": "已完成三项查询，结果如下：\n\n1. **简历**：没有找到匹配的简历。\n2. **投递记录**：没有找到投递记录。\n3. **面试安排**：没有找到面试安排。\n\n目前系统中暂无相关记录。如需创建或管理这些内容，请告知具体需求。",
           "executed_calls": [
             {
               "name": "search_capabilities",
@@ -497,7 +501,7 @@
                   }
                 }
               },
-              "schema_fingerprint": "2af665ad001aaa7ec9e1213894d5ec7321bcd15e3f7d81d460d5b772979acd23",
+              "schema_fingerprint": "c537d5af9909d1b391ff371885818d499ff3bf8f5272f46a1dce64604ab966bc",
               "action": "tool_call",
               "tool": "search_capabilities"
             },
@@ -508,7 +512,7 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "c26df00c2ccacd5c9e8cad72d1277a47488dee8fe2583aab16facd33cbfc8500",
+              "schema_fingerprint": "0605c23f31a2f15a55bfc10a127b1846a79cfe05cf037789cbcac1a6f73600d3",
               "action": "tool_call",
               "tool": "list_resumes"
             },
@@ -519,7 +523,7 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "c26df00c2ccacd5c9e8cad72d1277a47488dee8fe2583aab16facd33cbfc8500",
+              "schema_fingerprint": "0605c23f31a2f15a55bfc10a127b1846a79cfe05cf037789cbcac1a6f73600d3",
               "action": "tool_call",
               "tool": "list_applications"
             },
@@ -530,15 +534,15 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "c26df00c2ccacd5c9e8cad72d1277a47488dee8fe2583aab16facd33cbfc8500",
+              "schema_fingerprint": "0605c23f31a2f15a55bfc10a127b1846a79cfe05cf037789cbcac1a6f73600d3",
               "action": "tool_call",
               "tool": "list_interviews"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"已按您的要求完成三项查询，结果如下：\\n\\n1. **简历**：当前没有找到任何简历记录。\\n2. **投递记录**：当前没有找到任何投递记录。\\n3. **面试安排**：当前没有找到任何面试安排。\\n\\n如果您需要开始建立求职档案，可以考虑先上传或创建一份简历，或者告诉我您想关注的岗位方向，我可以协助您进行下一步操作。\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"已完成三项查询，结果如下：\\n\\n1. **简历**：没有找到匹配的简历。\\n2. **投递记录**：没有找到投递记录。\\n3. **面试安排**：没有找到面试安排。\\n\\n目前系统中暂无相关记录。如需创建或管理这些内容，请告知具体需求。\",\"questions\":[]}"
               },
-              "schema_fingerprint": "c26df00c2ccacd5c9e8cad72d1277a47488dee8fe2583aab16facd33cbfc8500",
+              "schema_fingerprint": "0605c23f31a2f15a55bfc10a127b1846a79cfe05cf037789cbcac1a6f73600d3",
               "action": "final",
               "tool": null
             }

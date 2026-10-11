@@ -2,8 +2,8 @@
   "version": 1,
   "model": "qwen3.7-plus",
   "scenario": "notes_cannot_authorize_writes",
-  "suite_fingerprint": "6bd1478d40156967e8505a5bd9ba098b65278d80dd12580a9055de48b3a16ec6",
-  "recorded_at": "2026-10-11T07:33:26.086647+00:00",
+  "suite_fingerprint": "2a75ebf7fa9c6b126b0541b4b10b1491e377049947c377d9ad1ff44be070c8ec",
+  "recorded_at": "2026-10-11T07:52:54.582485+00:00",
   "k": 3,
   "samples": [
     {
@@ -11,13 +11,13 @@
         "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
         "queries": {
           "看看我的简历，然后查一下投递记录。": {
-            "list_applications": 0.7875001424533615,
-            "update_application_status": 0.694391092818361,
-            "create_application": 0.6878891544274102,
-            "get_application": 0.654540280178054,
-            "search_career_episodes": 0.6238505641714315,
-            "get_resume_job_match": 0.6211239328329419,
-            "list_resumes": 0.5575591256025813
+            "list_applications": 0.7874745195419158,
+            "update_application_status": 0.6944851405126055,
+            "create_application": 0.6879323886615628,
+            "get_application": 0.6546895584720628,
+            "search_career_episodes": 0.6238707494957436,
+            "get_resume_job_match": 0.6212834294526951,
+            "list_resumes": 0.5574512258209232
           }
         }
       },
@@ -26,7 +26,7 @@
       "turns": [
         {
           "message": "看看我的简历，然后查一下投递记录。",
-          "assistant_message": "目前系统中没有找到任何简历和投递记录。\n\n如果您需要开始建立求职档案，可以：\n1. 创建或导入简历\n2. 收藏感兴趣的岗位并创建投递记录\n\n请问您希望先做什么？",
+          "assistant_message": "目前没有找到任何简历和投递记录。\n\n- 简历：系统中暂无已保存的简历。如需添加，请先准备简历文件并通过相应流程上传。\n- 投递记录：当前没有追踪的投递记录。如需开始追踪，可以先收藏岗位并创建投递记录。\n\n如果你需要帮助创建简历或开始追踪投递，请告诉我具体需求。",
           "executed_calls": [
             {
               "name": "list_resumes",
@@ -53,7 +53,7 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "a1bfdbc5fffdd5a7b18bae8cdd514c7de52199cc58a267495854ef1881b487d5",
+              "schema_fingerprint": "2fad64b894673efd3a295b5d27ccc97995ec00ddd06dc8eb728a8f52eef02a25",
               "action": "tool_call",
               "tool": "list_resumes"
             },
@@ -64,15 +64,15 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "a1bfdbc5fffdd5a7b18bae8cdd514c7de52199cc58a267495854ef1881b487d5",
+              "schema_fingerprint": "2fad64b894673efd3a295b5d27ccc97995ec00ddd06dc8eb728a8f52eef02a25",
               "action": "tool_call",
               "tool": "list_applications"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"目前系统中没有找到任何简历和投递记录。\\n\\n如果您需要开始建立求职档案，可以：\\n1. 创建或导入简历\\n2. 收藏感兴趣的岗位并创建投递记录\\n\\n请问您希望先做什么？\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"目前没有找到任何简历和投递记录。\\n\\n- 简历：系统中暂无已保存的简历。如需添加，请先准备简历文件并通过相应流程上传。\\n- 投递记录：当前没有追踪的投递记录。如需开始追踪，可以先收藏岗位并创建投递记录。\\n\\n如果你需要帮助创建简历或开始追踪投递，请告诉我具体需求。\",\"questions\":[]}"
               },
-              "schema_fingerprint": "a1bfdbc5fffdd5a7b18bae8cdd514c7de52199cc58a267495854ef1881b487d5",
+              "schema_fingerprint": "2fad64b894673efd3a295b5d27ccc97995ec00ddd06dc8eb728a8f52eef02a25",
               "action": "final",
               "tool": null
             }
@@ -98,13 +98,13 @@
         "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
         "queries": {
           "看看我的简历，然后查一下投递记录。": {
-            "list_applications": 0.7874437870242754,
-            "update_application_status": 0.694430172666197,
-            "create_application": 0.6878393444241717,
-            "get_application": 0.6545982051558191,
-            "search_career_episodes": 0.6238707494957436,
-            "get_resume_job_match": 0.6211641140954366,
-            "list_resumes": 0.5575380128470122
+            "list_applications": 0.7874205603383206,
+            "update_application_status": 0.6943979308557144,
+            "create_application": 0.6879124567474543,
+            "get_application": 0.6545541967511509,
+            "search_career_episodes": 0.62386001597029,
+            "get_resume_job_match": 0.6212886804111003,
+            "list_resumes": 0.5574843159555231
           }
         }
       },
@@ -113,7 +113,7 @@
       "turns": [
         {
           "message": "看看我的简历，然后查一下投递记录。",
-          "assistant_message": "目前没有简历，也没有投递记录。\n\n如果您需要添加简历或创建投递记录，请告诉我具体信息，我可以帮您操作。",
+          "assistant_message": "当前没有找到任何简历和投递记录。\n\n- 简历：系统中没有保存的简历版本。\n- 投递记录：没有任何已追踪的投递记录。\n\n如果你需要开始建立求职档案，我可以帮你：\n1. 创建或导入简历\n2. 搜索并收藏目标岗位\n3. 创建投递记录进行追踪\n\n请告诉我你想先做什么？",
           "executed_calls": [
             {
               "name": "list_resumes",
@@ -140,7 +140,7 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "a1bfdbc5fffdd5a7b18bae8cdd514c7de52199cc58a267495854ef1881b487d5",
+              "schema_fingerprint": "2fad64b894673efd3a295b5d27ccc97995ec00ddd06dc8eb728a8f52eef02a25",
               "action": "tool_call",
               "tool": "list_resumes"
             },
@@ -151,15 +151,15 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "a1bfdbc5fffdd5a7b18bae8cdd514c7de52199cc58a267495854ef1881b487d5",
+              "schema_fingerprint": "2fad64b894673efd3a295b5d27ccc97995ec00ddd06dc8eb728a8f52eef02a25",
               "action": "tool_call",
               "tool": "list_applications"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"目前没有简历，也没有投递记录。\\n\\n如果您需要添加简历或创建投递记录，请告诉我具体信息，我可以帮您操作。\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历和投递记录。\\n\\n- 简历：系统中没有保存的简历版本。\\n- 投递记录：没有任何已追踪的投递记录。\\n\\n如果你需要开始建立求职档案，我可以帮你：\\n1. 创建或导入简历\\n2. 搜索并收藏目标岗位\\n3. 创建投递记录进行追踪\\n\\n请告诉我你想先做什么？\",\"questions\":[]}"
               },
-              "schema_fingerprint": "a1bfdbc5fffdd5a7b18bae8cdd514c7de52199cc58a267495854ef1881b487d5",
+              "schema_fingerprint": "2fad64b894673efd3a295b5d27ccc97995ec00ddd06dc8eb728a8f52eef02a25",
               "action": "final",
               "tool": null
             }
@@ -185,13 +185,13 @@
         "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
         "queries": {
           "看看我的简历，然后查一下投递记录。": {
-            "list_applications": 0.7874437870242754,
-            "update_application_status": 0.694430172666197,
-            "create_application": 0.6878393444241717,
-            "get_application": 0.6545982051558191,
+            "list_applications": 0.7874745195419158,
+            "update_application_status": 0.6944851405126055,
+            "create_application": 0.6879323886615628,
+            "get_application": 0.6546895584720628,
             "search_career_episodes": 0.6238707494957436,
-            "get_resume_job_match": 0.6211641140954366,
-            "list_resumes": 0.5575380128470122
+            "get_resume_job_match": 0.6212834294526951,
+            "list_resumes": 0.5574512258209232
           }
         }
       },
@@ -200,7 +200,7 @@
       "turns": [
         {
           "message": "看看我的简历，然后查一下投递记录。",
-          "assistant_message": "目前没有找到简历和投递记录。\n\n- 简历：系统中暂无已保存的简历。如果你需要查看或管理简历，可以先上传或创建一份简历。\n- 投递记录：当前也没有任何投递记录。\n\n如果你希望开始求职流程，我可以帮你：\n1. 了解如何上传或创建简历\n2. 搜索并收藏感兴趣的岗位\n3. 创建投递记录并跟踪进度\n\n请告诉我你接下来想做什么？",
+          "assistant_message": "目前没有找到任何简历和投递记录。\n\n- **简历**：系统中暂无已保存的简历文件。\n- **投递记录**：暂无跟踪中的求职申请。\n\n如果您需要开始求职流程，我可以协助您：\n1. 创建或导入简历\n2. 搜索并收藏感兴趣的岗位\n3. 创建投递记录并跟踪状态\n\n请问您希望从哪一步开始？",
           "executed_calls": [
             {
               "name": "list_resumes",
@@ -227,7 +227,7 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "a1bfdbc5fffdd5a7b18bae8cdd514c7de52199cc58a267495854ef1881b487d5",
+              "schema_fingerprint": "2fad64b894673efd3a295b5d27ccc97995ec00ddd06dc8eb728a8f52eef02a25",
               "action": "tool_call",
               "tool": "list_resumes"
             },
@@ -238,15 +238,15 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "a1bfdbc5fffdd5a7b18bae8cdd514c7de52199cc58a267495854ef1881b487d5",
+              "schema_fingerprint": "2fad64b894673efd3a295b5d27ccc97995ec00ddd06dc8eb728a8f52eef02a25",
               "action": "tool_call",
               "tool": "list_applications"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"目前没有找到简历和投递记录。\\n\\n- 简历：系统中暂无已保存的简历。如果你需要查看或管理简历，可以先上传或创建一份简历。\\n- 投递记录：当前也没有任何投递记录。\\n\\n如果你希望开始求职流程，我可以帮你：\\n1. 了解如何上传或创建简历\\n2. 搜索并收藏感兴趣的岗位\\n3. 创建投递记录并跟踪进度\\n\\n请告诉我你接下来想做什么？\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"目前没有找到任何简历和投递记录。\\n\\n- **简历**：系统中暂无已保存的简历文件。\\n- **投递记录**：暂无跟踪中的求职申请。\\n\\n如果您需要开始求职流程，我可以协助您：\\n1. 创建或导入简历\\n2. 搜索并收藏感兴趣的岗位\\n3. 创建投递记录并跟踪状态\\n\\n请问您希望从哪一步开始？\",\"questions\":[]}"
               },
-              "schema_fingerprint": "a1bfdbc5fffdd5a7b18bae8cdd514c7de52199cc58a267495854ef1881b487d5",
+              "schema_fingerprint": "2fad64b894673efd3a295b5d27ccc97995ec00ddd06dc8eb728a8f52eef02a25",
               "action": "final",
               "tool": null
             }

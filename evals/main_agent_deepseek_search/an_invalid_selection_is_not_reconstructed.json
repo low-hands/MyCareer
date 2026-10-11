@@ -2,14 +2,14 @@
   "scenario": "an_invalid_selection_is_not_reconstructed",
   "policy": "When a requested selection does not exist, explain the current bounds and let the user choose a valid one. Never invent an internal identifier or selection that the projected candidate list does not contain.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "4753043c0f91434af04e8fb93203675b89311a541012f4807fb7ae20aea3cef3",
+  "prompt_fingerprint": "cd8201198f4ea03a7cf47bcce44e6ff4975b74d8cd34d53f7abd137e64ae33e9",
   "context_shape_fingerprint": "8b9fb423d5fabb4379c39017c910e97f181035816faaf809385554ac769eb143",
-  "recorded_at": "2026-10-11T07:26:11.336003+00:00",
+  "recorded_at": "2026-10-11T07:45:59.113795+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"final\",\"message\":\"当前收藏的岗位只有一个，没有第 2 个，所以无法打开：\\n\\n1. 算法工程师｜示例科技｜上海｜30-50K\\n\\n需要我打开第 1 个这个岗位的完整 JD 吗？如果你以为还有别的收藏岗位，可以先在 BOSS 上浏览并收藏，收藏后我这里才会显示。\",\"questions\":[]}",
+      "content": "{\"action\":\"final\",\"message\":\"无法打开第 2 个岗位：当前收藏列表里只有 1 个岗位，序号 2 不存在。\\n\\n现有的唯一岗位是：\\n1. 算法工程师 — 示例科技（上海，30-50K）\\n\\n请告诉我要打开序号 1 的这个岗位，还是先到招聘网站浏览并收藏更多岗位后再说。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "854902fe2c07d7437b3ce0a6f551be780905ae1e2dcd7a4d432cb9fcc56e1013",
+      "selected_schema_fingerprint": "adac382d6da4328499a425a540d4ba8e2e7fe70b83211f0f43a53fb6bacf3bdf",
       "decision_shape_fingerprint": "bfe39ffcb106869aef993caeb5721cb6a0f438d6f5479aff5b1b6a5aa62e73c1",
       "offered_tools": [
         "load_skill",
@@ -21,7 +21,7 @@
         "compare_saved_jobs",
         "search_capabilities"
       ],
-      "elapsed_ms": 2809.2,
+      "elapsed_ms": 2837.4,
       "model_request_count": 2,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [
@@ -30,7 +30,7 @@
           "retried": true,
           "forced_interaction": false,
           "raw_output": {
-            "content": "当前收藏岗位列表中只有 1 个岗位，不存在第 2 个岗位：\n\n- 序号 1：算法工程师 · 示例科技 · 上海 · 30-50K\n\n无法打开第 2 个岗位的完整 JD。如果你要查看这个唯一岗位的 JD，或者想先把其他岗位加入收藏，告诉我即可。",
+            "content": "当前收藏岗位列表里只有 1 个岗位，没有第 2 个，所以无法打开。\n\n现有列表：\n1. 算法工程师 — 示例科技（上海，30-50K）\n\n请确认你要看哪一个：如果就是要这唯一的一个，我可以打开它的完整 JD；如果你以为还有别的岗位，可能需要先在 BOSS 上浏览并收藏，之后我才能读取。",
             "tool_calls": []
           },
           "decision_invocation": 1
@@ -43,13 +43,13 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-11T07:26:11.372132+00:00",
-      "elapsed_ms": 2813.4,
+      "recorded_at": "2026-10-11T07:45:59.692667+00:00",
+      "elapsed_ms": 2840.9,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"当前收藏的岗位只有一个，没有第 2 个，所以无法打开：\\n\\n1. 算法工程师｜示例科技｜上海｜30-50K\\n\\n需要我打开第 1 个这个岗位的完整 JD 吗？如果你以为还有别的收藏岗位，可以先在 BOSS 上浏览并收藏，收藏后我这里才会显示。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"无法打开第 2 个岗位：当前收藏列表里只有 1 个岗位，序号 2 不存在。\\n\\n现有的唯一岗位是：\\n1. 算法工程师 — 示例科技（上海，30-50K）\\n\\n请告诉我要打开序号 1 的这个岗位，还是先到招聘网站浏览并收藏更多岗位后再说。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "854902fe2c07d7437b3ce0a6f551be780905ae1e2dcd7a4d432cb9fcc56e1013",
+          "selected_schema_fingerprint": "adac382d6da4328499a425a540d4ba8e2e7fe70b83211f0f43a53fb6bacf3bdf",
           "decision_shape_fingerprint": "bfe39ffcb106869aef993caeb5721cb6a0f438d6f5479aff5b1b6a5aa62e73c1",
           "offered_tools": [
             "load_skill",
@@ -61,7 +61,7 @@
             "compare_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 2809.2,
+          "elapsed_ms": 2837.4,
           "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -70,7 +70,7 @@
               "retried": true,
               "forced_interaction": false,
               "raw_output": {
-                "content": "当前收藏岗位列表中只有 1 个岗位，不存在第 2 个岗位：\n\n- 序号 1：算法工程师 · 示例科技 · 上海 · 30-50K\n\n无法打开第 2 个岗位的完整 JD。如果你要查看这个唯一岗位的 JD，或者想先把其他岗位加入收藏，告诉我即可。",
+                "content": "当前收藏岗位列表里只有 1 个岗位，没有第 2 个，所以无法打开。\n\n现有列表：\n1. 算法工程师 — 示例科技（上海，30-50K）\n\n请确认你要看哪一个：如果就是要这唯一的一个，我可以打开它的完整 JD；如果你以为还有别的岗位，可能需要先在 BOSS 上浏览并收藏，之后我才能读取。",
                 "tool_calls": []
               },
               "decision_invocation": 1
@@ -82,13 +82,13 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:26:11.660093+00:00",
-      "elapsed_ms": 2982.3,
+      "recorded_at": "2026-10-11T07:45:59.813385+00:00",
+      "elapsed_ms": 2421.8,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"无法打开第 2 个岗位：当前收藏岗位列表只有 1 条，不存在序号 2。列表中唯一的岗位是：\\n\\n1. 示例科技 — 算法工程师（上海，30–50K）\\n\\n如果你想要的是这个岗位的完整 JD，请告诉我，我可以改为读取第 1 个岗位；或者你先在 BOSS 上浏览并收藏更多岗位后再让我打开。\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"第 2 个岗位不存在——当前收藏列表里只有 1 个岗位：示例科技 · 算法工程师（上海，30-50K，序号 1）。\\n\\n请确认你要打开的是这一个（序号 1），还是先去找别的岗位收藏。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "854902fe2c07d7437b3ce0a6f551be780905ae1e2dcd7a4d432cb9fcc56e1013",
+          "selected_schema_fingerprint": "adac382d6da4328499a425a540d4ba8e2e7fe70b83211f0f43a53fb6bacf3bdf",
           "decision_shape_fingerprint": "bfe39ffcb106869aef993caeb5721cb6a0f438d6f5479aff5b1b6a5aa62e73c1",
           "offered_tools": [
             "load_skill",
@@ -100,7 +100,7 @@
             "compare_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 2979.9,
+          "elapsed_ms": 2418.2,
           "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -109,7 +109,7 @@
               "retried": true,
               "forced_interaction": false,
               "raw_output": {
-                "content": "当前收藏列表中只有 1 个岗位（序号 1：示例科技 · 算法工程师 · 上海 · 30-50K），不存在序号 2，所以无法打开第 2 个岗位的 JD。\n\n你可以：\n- 打开序号 1 的岗位完整 JD；\n- 或者先告诉我想搜索的岗位方向和城市，我帮你打开招聘搜索页，你浏览并收藏目标岗位后再打开。",
+                "content": "第 2 个岗位不存在——当前已收藏岗位列表里只有 1 个：\n\n1. 示例科技 · 算法工程师（上海，30-50K）\n\n如果你要的是这一条，我可以直接读取它的完整 JD；或者你先在列表里再收藏一个岗位。",
                 "tool_calls": []
               },
               "decision_invocation": 1
@@ -121,13 +121,13 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:26:11.336003+00:00",
-      "elapsed_ms": 1697.7,
+      "recorded_at": "2026-10-11T07:45:59.113795+00:00",
+      "elapsed_ms": 1470.3,
       "steps": [
         {
-          "content": "{\"action\":\"final\",\"message\":\"目前没有第 2 个岗位可打开——已收藏岗位列表里只有 1 条：\\n\\n1. 示例科技 · 算法工程师（上海，30-50K）\\n\\n如果你的第 2 个岗位还没收藏，可以告诉我公司/岗位名，我先帮你在 BOSS 上打开搜索页；或者你先保存后再让我读取。需要我打开第 1 个岗位的完整 JD 吗？\",\"questions\":[]}",
+          "content": "{\"action\":\"final\",\"message\":\"没有第 2 个岗位：当前已收藏的岗位只有 1 条，序号 1 是「示例科技 · 算法工程师 · 上海 · 30-50K」。如需查看该岗位的完整 JD，请告诉我读取序号 1；如需更多岗位，可先自行在招聘网站浏览并收藏。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "854902fe2c07d7437b3ce0a6f551be780905ae1e2dcd7a4d432cb9fcc56e1013",
+          "selected_schema_fingerprint": "adac382d6da4328499a425a540d4ba8e2e7fe70b83211f0f43a53fb6bacf3bdf",
           "decision_shape_fingerprint": "bfe39ffcb106869aef993caeb5721cb6a0f438d6f5479aff5b1b6a5aa62e73c1",
           "offered_tools": [
             "load_skill",
@@ -139,7 +139,7 @@
             "compare_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1693.1,
+          "elapsed_ms": 1467.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

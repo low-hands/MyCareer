@@ -55,6 +55,11 @@ MAIN_AGENT_MODEL=deepseek-flash .venv/bin/python -m career_agent.cli eval trajec
 采样前提交生产代码和测试，协议记录完整 revision、源码/场景/提示指纹、模型配置与固定次数。录制期间不再改提示/schema/判分，最终离线验证后更新跟踪基线。提示整理同时包含 P1 和结构重排，和历史版本的比较不能单独归因于其中一项。
 
 
-本次跟踪基线对应生产提交 `d65fae2642ada5cce8295382d317c5b5e005a96b`（2026-10-11）。两模型各 47 条轨迹、19 个 runtime 场景，每场景固定 3 次，原始失败全部保留。Qwen 轨迹 126/141、runtime 54/57（pass^3 18/19）；DeepSeek 轨迹 125/141、runtime 54/57（pass^3 17/19）。录制完成不代表行为全部通过。P1 与结构重排的效果不可分开归因。完整报告和逐场景比较保存在本地 `docs/experiments/final_prompt_cleanup_2026-10-11/`。
+上一轮跟踪基线对应生产提交 `d65fae2642ada5cce8295382d317c5b5e005a96b`（2026-10-11）。两模型各 47 条轨迹、19 个 runtime 场景，每场景固定 3 次，原始失败全部保留。Qwen 轨迹 126/141、runtime 54/57（pass^3 18/19）；DeepSeek 轨迹 125/141、runtime 54/57（pass^3 17/19）。录制完成不代表行为全部通过。P1 与结构重排的效果不可分开归因。完整报告和逐场景比较保存在本地 `docs/experiments/final_prompt_cleanup_2026-10-11/`。
 
 原冻结协议中两项轨迹指纹误按原始 SCENARIOS 生成；实际 CLI 使用同一冻结提交中的 SEARCH_SCENARIOS。原协议保留，差异追加在本地 protocol-audit.json；录制指纹、场景、判分及次数未改，未补采。跟踪基线用实际生产评估器离线验证其有效性。
+
+
+最终跟踪基线（最后一次对照表条件修订）对应生产提交 `5e969b149bfa073e9879ca22a0fe2bfbfe4e1cee`。各模型 47 条轨迹、19 个 runtime 场景，各场景 3 次，未补采。Qwen 轨迹行为样本 131/141、runtime 53/57（pass^3 16/19）；DeepSeek 126/141、57/57（pass^3 19/19）。Qwen 仍有 6 个轨迹行为失败场景、1 个质量失败场景；DeepSeek 分别为 11、2。全部原始失败保留，录制有效不代表行为全部通过。
+
+这轮只增加“当前提供才使用、已明确不可达不搜索”两句，schema 和判分未改；采样前使用实际 CLI 的 SEARCH_SCENARIOS 冻结全部指纹。此后不再根据结果调整提示。独立协议、全部样本、完整报告与逐场景比较保存在本地 `docs/experiments/final_table_guard_2026-10-11/`。Qwen 历史轨迹行为样本趋势为 135 → 130 → 126 → 131，各批每场景 n=3、独立采样，不能据此作因果归因。上一轮的协议审计和历史录制均保留。

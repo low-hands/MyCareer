@@ -2,9 +2,9 @@
   "scenario": "overdue_brief_routes_to_the_action_list",
   "policy": "Tool observation facts are approved decision values. When the user explicitly asks for a conditional follow-up, use the overdue count rather than giving a generic answer or guessing the brief body.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "4c74ffa7746ba153ec7707ae190ab037ad3bd36ee1640a4614d44d7cec91145d",
+  "prompt_fingerprint": "3ae50763c2c8f7bcc3b9ca3b4ebe0390f7d10aca70dc8a7c93a9a097a7175b01",
   "context_shape_fingerprint": "4f01d61c362426228a14e63b2cc775db5eeb2444c3d667f88636706317829086",
-  "recorded_at": "2026-10-11T07:26:57.432617+00:00",
+  "recorded_at": "2026-10-11T07:46:50.278188+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,7 +12,7 @@
         "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "4926739b6e54de1fd423e02189f18dc4b1b1fda4aa5dc27d5326e23fc0da86da",
+      "selected_schema_fingerprint": "7cee903d20a46f4c040127c6c11dcd18f83a1b107b6c05553a2440f9eecb269b",
       "decision_shape_fingerprint": "2548770d1dec38517a24dbeceb178e174d082ca2ec510f315373d924e167d620",
       "offered_tools": [
         "load_skill",
@@ -22,7 +22,7 @@
         "list_action_items",
         "search_capabilities"
       ],
-      "elapsed_ms": 2809.5,
+      "elapsed_ms": 3132.9,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -33,8 +33,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-11T07:26:53.844160+00:00",
-      "elapsed_ms": 2812.8,
+      "recorded_at": "2026-10-11T07:46:47.701764+00:00",
+      "elapsed_ms": 3134.3,
       "steps": [
         {
           "tool_call": {
@@ -42,7 +42,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "4926739b6e54de1fd423e02189f18dc4b1b1fda4aa5dc27d5326e23fc0da86da",
+          "selected_schema_fingerprint": "7cee903d20a46f4c040127c6c11dcd18f83a1b107b6c05553a2440f9eecb269b",
           "decision_shape_fingerprint": "2548770d1dec38517a24dbeceb178e174d082ca2ec510f315373d924e167d620",
           "offered_tools": [
             "load_skill",
@@ -52,7 +52,7 @@
             "list_action_items",
             "search_capabilities"
           ],
-          "elapsed_ms": 2809.5,
+          "elapsed_ms": 3132.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -62,8 +62,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:26:58.131485+00:00",
-      "elapsed_ms": 4285.4,
+      "recorded_at": "2026-10-11T07:46:48.891431+00:00",
+      "elapsed_ms": 2673.5,
       "steps": [
         {
           "tool_call": {
@@ -76,7 +76,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "4926739b6e54de1fd423e02189f18dc4b1b1fda4aa5dc27d5326e23fc0da86da",
+          "selected_schema_fingerprint": "7cee903d20a46f4c040127c6c11dcd18f83a1b107b6c05553a2440f9eecb269b",
           "decision_shape_fingerprint": "2548770d1dec38517a24dbeceb178e174d082ca2ec510f315373d924e167d620",
           "offered_tools": [
             "load_skill",
@@ -86,7 +86,7 @@
             "list_action_items",
             "search_capabilities"
           ],
-          "elapsed_ms": 4280.9,
+          "elapsed_ms": 2670.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -96,16 +96,21 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:26:57.432617+00:00",
-      "elapsed_ms": 2620.1,
+      "recorded_at": "2026-10-11T07:46:50.278188+00:00",
+      "elapsed_ms": 2575.7,
       "steps": [
         {
           "tool_call": {
             "name": "list_action_items",
-            "arguments": {}
+            "arguments": {
+              "statuses": [
+                "open",
+                "snoozed"
+              ]
+            }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "4926739b6e54de1fd423e02189f18dc4b1b1fda4aa5dc27d5326e23fc0da86da",
+          "selected_schema_fingerprint": "7cee903d20a46f4c040127c6c11dcd18f83a1b107b6c05553a2440f9eecb269b",
           "decision_shape_fingerprint": "2548770d1dec38517a24dbeceb178e174d082ca2ec510f315373d924e167d620",
           "offered_tools": [
             "load_skill",
@@ -115,7 +120,7 @@
             "list_action_items",
             "search_capabilities"
           ],
-          "elapsed_ms": 2618.5,
+          "elapsed_ms": 2572.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

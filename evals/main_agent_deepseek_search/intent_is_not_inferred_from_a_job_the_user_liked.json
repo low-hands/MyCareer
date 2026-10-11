@@ -2,9 +2,9 @@
   "scenario": "intent_is_not_inferred_from_a_job_the_user_liked",
   "policy": "Never record intent you inferred from a job they viewed or from your own conclusions.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "57be01df4f40e360e60cff8fbe1193939153d9d3cd3c8c7fa18b9fd373a8b93e",
+  "prompt_fingerprint": "6ff636b52ec092921eea16559c517e4b793f6a4102d7f0e9b14b73300fed0b95",
   "context_shape_fingerprint": "a1229b8bace785cd313869392aadb14eb25d1a150da0eda8511d5a8ce9ea32f8",
-  "recorded_at": "2026-10-11T07:25:15.459455+00:00",
+  "recorded_at": "2026-10-11T07:45:09.061990+00:00",
   "steps": [
     {
       "tool_call": {
@@ -14,7 +14,7 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "263662fd2300b627604dc6625bf3871f9d877854d576eb545b2a715bfba08748",
+      "selected_schema_fingerprint": "484a62514f9ed7c0ac961dcfcabcdf1230478a155e4622077b56ff2ca613dc4b",
       "decision_shape_fingerprint": "0e574bf3c6e515bae1a0fb44ad41300f7c64b7d77e519ef60e7d9df0ad97a0e9",
       "offered_tools": [
         "load_skill",
@@ -25,10 +25,21 @@
         "compare_saved_jobs",
         "search_capabilities"
       ],
-      "elapsed_ms": 1034.6,
-      "model_request_count": 1,
+      "elapsed_ms": 2693.9,
+      "model_request_count": 2,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [],
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "I can help with that. You have one saved job showing: **算法工程师 · 示例科技 · 上海 · 30-50K**.\n\nWhat would you like me to do with it? For example:\n\n- **Read the full JD** — pull up the complete posting so you can review it in detail\n- **Analyze the job** — break down core objective, tiered requirements, ATS keywords, likely interview topics, and red flags\n- **Compare it** with another saved job (you'd need a second saved role for that)\n\nJust tell me which one — or if \"看着还不错\" means you'd like to move forward, say so and I'll start with the JD analysis.",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -36,8 +47,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-11T07:25:12.651265+00:00",
-      "elapsed_ms": 1037.5,
+      "recorded_at": "2026-10-11T07:45:07.449119+00:00",
+      "elapsed_ms": 2696.0,
       "steps": [
         {
           "tool_call": {
@@ -47,7 +58,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "263662fd2300b627604dc6625bf3871f9d877854d576eb545b2a715bfba08748",
+          "selected_schema_fingerprint": "484a62514f9ed7c0ac961dcfcabcdf1230478a155e4622077b56ff2ca613dc4b",
           "decision_shape_fingerprint": "0e574bf3c6e515bae1a0fb44ad41300f7c64b7d77e519ef60e7d9df0ad97a0e9",
           "offered_tools": [
             "load_skill",
@@ -58,45 +69,29 @@
             "compare_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1034.6,
-          "model_request_count": 1,
+          "elapsed_ms": 2693.9,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-11T07:25:14.226783+00:00",
-      "elapsed_ms": 1570.8,
-      "steps": [
-        {
-          "content": "{\"action\":\"ask_user\",\"message\":\"你指的是已收藏的「示例科技 · 算法工程师（上海，30-50K）」这个岗位吗？确认后我可以帮你分析它的职位要求（核心目标、优先级要求、面试可能考点等）。\",\"questions\":[]}",
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "263662fd2300b627604dc6625bf3871f9d877854d576eb545b2a715bfba08748",
-          "decision_shape_fingerprint": "0e574bf3c6e515bae1a0fb44ad41300f7c64b7d77e519ef60e7d9df0ad97a0e9",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "analyze_job",
-            "compare_saved_jobs",
-            "search_capabilities"
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I can help with that. You have one saved job showing: **算法工程师 · 示例科技 · 上海 · 30-50K**.\n\nWhat would you like me to do with it? For example:\n\n- **Read the full JD** — pull up the complete posting so you can review it in detail\n- **Analyze the job** — break down core objective, tiered requirements, ATS keywords, likely interview topics, and red flags\n- **Compare it** with another saved job (you'd need a second saved role for that)\n\nJust tell me which one — or if \"看着还不错\" means you'd like to move forward, say so and I'll start with the JD analysis.",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
           ],
-          "elapsed_ms": 1567.5,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
           "recording_retry_events": [],
           "decision_invocations": 1
         }
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:25:15.459455+00:00",
-      "elapsed_ms": 1230.3,
+      "recorded_at": "2026-10-11T07:45:08.662766+00:00",
+      "elapsed_ms": 1258.6,
       "steps": [
         {
           "tool_call": {
@@ -106,7 +101,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "263662fd2300b627604dc6625bf3871f9d877854d576eb545b2a715bfba08748",
+          "selected_schema_fingerprint": "484a62514f9ed7c0ac961dcfcabcdf1230478a155e4622077b56ff2ca613dc4b",
           "decision_shape_fingerprint": "0e574bf3c6e515bae1a0fb44ad41300f7c64b7d77e519ef60e7d9df0ad97a0e9",
           "offered_tools": [
             "load_skill",
@@ -117,7 +112,34 @@
             "compare_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1223.4,
+          "elapsed_ms": 1255.2,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:09.061990+00:00",
+      "elapsed_ms": 1611.3,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"我可以对这个岗位（算法工程师 · 示例科技 · 上海 · 30-50K）做以下几件事，你想选哪个？1) 只分析岗位要求（薪资/条件/JD拆解）；2) 先分析岗位、再和你的简历做匹配；3) 和其他已收藏岗位对比；4) 先看岗位详情。请直接说序号或你的想法。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "484a62514f9ed7c0ac961dcfcabcdf1230478a155e4622077b56ff2ca613dc4b",
+          "decision_shape_fingerprint": "0e574bf3c6e515bae1a0fb44ad41300f7c64b7d77e519ef60e7d9df0ad97a0e9",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "compare_saved_jobs",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1607.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

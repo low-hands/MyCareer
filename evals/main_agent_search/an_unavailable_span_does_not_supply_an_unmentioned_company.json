@@ -2,19 +2,17 @@
   "scenario": "an_unavailable_span_does_not_supply_an_unmentioned_company",
   "policy": "A failed read supplies no missing company name. Decide from the visible history and observation without guessing.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "5efbf29b7bd9cac34abfc29e800a5b791aadaddba39e3e7275504c7c2eb380e1",
+  "prompt_fingerprint": "800f2de109ecb5a950946cc335eaf0be934617cbabd506b94d1f6bb664d53f62",
   "context_shape_fingerprint": "d5a03093a638d2e25feb0e65cef260effd1f74287f055887a6dcf3f836a29dab",
-  "recorded_at": "2026-10-11T07:28:28.420281+00:00",
+  "recorded_at": "2026-10-11T07:48:24.980315+00:00",
   "steps": [
     {
       "tool_call": {
-        "name": "search_career_memory",
-        "arguments": {
-          "query": "美团 目标公司"
-        }
+        "name": "fetch_archived_constraints",
+        "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "44675d073e2655556e0e1b4b120e352611b720401ff033b4a8f7119f700817d8",
+      "selected_schema_fingerprint": "902451cdedca118a31c58f651ab70eb7acc5217137ed8777b1b19ae428d0fdc8",
       "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
       "offered_tools": [
         "load_skill",
@@ -24,10 +22,21 @@
         "propose_job_intent",
         "search_capabilities"
       ],
-      "elapsed_ms": 5502.4,
-      "model_request_count": 1,
+      "elapsed_ms": 6052.0,
+      "model_request_count": 2,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [],
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "根据当前可见的上下文，我没有看到您之前提到过目标公司的全名。对话摘要显示\"这份 美团 JD 只是对照，你还没告诉我目标公司\"，这表明目标公司尚未确认。\n\n请问您的目标公司全名是什么？或者您是想了解刚才提到的美团这家公司的情况？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -35,18 +44,59 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-11T07:28:25.886118+00:00",
-      "elapsed_ms": 5505.5,
+      "recorded_at": "2026-10-11T07:48:23.142407+00:00",
+      "elapsed_ms": 6055.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "fetch_archived_constraints",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "902451cdedca118a31c58f651ab70eb7acc5217137ed8777b1b19ae428d0fdc8",
+          "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6052.0,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "根据当前可见的上下文，我没有看到您之前提到过目标公司的全名。对话摘要显示\"这份 美团 JD 只是对照，你还没告诉我目标公司\"，这表明目标公司尚未确认。\n\n请问您的目标公司全名是什么？或者您是想了解刚才提到的美团这家公司的情况？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:48:27.155418+00:00",
+      "elapsed_ms": 8045.8,
       "steps": [
         {
           "tool_call": {
             "name": "search_career_memory",
             "arguments": {
-              "query": "美团 目标公司"
+              "query": "美团 目标公司",
+              "limit": 5
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "44675d073e2655556e0e1b4b120e352611b720401ff033b4a8f7119f700817d8",
+          "selected_schema_fingerprint": "902451cdedca118a31c58f651ab70eb7acc5217137ed8777b1b19ae428d0fdc8",
           "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
           "offered_tools": [
             "load_skill",
@@ -56,18 +106,29 @@
             "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 5502.4,
-          "model_request_count": 1,
+          "elapsed_ms": 8041.1,
+          "model_request_count": 2,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "根据当前对话记录，您之前提到的是\"美团\"的JD，但并没有明确说明目标公司的全称。从上下文来看，您指的是**美团**（Meituan）。\n\n不过我需要确认一下：您是想了解这份美团JD的具体分析，还是有其他目标公司需要讨论？目前系统中没有保存任何岗位分析或收藏的岗位记录。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
           "recording_retry_events": [],
           "decision_invocations": 1
         }
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:28:26.411261+00:00",
-      "elapsed_ms": 2448.4,
+      "recorded_at": "2026-10-11T07:48:24.980315+00:00",
+      "elapsed_ms": 5120.4,
       "steps": [
         {
           "tool_call": {
@@ -75,7 +136,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "44675d073e2655556e0e1b4b120e352611b720401ff033b4a8f7119f700817d8",
+          "selected_schema_fingerprint": "902451cdedca118a31c58f651ab70eb7acc5217137ed8777b1b19ae428d0fdc8",
           "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
           "offered_tools": [
             "load_skill",
@@ -85,36 +146,7 @@
             "propose_job_intent",
             "search_capabilities"
           ],
-          "elapsed_ms": 2444.8,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-11T07:28:28.420281+00:00",
-      "elapsed_ms": 2532.4,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "fetch_archived_constraints",
-            "arguments": {}
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "44675d073e2655556e0e1b4b120e352611b720401ff033b4a8f7119f700817d8",
-          "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "list_target_roles",
-            "propose_job_intent",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 2529.6,
+          "elapsed_ms": 5116.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

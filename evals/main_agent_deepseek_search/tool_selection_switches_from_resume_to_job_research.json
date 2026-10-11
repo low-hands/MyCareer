@@ -2,19 +2,19 @@
   "scenario": "tool_selection_switches_from_resume_to_job_research",
   "policy": "When a requested business tool is not yet offered, discover it and continue the user's task in the same conversation.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "98884b7e7c3a7d962fd1df80b00c5b79a2da8b6288dda585896c4ecd94d771d6",
+  "prompt_fingerprint": "e75f1a6a799082b0e21c8331ab83f1fde4f0822df73ab8f1d0cd9fa9e8df4ce7",
   "context_shape_fingerprint": "9ea445ee9609e1f03030d660b96ddd4f6484086fa09142d64c438ccf82a4ad1a",
-  "recorded_at": "2026-10-11T07:26:31.638407+00:00",
+  "recorded_at": "2026-10-11T07:46:21.653663+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "research_job",
         "arguments": {
-          "focus": "主要竞争对手 (main competitors) of the company"
+          "focus": "主要竞争对手"
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "953af3ac5036f16ec65ca88af856ddd5772307e1d621d2686f170708a040a25e",
+      "selected_schema_fingerprint": "5207f41b37ac31ab5c47c22b89d7af1b337af652e7339634e80defce7e657109",
       "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
       "offered_tools": [
         "load_skill",
@@ -25,7 +25,7 @@
         "get_job_research",
         "search_capabilities"
       ],
-      "elapsed_ms": 1032.8,
+      "elapsed_ms": 1801.1,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -36,70 +36,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-11T07:26:30.101569+00:00",
-      "elapsed_ms": 1036.4,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "research_job",
-            "arguments": {
-              "focus": "主要竞争对手 (main competitors) of the company"
-            }
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "953af3ac5036f16ec65ca88af856ddd5772307e1d621d2686f170708a040a25e",
-          "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "research_job",
-            "get_job_research",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1032.8,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-11T07:26:31.217442+00:00",
-      "elapsed_ms": 1183.0,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "get_saved_job",
-            "arguments": {}
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "953af3ac5036f16ec65ca88af856ddd5772307e1d621d2686f170708a040a25e",
-          "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "research_job",
-            "get_job_research",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1179.0,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-11T07:26:31.638407+00:00",
-      "elapsed_ms": 1534.8,
+      "recorded_at": "2026-10-11T07:46:20.662303+00:00",
+      "elapsed_ms": 1805.7,
       "steps": [
         {
           "tool_call": {
@@ -109,7 +47,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "953af3ac5036f16ec65ca88af856ddd5772307e1d621d2686f170708a040a25e",
+          "selected_schema_fingerprint": "5207f41b37ac31ab5c47c22b89d7af1b337af652e7339634e80defce7e657109",
           "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
           "offered_tools": [
             "load_skill",
@@ -120,7 +58,66 @@
             "get_job_research",
             "search_capabilities"
           ],
-          "elapsed_ms": 1530.2,
+          "elapsed_ms": 1801.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:46:19.911209+00:00",
+      "elapsed_ms": 1000.3,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "research_job",
+            "arguments": {
+              "focus": "公司主要竞争对手及市场竞争格局"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "5207f41b37ac31ab5c47c22b89d7af1b337af652e7339634e80defce7e657109",
+          "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 997.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:46:21.653663+00:00",
+      "elapsed_ms": 2299.1,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"关于「研究当前岗位公司的主要竞争对手」：当前唯一在焦点的岗位是「示例科技 — 算法工程师（上海）」。请确认一下：\\n\\n1）是否就是研究这家「示例科技」的竞争对手？\\n2）有没有特别关注的方向/范围（例如：同一细分赛道、招聘市场上的人才竞争对手、特定产品线）？\\n\\n（另外，简历评审需要你先把简历文件附上，目前我这边没有可读的简历。）\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "5207f41b37ac31ab5c47c22b89d7af1b337af652e7339634e80defce7e657109",
+          "decision_shape_fingerprint": "972311b5de81ce4ed750dffc7e4726d6628767e73dc7afdbb13b7777207317b3",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2294.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

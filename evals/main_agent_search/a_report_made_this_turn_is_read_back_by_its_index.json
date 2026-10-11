@@ -2,9 +2,9 @@
   "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
   "policy": "A tool observation carrying a reference names the report that call produced. When the report you need is not the active one, read it back by that index; omitting the selector would silently return whichever report is active.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "b7fd05e30266e078303466b5e5e1f8ada1709611a1d45f9ed693949f86df6865",
+  "prompt_fingerprint": "dbb7a7acc8f43350e1a0a9c46b86d615c1898cd54c547c5a445a3701e8655135",
   "context_shape_fingerprint": "2458e58fe0cd5d9272f77fae97c511a0bbecad0798cdc39a60a3cbe0e2728698",
-  "recorded_at": "2026-10-11T07:26:30.236998+00:00",
+  "recorded_at": "2026-10-11T07:46:19.724172+00:00",
   "steps": [
     {
       "tool_call": {
@@ -14,7 +14,7 @@
         }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "1c95e0ef79617c4871051095fcf06e782fecceeb73b6d8ee20f51fa49e1b73a3",
+      "selected_schema_fingerprint": "36e74c2e37dce4f663149dd87ee8f7d272f4a0a86e1b10d0295bf8098348929a",
       "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
       "offered_tools": [
         "load_skill",
@@ -26,7 +26,7 @@
         "search_career_episodes",
         "search_capabilities"
       ],
-      "elapsed_ms": 5569.3,
+      "elapsed_ms": 4627.8,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -37,8 +37,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-11T07:26:20.448333+00:00",
-      "elapsed_ms": 5573.5,
+      "recorded_at": "2026-10-11T07:46:19.304577+00:00",
+      "elapsed_ms": 4632.4,
       "steps": [
         {
           "tool_call": {
@@ -48,7 +48,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "1c95e0ef79617c4871051095fcf06e782fecceeb73b6d8ee20f51fa49e1b73a3",
+          "selected_schema_fingerprint": "36e74c2e37dce4f663149dd87ee8f7d272f4a0a86e1b10d0295bf8098348929a",
           "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
           "offered_tools": [
             "load_skill",
@@ -60,7 +60,7 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 5569.3,
+          "elapsed_ms": 4627.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -70,8 +70,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:26:19.244589+00:00",
-      "elapsed_ms": 3174.7,
+      "recorded_at": "2026-10-11T07:46:19.908318+00:00",
+      "elapsed_ms": 3900.9,
       "steps": [
         {
           "tool_call": {
@@ -81,7 +81,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "1c95e0ef79617c4871051095fcf06e782fecceeb73b6d8ee20f51fa49e1b73a3",
+          "selected_schema_fingerprint": "36e74c2e37dce4f663149dd87ee8f7d272f4a0a86e1b10d0295bf8098348929a",
           "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
           "offered_tools": [
             "load_skill",
@@ -93,7 +93,7 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 3170.0,
+          "elapsed_ms": 3896.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -103,8 +103,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:26:30.236998+00:00",
-      "elapsed_ms": 13713.6,
+      "recorded_at": "2026-10-11T07:46:19.724172+00:00",
+      "elapsed_ms": 3505.4,
       "steps": [
         {
           "tool_call": {
@@ -114,7 +114,7 @@
             }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "1c95e0ef79617c4871051095fcf06e782fecceeb73b6d8ee20f51fa49e1b73a3",
+          "selected_schema_fingerprint": "36e74c2e37dce4f663149dd87ee8f7d272f4a0a86e1b10d0295bf8098348929a",
           "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
           "offered_tools": [
             "load_skill",
@@ -126,46 +126,12 @@
             "search_career_episodes",
             "search_capabilities"
           ],
-          "elapsed_ms": 13710.1,
-          "model_request_count": 3,
+          "elapsed_ms": 3501.9,
+          "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "invalid_tool_arguments",
-              "retried": true,
-              "raw_output": {
-                "content": "",
-                "tool_calls": [
-                  {
-                    "name": "get_job_research",
-                    "arguments": "{\"selection_index\": 1}"
-                  }
-                ]
-              },
-              "decision_invocation": 1
-            },
-            {
-              "reason": "invalid_tool_arguments",
-              "retried": false,
-              "raw_output": {
-                "content": "",
-                "tool_calls": [
-                  {
-                    "name": "get_job_research",
-                    "arguments": "{\"selection_index\": 1}"
-                  }
-                ]
-              },
-              "decision_invocation": 1
-            }
-          ],
-          "recording_retry_events": [
-            {
-              "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
-              "decision_invocation": 1
-            }
-          ],
-          "decision_invocations": 2
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
         }
       ]
     }

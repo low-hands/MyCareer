@@ -2,14 +2,14 @@
   "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
   "policy": "Never pass a resource reference the projection did not give you. Do not substitute one of the differently titled visible resource handles; use another grounded selector or explain that the report cannot be reached.",
   "model": "qwen3.7-plus",
-  "prompt_fingerprint": "b7fd05e30266e078303466b5e5e1f8ada1709611a1d45f9ed693949f86df6865",
+  "prompt_fingerprint": "dbb7a7acc8f43350e1a0a9c46b86d615c1898cd54c547c5a445a3701e8655135",
   "context_shape_fingerprint": "8a4b340e6807eb003cdf8571b07c35cb9cbcef6f800885b3c228b31d9ff7605c",
-  "recorded_at": "2026-10-11T07:26:40.092752+00:00",
+  "recorded_at": "2026-10-11T07:46:39.619221+00:00",
   "steps": [
     {
       "scenario_step": 0,
       "recording_error": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
-      "model_request_count": 7,
+      "model_request_count": 6,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [
         {
@@ -30,7 +30,7 @@
           "reason": "invalid_tool_arguments",
           "retried": false,
           "raw_output": {
-            "content": "我需要读取示例科技那份调研的具体内容，才能回答他们的主要竞争对手是谁。让我先获取这份调研报告。\n\n",
+            "content": "",
             "tool_calls": [
               {
                 "name": "get_job_research",
@@ -58,7 +58,7 @@
           "reason": "invalid_tool_arguments",
           "retried": false,
           "raw_output": {
-            "content": "我需要读取示例科技的调研报告来回答你的问题。\n\n",
+            "content": "",
             "tool_calls": [
               {
                 "name": "get_job_research",
@@ -67,16 +67,6 @@
             ]
           },
           "decision_invocation": 2
-        },
-        {
-          "reason": "text_rejected",
-          "retried": true,
-          "forced_interaction": false,
-          "raw_output": {
-            "content": "根据刚才的调研结果：\n\n- **示例科技**的主要竞争对手是 **A 公司**\n- **另一家科技**的主要竞争对手是 **B 公司**",
-            "tool_calls": []
-          },
-          "decision_invocation": 3
         },
         {
           "reason": "invalid_tool_arguments",
@@ -122,131 +112,13 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-11T07:26:38.468292+00:00",
+      "recorded_at": "2026-10-11T07:46:34.994217+00:00",
       "terminal_error": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
       "steps": [
         {
           "scenario_step": 0,
           "recording_error": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
-          "model_request_count": 7,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "invalid_tool_arguments",
-              "retried": true,
-              "raw_output": {
-                "content": "",
-                "tool_calls": [
-                  {
-                    "name": "get_job_research",
-                    "arguments": "{\"selection_index\": 1}"
-                  }
-                ]
-              },
-              "decision_invocation": 1
-            },
-            {
-              "reason": "invalid_tool_arguments",
-              "retried": false,
-              "raw_output": {
-                "content": "我需要读取示例科技那份调研的具体内容，才能回答他们的主要竞争对手是谁。让我先获取这份调研报告。\n\n",
-                "tool_calls": [
-                  {
-                    "name": "get_job_research",
-                    "arguments": "{\"selection_index\": 1}"
-                  }
-                ]
-              },
-              "decision_invocation": 1
-            },
-            {
-              "reason": "invalid_tool_arguments",
-              "retried": true,
-              "raw_output": {
-                "content": "",
-                "tool_calls": [
-                  {
-                    "name": "get_job_research",
-                    "arguments": "{\"selection_index\": 1}"
-                  }
-                ]
-              },
-              "decision_invocation": 2
-            },
-            {
-              "reason": "invalid_tool_arguments",
-              "retried": false,
-              "raw_output": {
-                "content": "我需要读取示例科技的调研报告来回答你的问题。\n\n",
-                "tool_calls": [
-                  {
-                    "name": "get_job_research",
-                    "arguments": "{\"selection_index\": 1}"
-                  }
-                ]
-              },
-              "decision_invocation": 2
-            },
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": false,
-              "raw_output": {
-                "content": "根据刚才的调研结果：\n\n- **示例科技**的主要竞争对手是 **A 公司**\n- **另一家科技**的主要竞争对手是 **B 公司**",
-                "tool_calls": []
-              },
-              "decision_invocation": 3
-            },
-            {
-              "reason": "invalid_tool_arguments",
-              "retried": true,
-              "raw_output": {
-                "content": "",
-                "tool_calls": [
-                  {
-                    "name": "get_job_research",
-                    "arguments": "{\"selection_index\": 1}"
-                  }
-                ]
-              },
-              "decision_invocation": 3
-            },
-            {
-              "reason": "invalid_tool_arguments",
-              "retried": false,
-              "raw_output": {
-                "content": "",
-                "tool_calls": [
-                  {
-                    "name": "get_job_research",
-                    "arguments": "{\"selection_index\": 1}"
-                  }
-                ]
-              },
-              "decision_invocation": 3
-            }
-          ],
-          "recording_retry_events": [
-            {
-              "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
-              "decision_invocation": 1
-            },
-            {
-              "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
-              "decision_invocation": 2
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-11T07:26:54.809403+00:00",
-      "terminal_error": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
-      "steps": [
-        {
-          "scenario_step": 0,
-          "recording_error": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
-          "model_request_count": 8,
+          "model_request_count": 6,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
             {
@@ -292,16 +164,6 @@
               "decision_invocation": 2
             },
             {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": false,
-              "raw_output": {
-                "content": "根据调研结果，示例科技的主要竞争对手是 B 公司。",
-                "tool_calls": []
-              },
-              "decision_invocation": 2
-            },
-            {
               "reason": "invalid_tool_arguments",
               "retried": false,
               "raw_output": {
@@ -326,16 +188,6 @@
                     "arguments": "{\"selection_index\": 1}"
                   }
                 ]
-              },
-              "decision_invocation": 3
-            },
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": false,
-              "raw_output": {
-                "content": "根据调研结果，示例科技的主要竞争对手是 B 公司。",
-                "tool_calls": []
               },
               "decision_invocation": 3
             },
@@ -368,12 +220,25 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:26:40.092752+00:00",
-      "terminal_error": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+      "recorded_at": "2026-10-11T07:46:44.564896+00:00",
+      "elapsed_ms": 25258.4,
       "steps": [
         {
+          "content": "{\"action\":\"final\",\"message\":\"示例科技的调研显示其主要竞争对手为 B 公司。\",\"questions\":[]}",
           "scenario_step": 0,
-          "recording_error": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+          "selected_schema_fingerprint": "36e74c2e37dce4f663149dd87ee8f7d272f4a0a86e1b10d0295bf8098348929a",
+          "decision_shape_fingerprint": "18634961d0380b3e081e0a89b731d5bb2bbbf168e599d61ac295bf4a40d27edb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 25256.5,
           "model_request_count": 7,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [
@@ -420,6 +285,16 @@
               "decision_invocation": 2
             },
             {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "示例科技的主要竞争对手是 B 公司。",
+                "tool_calls": []
+              },
+              "decision_invocation": 2
+            },
+            {
               "reason": "invalid_tool_arguments",
               "retried": false,
               "raw_output": {
@@ -446,14 +321,99 @@
                 ]
               },
               "decision_invocation": 3
+            }
+          ],
+          "recording_retry_events": [
+            {
+              "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+              "decision_invocation": 1
             },
             {
-              "reason": "text_rejected",
+              "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+              "decision_invocation": 2
+            }
+          ],
+          "decision_invocations": 3
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:46:39.619221+00:00",
+      "terminal_error": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+      "steps": [
+        {
+          "scenario_step": 0,
+          "recording_error": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+          "model_request_count": 6,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "invalid_tool_arguments",
               "retried": true,
-              "forced_interaction": false,
               "raw_output": {
-                "content": "根据调研结果，另一家科技的主要竞争对手是 B 公司。",
-                "tool_calls": []
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": false,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 2
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": false,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 2
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
               },
               "decision_invocation": 3
             },

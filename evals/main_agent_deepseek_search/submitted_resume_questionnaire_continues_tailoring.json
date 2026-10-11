@@ -2,9 +2,9 @@
   "scenario": "submitted_resume_questionnaire_continues_tailoring",
   "policy": "After a user submits answers to a questionnaire for the current resume tailoring task, continue that task with the bound resume and match. Skipped and absent answers are not career facts or permission to invent experience.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "2ee02c270b1fa72f47d8469a6d5293bfaab4f4bc544a24ebb0d371361fa0ebdb",
+  "prompt_fingerprint": "700657b77b5cf53a7a0e6878b651642a64cae1f4cf1a14688467b63b1f651cb8",
   "context_shape_fingerprint": "2a7924fc8dda76d33903c9162cba2cf866d73a90fa7322af9149bfec6ac7b293",
-  "recorded_at": "2026-10-11T07:26:29.060192+00:00",
+  "recorded_at": "2026-10-11T07:46:18.905536+00:00",
   "steps": [
     {
       "tool_call": {
@@ -12,7 +12,7 @@
         "arguments": {}
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "7b2f47176c9215f7e5e274a232037b4e7074647f9646811ec20c0ab950df69e1",
+      "selected_schema_fingerprint": "c2c52b2be7d790d75e59ed194a5ac3d03fbdbd3a5834afb81dc0f822d094a139",
       "decision_shape_fingerprint": "ae3b49c38645c9725261c44e8afa2d0166247f9e7daa87e2ec45bc85559a5952",
       "offered_tools": [
         "load_skill",
@@ -25,29 +25,10 @@
         "propose_career_fact",
         "search_capabilities"
       ],
-      "elapsed_ms": 2249.1,
-      "model_request_count": 2,
+      "elapsed_ms": 1108.9,
+      "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [
-        {
-          "reason": "multiple_tool_calls",
-          "retried": true,
-          "raw_output": {
-            "content": "I need to check the match and job context before drafting. The user asked to customize a resume based on the current match result, and the five missing items have now been answered.\n\nLet me retrieve the active match and saved job.",
-            "tool_calls": [
-              {
-                "name": "get_resume_job_match",
-                "arguments": "{}"
-              },
-              {
-                "name": "get_saved_job",
-                "arguments": "{}"
-              }
-            ]
-          },
-          "decision_invocation": 1
-        }
-      ],
+      "decision_retry_events": [],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -55,8 +36,8 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-11T07:26:28.602399+00:00",
-      "elapsed_ms": 2253.2,
+      "recorded_at": "2026-10-11T07:46:16.099680+00:00",
+      "elapsed_ms": 1113.4,
       "steps": [
         {
           "tool_call": {
@@ -64,7 +45,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "7b2f47176c9215f7e5e274a232037b4e7074647f9646811ec20c0ab950df69e1",
+          "selected_schema_fingerprint": "c2c52b2be7d790d75e59ed194a5ac3d03fbdbd3a5834afb81dc0f822d094a139",
           "decision_shape_fingerprint": "ae3b49c38645c9725261c44e8afa2d0166247f9e7daa87e2ec45bc85559a5952",
           "offered_tools": [
             "load_skill",
@@ -77,58 +58,7 @@
             "propose_career_fact",
             "search_capabilities"
           ],
-          "elapsed_ms": 2249.1,
-          "model_request_count": 2,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "multiple_tool_calls",
-              "retried": true,
-              "raw_output": {
-                "content": "I need to check the match and job context before drafting. The user asked to customize a resume based on the current match result, and the five missing items have now been answered.\n\nLet me retrieve the active match and saved job.",
-                "tool_calls": [
-                  {
-                    "name": "get_resume_job_match",
-                    "arguments": "{}"
-                  },
-                  {
-                    "name": "get_saved_job",
-                    "arguments": "{}"
-                  }
-                ]
-              },
-              "decision_invocation": 1
-            }
-          ],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        }
-      ]
-    },
-    {
-      "recorded_at": "2026-10-11T07:26:28.795266+00:00",
-      "elapsed_ms": 1241.3,
-      "steps": [
-        {
-          "tool_call": {
-            "name": "get_resume_job_match",
-            "arguments": {}
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "7b2f47176c9215f7e5e274a232037b4e7074647f9646811ec20c0ab950df69e1",
-          "decision_shape_fingerprint": "ae3b49c38645c9725261c44e8afa2d0166247f9e7daa87e2ec45bc85559a5952",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "get_saved_job",
-            "get_resume_job_match",
-            "draft_resume_tailoring",
-            "search_career_history",
-            "propose_career_fact",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1238.4,
+          "elapsed_ms": 1108.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -138,8 +68,8 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:26:29.060192+00:00",
-      "elapsed_ms": 945.9,
+      "recorded_at": "2026-10-11T07:46:17.367928+00:00",
+      "elapsed_ms": 1266.2,
       "steps": [
         {
           "tool_call": {
@@ -147,7 +77,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "7b2f47176c9215f7e5e274a232037b4e7074647f9646811ec20c0ab950df69e1",
+          "selected_schema_fingerprint": "c2c52b2be7d790d75e59ed194a5ac3d03fbdbd3a5834afb81dc0f822d094a139",
           "decision_shape_fingerprint": "ae3b49c38645c9725261c44e8afa2d0166247f9e7daa87e2ec45bc85559a5952",
           "offered_tools": [
             "load_skill",
@@ -160,7 +90,41 @@
             "propose_career_fact",
             "search_capabilities"
           ],
-          "elapsed_ms": 941.7,
+          "elapsed_ms": 1263.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:46:18.905536+00:00",
+      "elapsed_ms": 1848.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "draft_resume_tailoring",
+            "arguments": {
+              "tailoring_goal": "针对当前岗位匹配结果定制简历。用户补充信息：前端经验为使用 React 开发过内部管理页面；向量数据库未使用过；Dify 仅了解基础工作流配置；AI 编程工具日常使用 Claude Code 和 Cursor；开源项目或博客跳过（无）。请勿将泛泛的技能描述扩写为项目、年限或成果。"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "c2c52b2be7d790d75e59ed194a5ac3d03fbdbd3a5834afb81dc0f822d094a139",
+          "decision_shape_fingerprint": "ae3b49c38645c9725261c44e8afa2d0166247f9e7daa87e2ec45bc85559a5952",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "get_resume_job_match",
+            "draft_resume_tailoring",
+            "search_career_history",
+            "propose_career_fact",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1843.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

@@ -2,8 +2,8 @@
   "version": 1,
   "model": "deepseek-flash",
   "scenario": "single_empty_resume_receipt",
-  "suite_fingerprint": "6bd1478d40156967e8505a5bd9ba098b65278d80dd12580a9055de48b3a16ec6",
-  "recorded_at": "2026-10-11T07:28:13.249284+00:00",
+  "suite_fingerprint": "2a75ebf7fa9c6b126b0541b4b10b1491e377049947c377d9ad1ff44be070c8ec",
+  "recorded_at": "2026-10-11T07:48:01.954904+00:00",
   "k": 3,
   "samples": [
     {
@@ -12,7 +12,7 @@
         "queries": {
           "查看我的简历": {
             "get_resume_tailoring_draft": 0.6691502745382265,
-            "list_resumes": 0.6604772389830712,
+            "list_resumes": 0.6604432806946312,
             "get_resume_metadata": 0.6440452699763362,
             "get_resume_job_match": 0.6296121506103333,
             "review_resume_tailoring": 0.6233054908070699,
@@ -28,7 +28,7 @@
       "turns": [
         {
           "message": "查看我的简历",
-          "assistant_message": "我查看了你的简历库，但没有找到任何已保存的简历（返回结果：没有找到匹配的简历）。\n\n如果你认为应该有简历，可能原因有：\n- 简历还未上传/导入到系统中；\n- 简历名称或标签与查询条件不匹配。\n\n需要我帮你做下一步吗？例如：你可以告诉我要投递的岗位方向，我可以据此帮你确认简历版本，或者先了解你的目标岗位方向，再开始整理简历素材。",
+          "assistant_message": "我查了一下，目前没有找到任何已保存的简历（结果：无匹配简历）。\n\n如果你希望我继续帮你查看或获取简历信息，可以：\n1. 确认简历是否已上传/导入到系统中；\n2. 或者告诉我简历的名称、方向或标签（例如\"后端开发\"\"产品经理\"），我再用关键词帮你找一次。\n\n在简历进入系统之前，我无法读取版本、元数据或导出文件。",
           "executed_calls": [
             {
               "name": "list_resumes",
@@ -47,15 +47,84 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "schema_fingerprint": "ae6ff7f984349769af4daf7652ec7c3b5e0a0c9c052b5a3583293a5d97c7ed0b",
               "action": "tool_call",
               "tool": "list_resumes"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"我查看了你的简历库，但没有找到任何已保存的简历（返回结果：没有找到匹配的简历）。\\n\\n如果你认为应该有简历，可能原因有：\\n- 简历还未上传/导入到系统中；\\n- 简历名称或标签与查询条件不匹配。\\n\\n需要我帮你做下一步吗？例如：你可以告诉我要投递的岗位方向，我可以据此帮你确认简历版本，或者先了解你的目标岗位方向，再开始整理简历素材。\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"我查了一下，目前没有找到任何已保存的简历（结果：无匹配简历）。\\n\\n如果你希望我继续帮你查看或获取简历信息，可以：\\n1. 确认简历是否已上传/导入到系统中；\\n2. 或者告诉我简历的名称、方向或标签（例如\\\"后端开发\\\"\\\"产品经理\\\"），我再用关键词帮你找一次。\\n\\n在简历进入系统之前，我无法读取版本、元数据或导出文件。\",\"questions\":[]}"
               },
-              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "schema_fingerprint": "ae6ff7f984349769af4daf7652ec7c3b5e0a0c9c052b5a3583293a5d97c7ed0b",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的简历": {
+            "get_resume_tailoring_draft": 0.6692905825949897,
+            "list_resumes": 0.6605826340466909,
+            "get_resume_metadata": 0.64415864583745,
+            "get_resume_job_match": 0.6296744459021586,
+            "review_resume_tailoring": 0.6233365451624978,
+            "revise_resume_tailoring": 0.5781915436475185,
+            "export_resume_artifact": 0.568823796382271,
+            "match_resume_to_job": 0.553537419829998,
+            "draft_resume_tailoring": 0.5508366144188283
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "查询结果：目前没有找到你的任何简历记录（简历库为空）。\n\n如果你希望我继续，可以：\n1. 告诉我你的简历名称或方向/标签，我再帮你查一次（例如某个岗位方向的版本）；\n2. 或者你打算添加/导入简历——请说明简历来源或格式，我再看对应能力是否可用。需要提醒的是，我不会替你编造简历内容，也无法把整份简历粘贴到聊天里；简历文件内容通常通过导出或读取元数据的方式获取。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "ae6ff7f984349769af4daf7652ec7c3b5e0a0c9c052b5a3583293a5d97c7ed0b",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"查询结果：目前没有找到你的任何简历记录（简历库为空）。\\n\\n如果你希望我继续，可以：\\n1. 告诉我你的简历名称或方向/标签，我再帮你查一次（例如某个岗位方向的版本）；\\n2. 或者你打算添加/导入简历——请说明简历来源或格式，我再看对应能力是否可用。需要提醒的是，我不会替你编造简历内容，也无法把整份简历粘贴到聊天里；简历文件内容通常通过导出或读取元数据的方式获取。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "ae6ff7f984349769af4daf7652ec7c3b5e0a0c9c052b5a3583293a5d97c7ed0b",
               "action": "final",
               "tool": null
             }
@@ -81,7 +150,7 @@
         "queries": {
           "查看我的简历": {
             "get_resume_tailoring_draft": 0.669196371724995,
-            "list_resumes": 0.6605736567817219,
+            "list_resumes": 0.6605397941668147,
             "get_resume_metadata": 0.6441614815484193,
             "get_resume_job_match": 0.6296406346221068,
             "review_resume_tailoring": 0.6233194997523233,
@@ -97,7 +166,7 @@
       "turns": [
         {
           "message": "查看我的简历",
-          "assistant_message": "我查了你的简历库，目前没有找到任何简历记录（没有任何已保存的简历或版本）。所以暂时没有可以展示的内容。\n\n如果你认为应该有简历，可以告诉我简历的名称或方向，我再按关键词查一次；或者你也可以直接把简历内容发给我，我帮你归档整理。",
+          "assistant_message": "我查询了你的简历库，目前没有找到任何简历记录。\n\n可能的原因：\n- 你还没有上传或创建过简历；\n- 或者简历存在别处（比如本地文件、其他平台），尚未同步到这里。\n\n如果你想继续，可以：\n1. 告诉我你要找的简历名称、方向或标签（比如“后端”“产品经理”），我再按关键词查一次；\n2. 或者直接把简历文件/内容提供给我，我可以帮你登记并进行后续的岗位匹配、定制等操作。\n\n需要我按某个关键词重新查一次吗？",
           "executed_calls": [
             {
               "name": "list_resumes",
@@ -116,84 +185,15 @@
                   "arguments": {}
                 }
               },
-              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "schema_fingerprint": "ae6ff7f984349769af4daf7652ec7c3b5e0a0c9c052b5a3583293a5d97c7ed0b",
               "action": "tool_call",
               "tool": "list_resumes"
             },
             {
               "response": {
-                "content": "{\"action\":\"final\",\"message\":\"我查了你的简历库，目前没有找到任何简历记录（没有任何已保存的简历或版本）。所以暂时没有可以展示的内容。\\n\\n如果你认为应该有简历，可以告诉我简历的名称或方向，我再按关键词查一次；或者你也可以直接把简历内容发给我，我帮你归档整理。\",\"questions\":[]}"
+                "content": "{\"action\":\"final\",\"message\":\"我查询了你的简历库，目前没有找到任何简历记录。\\n\\n可能的原因：\\n- 你还没有上传或创建过简历；\\n- 或者简历存在别处（比如本地文件、其他平台），尚未同步到这里。\\n\\n如果你想继续，可以：\\n1. 告诉我你要找的简历名称、方向或标签（比如“后端”“产品经理”），我再按关键词查一次；\\n2. 或者直接把简历文件/内容提供给我，我可以帮你登记并进行后续的岗位匹配、定制等操作。\\n\\n需要我按某个关键词重新查一次吗？\",\"questions\":[]}"
               },
-              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
-              "action": "final",
-              "tool": null
-            }
-          ],
-          "error": null,
-          "missing_calls": [],
-          "requires_model_summary": false,
-          "model_summary_delivered": true,
-          "decision_count": 2,
-          "direct_delivery": false,
-          "result_states": [
-            "no_resumes_found"
-          ]
-        }
-      ],
-      "premature_stop_count": 0,
-      "unsafe_attempt_count": 0,
-      "injection_marker_echo_count": 0
-    },
-    {
-      "semantic_recording": {
-        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
-        "queries": {
-          "查看我的简历": {
-            "get_resume_tailoring_draft": 0.6691502745382265,
-            "list_resumes": 0.6604772389830712,
-            "get_resume_metadata": 0.6440452699763362,
-            "get_resume_job_match": 0.6296121506103333,
-            "review_resume_tailoring": 0.6233054908070699,
-            "revise_resume_tailoring": 0.5780662402541593,
-            "export_resume_artifact": 0.5686427536740039,
-            "match_resume_to_job": 0.5535036183080215,
-            "draft_resume_tailoring": 0.5506809182768472
-          }
-        }
-      },
-      "passed": true,
-      "failures": [],
-      "turns": [
-        {
-          "message": "查看我的简历",
-          "assistant_message": "我查询了你的简历库，目前没有找到任何简历（状态：无匹配简历）。\n\n可选：\n- 如果你记得简历是按某个名称、方向或标签保存的，告诉我关键词，我可以再查一次。\n- 如果你还没有上传/保存过简历，我可以协助你后续创建或导入——需要的话告诉我一声。",
-          "executed_calls": [
-            {
-              "name": "list_resumes",
-              "arguments": {
-                "user_id": "eval-user",
-                "target_role_id": null,
-                "query": null
-              }
-            }
-          ],
-          "decisions": [
-            {
-              "response": {
-                "tool_call": {
-                  "name": "list_resumes",
-                  "arguments": {}
-                }
-              },
-              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
-              "action": "tool_call",
-              "tool": "list_resumes"
-            },
-            {
-              "response": {
-                "content": "{\"action\":\"final\",\"message\":\"我查询了你的简历库，目前没有找到任何简历（状态：无匹配简历）。\\n\\n可选：\\n- 如果你记得简历是按某个名称、方向或标签保存的，告诉我关键词，我可以再查一次。\\n- 如果你还没有上传/保存过简历，我可以协助你后续创建或导入——需要的话告诉我一声。\",\"questions\":[]}"
-              },
-              "schema_fingerprint": "ec5b86ab1e0e7603b35668a8b7752da054c0a703ad614f72e287e2b6f94622f3",
+              "schema_fingerprint": "ae6ff7f984349769af4daf7652ec7c3b5e0a0c9c052b5a3583293a5d97c7ed0b",
               "action": "final",
               "tool": null
             }

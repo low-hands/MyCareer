@@ -2,14 +2,14 @@
   "scenario": "a_stale_note_is_reviewed_before_reuse",
   "policy": "When working_notes includes stale_days, review whether each note still holds before carrying it forward, and use update_working_notes to remove outdated material.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "1e7e94fc8dd867918f4778909382fd6195bf6e5dcedae34f9ad304c51292af81",
+  "prompt_fingerprint": "7cb557e29b56ad67bf646302aff5c05756bb8d7834a685806ab70c17bf55e80b",
   "context_shape_fingerprint": "9861cd4ddcd7cabe495311bb491bf981775e82b7334ac346af733f0ff66d278e",
-  "recorded_at": "2026-10-11T07:25:25.765582+00:00",
+  "recorded_at": "2026-10-11T07:45:18.057227+00:00",
   "steps": [
     {
-      "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你想找什么方向的岗位（关键词），以及目标城市。另外方便的话说明是实习、全职还是兼职。\",\"questions\":[]}",
+      "content": "{\"action\":\"ask_user\",\"message\":\"你想在哪个城市找工作？（你的档案里还没有确认默认城市，所以请告诉我目标城市。）另外如果方便，也可以告诉我想要的关键词/岗位方向——不过城市是必需项。\",\"questions\":[]}",
       "scenario_step": 0,
-      "selected_schema_fingerprint": "55daf21771ae8f083a1f0683d1e297d3be8c6afa8a7b1d9e7efc7f3e5aa74a30",
+      "selected_schema_fingerprint": "a744254acc8d788f90d854ae3f81ed0564c734420bbcc6f4903e45fe9c067c84",
       "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
       "offered_tools": [
         "load_skill",
@@ -19,7 +19,7 @@
         "find_saved_jobs",
         "search_capabilities"
       ],
-      "elapsed_ms": 1276.2,
+      "elapsed_ms": 1272.6,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -30,13 +30,13 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-11T07:25:24.126433+00:00",
-      "elapsed_ms": 1279.2,
+      "recorded_at": "2026-10-11T07:45:17.506079+00:00",
+      "elapsed_ms": 1275.1,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你想找什么方向的岗位（关键词），以及目标城市。另外方便的话说明是实习、全职还是兼职。\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"你想在哪个城市找工作？（你的档案里还没有确认默认城市，所以请告诉我目标城市。）另外如果方便，也可以告诉我想要的关键词/岗位方向——不过城市是必需项。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "55daf21771ae8f083a1f0683d1e297d3be8c6afa8a7b1d9e7efc7f3e5aa74a30",
+          "selected_schema_fingerprint": "a744254acc8d788f90d854ae3f81ed0564c734420bbcc6f4903e45fe9c067c84",
           "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
           "offered_tools": [
             "load_skill",
@@ -46,7 +46,7 @@
             "find_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1276.2,
+          "elapsed_ms": 1272.6,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -56,18 +56,13 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:25:26.279414+00:00",
-      "elapsed_ms": 2151.4,
+      "recorded_at": "2026-10-11T07:45:17.855876+00:00",
+      "elapsed_ms": 1167.1,
       "steps": [
         {
-          "tool_call": {
-            "name": "search_capabilities",
-            "arguments": {
-              "query": "找岗位 求职搜索 目标岗位方向"
-            }
-          },
+          "content": "{\"action\":\"ask_user\",\"message\":\"你想在哪个城市找岗位？（如果你有具体的目标岗位/关键词，也请一并告诉我，例如「Rust 后端」；否则我会用较宽泛的关键词搜索。）\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "55daf21771ae8f083a1f0683d1e297d3be8c6afa8a7b1d9e7efc7f3e5aa74a30",
+          "selected_schema_fingerprint": "a744254acc8d788f90d854ae3f81ed0564c734420bbcc6f4903e45fe9c067c84",
           "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
           "offered_tools": [
             "load_skill",
@@ -77,33 +72,7 @@
             "find_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 995.7,
-          "model_request_count": 1,
-          "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [],
-          "recording_retry_events": [],
-          "decision_invocations": 1
-        },
-        {
-          "tool_call": {
-            "name": "list_target_roles",
-            "arguments": {}
-          },
-          "scenario_step": 0,
-          "selected_schema_fingerprint": "25c662778257efe05af3de732d730a00e73d6b0ead62e5d5fdbe0f6285c79302",
-          "decision_shape_fingerprint": "dd16457e4071eb2e9b4c63112c12d64c95b3b7b2713cd5836a08e09557f1690f",
-          "offered_tools": [
-            "load_skill",
-            "fetch_archived_constraints",
-            "search_career_memory",
-            "open_job_search",
-            "find_saved_jobs",
-            "list_target_roles",
-            "propose_job_intent",
-            "search_career_episodes",
-            "search_capabilities"
-          ],
-          "elapsed_ms": 1147.7,
+          "elapsed_ms": 1163.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -113,13 +82,13 @@
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:25:25.765582+00:00",
-      "elapsed_ms": 1512.8,
+      "recorded_at": "2026-10-11T07:45:18.057227+00:00",
+      "elapsed_ms": 996.4,
       "steps": [
         {
-          "content": "{\"action\":\"ask_user\",\"message\":\"好的，帮你找岗位前需要先确认两点：\\n\\n1. 你想在哪个城市找？（档案里默认城市未确认）\\n2. 关键词方向（岗位名称/技能，例如「后端工程师」「数据分析」）？\\n\\n另外，我记录到一条未确认的观察：你偏好 Rust 岗位——这条尚未确认，如果你要按它来搜，请明确告诉我。\",\"questions\":[]}",
+          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我你想在哪个城市找工作？（你的档案里还没有确认默认城市，我不想替你猜。）另外如果有目标岗位关键词也可以一起说，比如「后端开发」。\",\"questions\":[]}",
           "scenario_step": 0,
-          "selected_schema_fingerprint": "55daf21771ae8f083a1f0683d1e297d3be8c6afa8a7b1d9e7efc7f3e5aa74a30",
+          "selected_schema_fingerprint": "a744254acc8d788f90d854ae3f81ed0564c734420bbcc6f4903e45fe9c067c84",
           "decision_shape_fingerprint": "7aecca3098a7f4c3a914dbbbbaf4a8b3601cf8293a090c3357f9737bbf0bdb31",
           "offered_tools": [
             "load_skill",
@@ -129,7 +98,7 @@
             "find_saved_jobs",
             "search_capabilities"
           ],
-          "elapsed_ms": 1509.1,
+          "elapsed_ms": 994.1,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],

@@ -2,17 +2,19 @@
   "scenario": "a_repeated_call_is_not_reissued_after_an_observation",
   "policy": "After receiving an observation, choose the next action or ask a state-grounded question unless another distinct tool call is genuinely required; never repeat an identical tool call.",
   "model": "deepseek-flash",
-  "prompt_fingerprint": "66792e131f2d364195889c70dc5d98981e591f370ce1af8f08bffdbd3548aa13",
+  "prompt_fingerprint": "8fc83174a4fb07718864193bd89a7d34223b5e7f34ba75b4e3849b3eec111d90",
   "context_shape_fingerprint": "35be590b42294ef652d531ab0aa3febf15a1b0304fbdf362ae3d9ac30b1f24a7",
-  "recorded_at": "2026-10-11T07:26:01.449789+00:00",
+  "recorded_at": "2026-10-11T07:45:49.609369+00:00",
   "steps": [
     {
       "tool_call": {
         "name": "find_saved_jobs",
-        "arguments": {}
+        "arguments": {
+          "query": ""
+        }
       },
       "scenario_step": 0,
-      "selected_schema_fingerprint": "59cd1edabd7c2381f4a1d0bd99880296020eddba8fde49e10f215b88582a189b",
+      "selected_schema_fingerprint": "2f7dae4d8617ace7ded12a639f942d8ed5f105aa60a1944312f2d87a6ccd3391",
       "decision_shape_fingerprint": "dcdb8c5478b14850ea82b0e7b80bfa9e6b60cb534b9a5434a746464052b2cdc6",
       "offered_tools": [
         "load_skill",
@@ -22,7 +24,7 @@
         "list_target_roles",
         "search_capabilities"
       ],
-      "elapsed_ms": 896.5,
+      "elapsed_ms": 1099.8,
       "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
       "decision_retry_events": [],
@@ -37,7 +39,7 @@
         }
       },
       "scenario_step": 1,
-      "selected_schema_fingerprint": "fc07f386238fcb9ebb79fdef5c30e5846f0faa8ce99de4ed175173012c2bd158",
+      "selected_schema_fingerprint": "a2ff54be09500402284492385bc26cdb6765af71d0f3e82e07d8df1abcf34d9a",
       "decision_shape_fingerprint": "b68a08385c4c7492ec3ee985c7448084a372cfb48081fe0f4b9527734c1df9ff",
       "offered_tools": [
         "load_skill",
@@ -49,21 +51,10 @@
         "list_target_roles",
         "search_capabilities"
       ],
-      "elapsed_ms": 2032.1,
-      "model_request_count": 2,
+      "elapsed_ms": 916.1,
+      "model_request_count": 1,
       "decision_retry_telemetry_version": 1,
-      "decision_retry_events": [
-        {
-          "reason": "text_rejected",
-          "retried": true,
-          "forced_interaction": false,
-          "raw_output": {
-            "content": "你保存了 1 个岗位：\n\n1. **算法工程师** — 示例科技（上海），薪资 30-50K\n\n需要我做什么后续动作吗？比如查看该岗位的完整职位描述、和其他岗位对比，或基于它创建投递记录。",
-            "tool_calls": []
-          },
-          "decision_invocation": 1
-        }
-      ],
+      "decision_retry_events": [],
       "recording_retry_events": [],
       "decision_invocations": 1
     }
@@ -71,16 +62,18 @@
   "sample_count": 3,
   "samples": [
     {
-      "recorded_at": "2026-10-11T07:26:01.328433+00:00",
-      "elapsed_ms": 2938.3,
+      "recorded_at": "2026-10-11T07:45:49.190410+00:00",
+      "elapsed_ms": 2022.4,
       "steps": [
         {
           "tool_call": {
             "name": "find_saved_jobs",
-            "arguments": {}
+            "arguments": {
+              "query": ""
+            }
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "59cd1edabd7c2381f4a1d0bd99880296020eddba8fde49e10f215b88582a189b",
+          "selected_schema_fingerprint": "2f7dae4d8617ace7ded12a639f942d8ed5f105aa60a1944312f2d87a6ccd3391",
           "decision_shape_fingerprint": "dcdb8c5478b14850ea82b0e7b80bfa9e6b60cb534b9a5434a746464052b2cdc6",
           "offered_tools": [
             "load_skill",
@@ -90,7 +83,7 @@
             "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 896.5,
+          "elapsed_ms": 1099.8,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -105,7 +98,7 @@
             }
           },
           "scenario_step": 1,
-          "selected_schema_fingerprint": "fc07f386238fcb9ebb79fdef5c30e5846f0faa8ce99de4ed175173012c2bd158",
+          "selected_schema_fingerprint": "a2ff54be09500402284492385bc26cdb6765af71d0f3e82e07d8df1abcf34d9a",
           "decision_shape_fingerprint": "b68a08385c4c7492ec3ee985c7448084a372cfb48081fe0f4b9527734c1df9ff",
           "offered_tools": [
             "load_skill",
@@ -117,29 +110,18 @@
             "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 2032.1,
-          "model_request_count": 2,
+          "elapsed_ms": 916.1,
+          "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": false,
-              "raw_output": {
-                "content": "你保存了 1 个岗位：\n\n1. **算法工程师** — 示例科技（上海），薪资 30-50K\n\n需要我做什么后续动作吗？比如查看该岗位的完整职位描述、和其他岗位对比，或基于它创建投递记录。",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            }
-          ],
+          "decision_retry_events": [],
           "recording_retry_events": [],
           "decision_invocations": 1
         }
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:26:02.224899+00:00",
-      "elapsed_ms": 3810.6,
+      "recorded_at": "2026-10-11T07:45:49.824809+00:00",
+      "elapsed_ms": 2319.5,
       "steps": [
         {
           "tool_call": {
@@ -147,7 +129,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "59cd1edabd7c2381f4a1d0bd99880296020eddba8fde49e10f215b88582a189b",
+          "selected_schema_fingerprint": "2f7dae4d8617ace7ded12a639f942d8ed5f105aa60a1944312f2d87a6ccd3391",
           "decision_shape_fingerprint": "dcdb8c5478b14850ea82b0e7b80bfa9e6b60cb534b9a5434a746464052b2cdc6",
           "offered_tools": [
             "load_skill",
@@ -157,7 +139,7 @@
             "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 791.3,
+          "elapsed_ms": 1141.2,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -172,7 +154,7 @@
             }
           },
           "scenario_step": 1,
-          "selected_schema_fingerprint": "fc07f386238fcb9ebb79fdef5c30e5846f0faa8ce99de4ed175173012c2bd158",
+          "selected_schema_fingerprint": "a2ff54be09500402284492385bc26cdb6765af71d0f3e82e07d8df1abcf34d9a",
           "decision_shape_fingerprint": "b68a08385c4c7492ec3ee985c7448084a372cfb48081fe0f4b9527734c1df9ff",
           "offered_tools": [
             "load_skill",
@@ -184,43 +166,18 @@
             "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 3010.8,
-          "model_request_count": 3,
+          "elapsed_ms": 1171.4,
+          "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
-          "decision_retry_events": [
-            {
-              "reason": "text_rejected",
-              "retried": true,
-              "forced_interaction": false,
-              "raw_output": {
-                "content": "You have 1 saved job:\n\n1. **算法工程师** — 示例科技（上海），薪资 30-50K\n\n需要我读取完整职位描述，或做进一步的对比/分析吗？",
-                "tool_calls": []
-              },
-              "decision_invocation": 1
-            },
-            {
-              "reason": "invalid_tool_arguments",
-              "retried": true,
-              "raw_output": {
-                "content": "",
-                "tool_calls": [
-                  {
-                    "name": "get_saved_job",
-                    "arguments": "{}"
-                  }
-                ]
-              },
-              "decision_invocation": 1
-            }
-          ],
+          "decision_retry_events": [],
           "recording_retry_events": [],
           "decision_invocations": 1
         }
       ]
     },
     {
-      "recorded_at": "2026-10-11T07:26:01.449789+00:00",
-      "elapsed_ms": 1987.1,
+      "recorded_at": "2026-10-11T07:45:49.609369+00:00",
+      "elapsed_ms": 2097.8,
       "steps": [
         {
           "tool_call": {
@@ -228,7 +185,7 @@
             "arguments": {}
           },
           "scenario_step": 0,
-          "selected_schema_fingerprint": "59cd1edabd7c2381f4a1d0bd99880296020eddba8fde49e10f215b88582a189b",
+          "selected_schema_fingerprint": "2f7dae4d8617ace7ded12a639f942d8ed5f105aa60a1944312f2d87a6ccd3391",
           "decision_shape_fingerprint": "dcdb8c5478b14850ea82b0e7b80bfa9e6b60cb534b9a5434a746464052b2cdc6",
           "offered_tools": [
             "load_skill",
@@ -238,7 +195,7 @@
             "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 1003.3,
+          "elapsed_ms": 1161.9,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
@@ -246,9 +203,14 @@
           "decision_invocations": 1
         },
         {
-          "content": "{\"action\":\"final\",\"message\":\"你目前保存了 1 个岗位：\\n\\n| # | 公司 | 岗位 | 城市 | 薪资 |\\n|---|---|---|---|---|\\n| 1 | 示例科技 | 算法工程师 | 上海 | 30-50K |\\n\\n需要我读取这个岗位的完整职位描述，或者做进一步分析（如岗位要求分析、与简历的匹配）吗？\",\"questions\":[]}",
+          "tool_call": {
+            "name": "get_saved_job",
+            "arguments": {
+              "selection_index": 1
+            }
+          },
           "scenario_step": 1,
-          "selected_schema_fingerprint": "fc07f386238fcb9ebb79fdef5c30e5846f0faa8ce99de4ed175173012c2bd158",
+          "selected_schema_fingerprint": "a2ff54be09500402284492385bc26cdb6765af71d0f3e82e07d8df1abcf34d9a",
           "decision_shape_fingerprint": "b68a08385c4c7492ec3ee985c7448084a372cfb48081fe0f4b9527734c1df9ff",
           "offered_tools": [
             "load_skill",
@@ -260,7 +222,7 @@
             "list_target_roles",
             "search_capabilities"
           ],
-          "elapsed_ms": 975.9,
+          "elapsed_ms": 928.5,
           "model_request_count": 1,
           "decision_retry_telemetry_version": 1,
           "decision_retry_events": [],
