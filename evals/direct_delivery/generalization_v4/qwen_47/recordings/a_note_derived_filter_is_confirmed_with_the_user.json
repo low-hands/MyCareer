@@ -1,0 +1,107 @@
+{
+  "scenario": "a_note_derived_filter_is_confirmed_with_the_user",
+  "policy": "After working_notes_derived_argument, do not retry the same note-derived content with different wording; ask the user to confirm it or use an authoritative source.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "cead8512cecccfd1eacfcfe76a25620b4e1cbea086965c2c6b7bed32c0010c1f",
+  "context_shape_fingerprint": "ae388c9a7f1c4b1242b3daf7bda1cd38e7d5ead88708ad730b8951c8a0b1b105",
+  "recorded_at": "2026-10-10T01:19:27.829437+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"工作笔记中提到你可能偏好 Rust 岗位，但这尚未确认。请问你想搜索什么关键词的岗位？另外，请告诉我你希望在哪座城市找工作。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "e168bbd37af146acd9e1ae2f33353ab252f9625e360c21d2c378dff35e2350b0",
+      "decision_shape_fingerprint": "7e469e00b5637a1937dc825f6ca6ebb274c7ccdc94cfb8e6d8d843ccd41e22e5",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "open_job_search",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3503.9,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T01:19:21.367893+00:00",
+      "elapsed_ms": 3508.2,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"工作笔记中提到你可能偏好 Rust 岗位，但这尚未确认。请问你想搜索什么关键词的岗位？另外，请告诉我你希望在哪座城市找工作。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "e168bbd37af146acd9e1ae2f33353ab252f9625e360c21d2c378dff35e2350b0",
+          "decision_shape_fingerprint": "7e469e00b5637a1937dc825f6ca6ebb274c7ccdc94cfb8e6d8d843ccd41e22e5",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3503.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:19:24.939690+00:00",
+      "elapsed_ms": 3569.5,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问您想找什么类型的岗位？另外，需要知道您所在的城市才能为您打开合适的搜索页面。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "e168bbd37af146acd9e1ae2f33353ab252f9625e360c21d2c378dff35e2350b0",
+          "decision_shape_fingerprint": "7e469e00b5637a1937dc825f6ca6ebb274c7ccdc94cfb8e6d8d843ccd41e22e5",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3564.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:19:27.829437+00:00",
+      "elapsed_ms": 2888.1,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"我看到工作笔记中提到你可能偏好 Rust 岗位，但这只是未确认的观察。请问你想找什么类型的岗位？另外，请告诉我你所在的城市，以便我为你打开合适的搜索页面。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "e168bbd37af146acd9e1ae2f33353ab252f9625e360c21d2c378dff35e2350b0",
+          "decision_shape_fingerprint": "7e469e00b5637a1937dc825f6ca6ebb274c7ccdc94cfb8e6d8d843ccd41e22e5",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2884.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

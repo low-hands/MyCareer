@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -47,6 +48,8 @@ def test_second_acquirer_of_the_same_lock_file_is_refused(tmp_path: Path) -> Non
         with pytest.raises(SingleWorkerError) as refused:
             second.acquire()
         assert "单 worker" in str(refused.value)
+        # The holder's pid stays readable while it holds the lock.
+        assert f"进程 {os.getpid()}" in str(refused.value)
         assert str(tmp_path / LOCK_FILE_NAME) in str(refused.value)
         assert not second.held
     finally:
@@ -60,7 +63,9 @@ def test_lock_is_released_when_the_holder_releases_or_exits(tmp_path: Path) -> N
     lock = SingleWorkerLock(lock_path_for(tmp_path))
     with lock:
         assert lock.held
-        assert (tmp_path / LOCK_FILE_NAME).read_text().strip().isdigit()
+        assert (tmp_path / LOCK_FILE_NAME).read_text(encoding="utf-8").strip() == str(
+            os.getpid()
+        )
     assert not lock.held
     SingleWorkerLock(lock_path_for(tmp_path)).acquire()
 
@@ -196,8 +201,10 @@ class DetachableRuntime:
         event_sink=None,
     ):
         assert event_sink is not None
-        event_sink(TurnStartedEvent(turn_id="turn-1"))
+        # Set before emitting: the observer checks ``started`` as soon as it
+        # sees turn_started, and this thread may not run again before then.
         self.started.set()
+        event_sink(TurnStartedEvent(turn_id="turn-1"))
         time.sleep(self.hold_seconds)
         event_sink(TurnCompletedEvent(turn_id="turn-1"))
         self.finished_at = time.monotonic()

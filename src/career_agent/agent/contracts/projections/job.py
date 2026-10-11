@@ -23,11 +23,6 @@ from career_agent.agent.contracts.memory import (
 )
 from career_agent.agent.providers.token_budget import serialized_token_count
 from career_agent.agent.capabilities.effects import approval_policy, owner_rule_capabilities
-from career_agent.agent.capabilities.catalog import (
-    DOMAIN_TOOL_PROFILES,
-    TOOL_PROFILE_NAMES,
-    ToolProfile,
-)
 from career_agent.agent.contracts.questionnaire import PendingQuestionnaire, UserQuestion
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
@@ -79,8 +74,7 @@ def _report_is_about(
 
     Decided on identity when the reference carries it: the anchoring job or the
     company key the report is stored under, which the saved job's formal name
-    folds to the same way. References written before identity was recorded
-    have only a title to go on and are read the old way.
+    folds to the same way. Missing identity is not reconstructed from a title.
     """
     if held.job_posting_id is not None or held.company_key is not None:
         if held.job_posting_id == candidate.job_posting_id:
@@ -90,9 +84,7 @@ def _report_is_about(
             and bool(candidate.company_name.strip())
             and company_key(candidate.company_name) == held.company_key
         )
-    return bool(candidate.company_name) and candidate.company_name in (
-        held.title or ""
-    )
+    return False
 
 
 _CJK = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]")
@@ -186,9 +178,6 @@ def _reject_borrowed_report_reference(
         item for item in context.referenced_resources()
         if item.resource_id == report_id
     )
-    title = (held.title or "").strip()
-    if title and title in context.user_message:
-        return
     asked, ambiguous = _companies_asked_for(context, held)
     if not asked:
         return
@@ -204,7 +193,7 @@ def _reject_borrowed_report_reference(
         )
     if any(_report_is_about(held, candidate) for _, candidate in asked):
         return
-    about = f"titled '{title}'" if title else "about another company"
+    about = "bound to another company"
     raise ValueError(
         f"resource reference '{reference}' is {about}, not the company "
         f"the user asked about; use selection_index {selectors} or say that "

@@ -21,7 +21,7 @@ from career_agent import cli as cli_module
 
 
 def _builder() -> ast.FunctionDef:
-    tree = ast.parse(Path(inspect.getsourcefile(cli_module)).read_text())
+    tree = ast.parse(Path(inspect.getsourcefile(cli_module)).read_text(encoding="utf-8"))
     builder = next(
         node
         for node in tree.body

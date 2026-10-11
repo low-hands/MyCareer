@@ -357,7 +357,7 @@ uv run career-agent backup restore --source ~/.career-agent-backups/20260914T120
 
 | 变量 | 默认值 | 范围 |
 | --- | --- | --- |
-| `CONTEXT_RECENT_MESSAGE_LIMIT` | 16 | 2–64 |
+| `CONTEXT_RECENT_MESSAGE_LIMIT` | 2048 | 128–8192（条数保险上限；近期窗口按 token 装填） |
 | `CONTEXT_SUMMARY_BATCH_SIZE` | 8 | 2–32 |
 | `CONTEXT_COMPACT_OCCUPANCY_THRESHOLD` | 0.75 | 0.7–0.9 |
 | `MAIN_AGENT_CONTEXT_WINDOW_TOKENS` | 65536 | 2048–2000000，按模型实际窗口填写 |
@@ -383,6 +383,8 @@ cd browser-extension && node --test tests/*.test.cjs
 ```
 
 后端 API 契约有变化时，运行 `uv run python -m career_agent.api.public_contract` 重新生成 `web/src/contracts/api-contract.ts`。
+
+模型评估的录制、离线回放、多步任务、跨轮续接、欠行动、提示词注入和 pass^k 运行说明见 [Runtime 质量评估](evals/runtime_quality/README.md)。单元测试通过与模型质量达标分别报告。
 
 ## 许可证
 

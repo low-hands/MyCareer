@@ -20,7 +20,7 @@ from career_agent.harness.streaming import (
 from career_agent.storage.context import CareerContextStore
 from career_agent.storage.resumes import ResumeStore
 from career_agent.storage.career_history import CareerHistoryStore
-from conftest import enter_tool_profile
+from agent_test_support import load_capability_family
 
 
 class SequenceDecisionMaker:
@@ -64,7 +64,7 @@ def build_agent(
 ):
     manager = ContextManager(CareerContextStore(tmp_path / f"{user_id}-context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id=user_id))
-    enter_tool_profile(manager, "resume", user_id=user_id)
+    load_capability_family(manager, "resume", user_id=user_id)
     tools = MainAgentToolRegistry(
         resume_store=store,
     )
@@ -94,7 +94,7 @@ def test_resume_tools_list_roles_resumes_and_safe_version_metadata(tmp_path) -> 
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="我有哪些 AI Engineer 简历和版本？")
 
-    assert tools.names == ("route_to_capability", "open_job_search", "list_target_roles", "list_resumes", "get_resume_metadata")
+    assert tools.names == ("search_capabilities", "open_job_search", "list_target_roles", "list_resumes", "get_resume_metadata")
     assert all("user_id" not in spec["function"]["parameters"].get("properties", {}) for spec in tools.schemas())
     role_observation = result.tool_results[0]
     assert role_observation.payload["items"] == [{

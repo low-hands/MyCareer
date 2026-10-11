@@ -133,7 +133,7 @@ def test_every_style_profile_has_its_section_in_the_skill_and_back() -> None:
 
     from career_agent.agent.workflows.mock_interview.company_styles import COMPANY_STYLE_PROFILES
 
-    text = Path("skills/mock-interview/references/company.md").read_text(encoding="utf-8")
+    text = Path("prompts/mock-interview/references/company.md").read_text(encoding="utf-8")
     section = text.split("## Preparation profiles", 1)[1].split("\n## ", 1)[0]
     headings = re.findall(r"^### (.+)$", section, flags=re.MULTILINE)
     assert sorted(headings) == sorted(profile.heading for profile in COMPANY_STYLE_PROFILES)

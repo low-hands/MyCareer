@@ -1,0 +1,660 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "interview_english",
+  "suite_fingerprint": "2e6f0be4b604ada29d4f6e80703a6bdb2eead67513229626147ba42fa42c7abc",
+  "recorded_at": "2026-10-10T01:26:00.777276+00:00",
+  "k": 10,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Bring up my interview schedule, please.": {
+            "list_interviews": 0.7667392759468659,
+            "update_interview": 0.7412907454087618,
+            "create_interview": 0.7363268632154215,
+            "get_interview": 0.7237378550914086,
+            "prepare_interview_calendar_sync": 0.6898702816400917,
+            "complete_interview": 0.668906551203088,
+            "list_calendar_links": 0.6608957708353242,
+            "prepare_interview": 0.6434312596631843,
+            "record_interview_retro": 0.6366498997597265,
+            "get_interview_preparation": 0.6197547653861514
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Bring up my interview schedule, please.",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Bring up my interview schedule, please.": {
+            "list_interviews": 0.7668513883501554,
+            "update_interview": 0.7413522068808492,
+            "create_interview": 0.7363719666235675,
+            "get_interview": 0.7238147138706281,
+            "prepare_interview_calendar_sync": 0.689964049162516,
+            "complete_interview": 0.6689667038802302,
+            "list_calendar_links": 0.6609345256146445,
+            "prepare_interview": 0.6434108859504594,
+            "record_interview_retro": 0.6367240284138082,
+            "get_interview_preparation": 0.619756208815124
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Bring up my interview schedule, please.",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Bring up my interview schedule, please.": {
+            "list_interviews": 0.7668513883501554,
+            "update_interview": 0.7413522068808492,
+            "create_interview": 0.7363719666235675,
+            "get_interview": 0.7238147138706281,
+            "prepare_interview_calendar_sync": 0.689964049162516,
+            "complete_interview": 0.6689667038802302,
+            "list_calendar_links": 0.6609345256146445,
+            "prepare_interview": 0.6434108859504594,
+            "record_interview_retro": 0.6367240284138082,
+            "get_interview_preparation": 0.619756208815124
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Bring up my interview schedule, please.",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Bring up my interview schedule, please.": {
+            "list_interviews": 0.7668513883501554,
+            "update_interview": 0.7413522068808492,
+            "create_interview": 0.7363719666235675,
+            "get_interview": 0.7238147138706281,
+            "prepare_interview_calendar_sync": 0.689964049162516,
+            "complete_interview": 0.6689667038802302,
+            "list_calendar_links": 0.6609345256146445,
+            "prepare_interview": 0.6434108859504594,
+            "record_interview_retro": 0.6367240284138082,
+            "get_interview_preparation": 0.619756208815124
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Bring up my interview schedule, please.",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Bring up my interview schedule, please.": {
+            "list_interviews": 0.7668513883501554,
+            "update_interview": 0.7413522068808492,
+            "create_interview": 0.7363719666235675,
+            "get_interview": 0.7238147138706281,
+            "prepare_interview_calendar_sync": 0.689964049162516,
+            "complete_interview": 0.6689667038802302,
+            "list_calendar_links": 0.6609345256146445,
+            "prepare_interview": 0.6434108859504594,
+            "record_interview_retro": 0.6367240284138082,
+            "get_interview_preparation": 0.619756208815124
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Bring up my interview schedule, please.",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Bring up my interview schedule, please.": {
+            "list_interviews": 0.7670539397683933,
+            "update_interview": 0.7414580524427105,
+            "create_interview": 0.7365345925387979,
+            "get_interview": 0.7240089251422972,
+            "prepare_interview_calendar_sync": 0.6900168714864559,
+            "complete_interview": 0.6690831721893923,
+            "list_calendar_links": 0.6611369892770628,
+            "prepare_interview": 0.6434432040130983,
+            "record_interview_retro": 0.6367799152024927,
+            "get_interview_preparation": 0.6198586347091439
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Bring up my interview schedule, please.",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Bring up my interview schedule, please.": {
+            "list_interviews": 0.7667392759468659,
+            "update_interview": 0.7412907454087618,
+            "create_interview": 0.7363268632154215,
+            "get_interview": 0.7237378550914086,
+            "prepare_interview_calendar_sync": 0.6898702816400917,
+            "complete_interview": 0.668906551203088,
+            "list_calendar_links": 0.6608957708353242,
+            "prepare_interview": 0.6434312596631843,
+            "record_interview_retro": 0.6366498997597265,
+            "get_interview_preparation": 0.6197547653861514
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Bring up my interview schedule, please.",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Bring up my interview schedule, please.": {
+            "list_interviews": 0.766913930639379,
+            "update_interview": 0.741371443387388,
+            "create_interview": 0.7364530000236325,
+            "get_interview": 0.7238270508524112,
+            "prepare_interview_calendar_sync": 0.6899015886568489,
+            "complete_interview": 0.6690294468727593,
+            "list_calendar_links": 0.6609064982930385,
+            "prepare_interview": 0.6435396550990279,
+            "record_interview_retro": 0.6367147362512408,
+            "get_interview_preparation": 0.619849137390537
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Bring up my interview schedule, please.",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Bring up my interview schedule, please.": {
+            "list_interviews": 0.7668513883501554,
+            "update_interview": 0.7413522068808492,
+            "create_interview": 0.7363719666235675,
+            "get_interview": 0.7238147138706281,
+            "prepare_interview_calendar_sync": 0.689964049162516,
+            "complete_interview": 0.6689667038802302,
+            "list_calendar_links": 0.6609345256146445,
+            "prepare_interview": 0.6434108859504594,
+            "record_interview_retro": 0.6367240284138082,
+            "get_interview_preparation": 0.619756208815124
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Bring up my interview schedule, please.",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "Bring up my interview schedule, please.": {
+            "list_interviews": 0.7667392759468659,
+            "update_interview": 0.7412907454087618,
+            "create_interview": 0.7363268632154215,
+            "get_interview": 0.7237378550914086,
+            "prepare_interview_calendar_sync": 0.6898702816400917,
+            "complete_interview": 0.668906551203088,
+            "list_calendar_links": 0.6608957708353242,
+            "prepare_interview": 0.6434312596631843,
+            "record_interview_retro": 0.6366498997597265,
+            "get_interview_preparation": 0.6197547653861514
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "Bring up my interview schedule, please.",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

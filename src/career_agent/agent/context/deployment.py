@@ -14,9 +14,12 @@ from career_agent.agent.providers.openai_client import (
     OpenAICompatibleAgentConfig,
 )
 
-DEFAULT_RECENT_MESSAGE_LIMIT = 16
+DEFAULT_RECENT_MESSAGE_LIMIT = 2048
+DEFAULT_RECENT_CONTEXT_TOKENS = 8000
+DEFAULT_RECENT_MESSAGE_TOKENS = 2000
 DEFAULT_SUMMARY_BATCH_SIZE = 8
 DEFAULT_COMPACT_OCCUPANCY_THRESHOLD = 0.75
+DEFAULT_COMPACT_SOFT_THRESHOLD = 0.6
 DEFAULT_CONTEXT_WINDOW_TOKENS = 65536
 DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS = 1200
 
@@ -97,14 +100,17 @@ class ContextDeploymentConfig:
     recent_message_limit: int = DEFAULT_RECENT_MESSAGE_LIMIT
     summary_batch_size: int = DEFAULT_SUMMARY_BATCH_SIZE
     compact_occupancy_threshold: float = DEFAULT_COMPACT_OCCUPANCY_THRESHOLD
+    compact_soft_threshold: float = DEFAULT_COMPACT_SOFT_THRESHOLD
     main_context_window_tokens: int = DEFAULT_CONTEXT_WINDOW_TOKENS
 
     def __post_init__(self) -> None:
         if (
             type(self.recent_message_limit) is not int
-            or not 2 <= self.recent_message_limit <= 64
+            or not 128 <= self.recent_message_limit <= 8192
         ):
-            raise ValueError("recent_message_limit must be between 2 and 64")
+            raise ValueError(
+                "recent_message_limit safety cap must be between 128 and 8192"
+            )
         if (
             type(self.summary_batch_size) is not int
             or not 2 <= self.summary_batch_size <= 32
@@ -112,6 +118,10 @@ class ContextDeploymentConfig:
             raise ValueError("summary_batch_size must be between 2 and 32")
         if not 0.7 <= self.compact_occupancy_threshold <= 0.9:
             raise ValueError("compact occupancy threshold must be between 0.7 and 0.9")
+        if not 0 < self.compact_soft_threshold <= self.compact_occupancy_threshold:
+            raise ValueError(
+                "compact soft threshold must be positive and at most the hard threshold"
+            )
         if (
             type(self.main_context_window_tokens) is not int
             or not 2048 <= self.main_context_window_tokens <= 2_000_000
@@ -125,7 +135,8 @@ class ContextDeploymentConfig:
         env = _environment(environ)
         return cls(
             recent_message_limit=_integer(
-                env, "CONTEXT_RECENT_MESSAGE_LIMIT", DEFAULT_RECENT_MESSAGE_LIMIT, 2, 64
+                env, "CONTEXT_RECENT_MESSAGE_LIMIT",
+                DEFAULT_RECENT_MESSAGE_LIMIT, 128, 8192
             ),
             summary_batch_size=_integer(
                 env, "CONTEXT_SUMMARY_BATCH_SIZE", DEFAULT_SUMMARY_BATCH_SIZE, 2, 32
@@ -136,6 +147,10 @@ class ContextDeploymentConfig:
                 DEFAULT_COMPACT_OCCUPANCY_THRESHOLD,
                 0.7,
                 0.9,
+            ),
+            compact_soft_threshold=_number(
+                env, "CONTEXT_COMPACT_SOFT_THRESHOLD",
+                DEFAULT_COMPACT_SOFT_THRESHOLD, 0.01, 0.9,
             ),
             main_context_window_tokens=_integer(
                 env,

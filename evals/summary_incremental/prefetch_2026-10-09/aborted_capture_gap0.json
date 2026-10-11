@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "measurement": "authored_long_context_live_production_runtime",
+  "started_at": "2026-10-10T06:45:28.539546+00:00",
+  "fixture_sha256": "9d54be5dd23b6222e3c8841961d82197f7058605e9dfaf844fb314db84fbe139",
+  "revision": "0cf927f3e43d13dc37e134530d3f2bd13568048a",
+  "source_sha256": "3d1cfd9f94c857627ec27ad96063d03cda87992a18ba56a2ecbd73ce711c1e73",
+  "models": {
+    "MAIN_AGENT_MODEL": "qwen3.7-plus",
+    "RESUME_ANALYSIS_AGENT_MODEL": "qwen3.7-plus",
+    "CAREER_EMBEDDING_MODEL": "qwen3.7-text-embedding",
+    "CONVERSATION_SUMMARY_AGENT_MODEL": null
+  },
+  "summary_prompt_sha256": "7264084a1b19f53aa07d144cf94a0fb8b286413daee814a586602729d427bdee",
+  "summary_config": {
+    "model": "qwen3.7-plus",
+    "disable_thinking": true,
+    "timeout_seconds": 30.0,
+    "max_output_tokens": 1200
+  },
+  "history_turns": 9,
+  "conversations": 6,
+  "inter_turn_delay_seconds": 0.0,
+  "turns": [
+    {
+      "conversation": 1,
+      "turn": 1,
+      "inter_turn_gap_ms": 0,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 44625
+    }
+  ]
+}

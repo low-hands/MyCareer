@@ -1,0 +1,17 @@
+{
+  "baseline_ref": "18158e1",
+  "checks": [
+    {
+      "scenario": "research_is_not_started_as_part_of_matching",
+      "all_30_match_18158e1_prompt": true
+    },
+    {
+      "scenario": "saved_jd_body_without_language_requirement_finishes",
+      "all_30_match_18158e1_prompt": true
+    },
+    {
+      "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+      "all_30_match_18158e1_prompt": true
+    }
+  ]
+}

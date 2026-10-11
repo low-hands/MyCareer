@@ -3,6 +3,7 @@ from __future__ import annotations
 from io import StringIO
 import json
 import os
+import sys
 from pathlib import Path
 import sqlite3
 
@@ -76,8 +77,10 @@ def test_create_backup_copies_every_store_with_a_checksummed_manifest(workspace,
     payload = json.loads((destination / "manifest.json").read_text(encoding="utf-8"))
     assert payload["version"] == 1
     assert {entry["name"] for entry in payload["entries"]} == set(names)
-    assert oct(os.stat(destination).st_mode & 0o777) == "0o700"
-    assert oct(os.stat(destination / "databases").st_mode & 0o777) == "0o700"
+    if sys.platform != "win32":
+        # Windows has no POSIX permission bits; stat always reports 0o777.
+        assert oct(os.stat(destination).st_mode & 0o777) == "0o700"
+        assert oct(os.stat(destination / "databases").st_mode & 0o777) == "0o700"
     assert verify_backup(destination).ok
     # Checking the copy must not litter the backup with WAL side files.
     assert sorted(path.name for path in (destination / "databases").iterdir()) == [
@@ -217,6 +220,8 @@ def test_cli_backup_create_verify_restore_round_trip(tmp_path, monkeypatch):
     (root / "working-notes").mkdir()
     (root / "working-notes" / "u1.md").write_text("n", encoding="utf-8")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    # expanduser reads USERPROFILE, not HOME, on Windows.
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     code, created = _run(["backup", "create", "--dest", str(tmp_path / "b1"), *_store_args(root)])
     assert code == 0
@@ -247,6 +252,8 @@ def test_cli_backup_create_defaults_to_a_timestamped_directory_under_home(tmp_pa
     root.mkdir()
     _make_db(root / "context.sqlite3", ["ctx-1"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    # expanduser reads USERPROFILE, not HOME, on Windows.
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
 
     code, created = _run(["backup", "create", *_store_args(root)])
 

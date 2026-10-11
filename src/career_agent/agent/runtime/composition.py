@@ -7,6 +7,7 @@ depending on the ``MainAgentRuntime`` facade.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from typing import Any
 
 from langgraph.checkpoint.memory import InMemorySaver
@@ -22,10 +23,17 @@ from career_agent.agent.execution.capability_executor import CapabilityExecutor
 from career_agent.agent.execution.reconciliation import ReconciliationCoordinator
 from career_agent.agent.execution.recovery import OperationReconcilerRegistry
 from career_agent.agent.runtime.interaction_coordinator import InteractionCoordinator
-from career_agent.agent.capabilities.catalog import TOOL_PROFILE_NAMES
+from career_agent.agent.capabilities.selection_strategy import SearchStrategy
+from career_agent.agent.capabilities.selection import ALWAYS_OFFERED_TOOLS, prepare_capability_selection
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.contracts.decisions import DecisionMaker
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.capabilities.search import SemanticCapabilityIndex
+from career_agent.agent.context.semantic_retrieval import (
+    CareerEmbeddingConfig,
+    OpenAICompatibleEmbeddingClient,
+)
 from career_agent.agent.runtime.graph import MainGraphNodes, build_main_graph
 from career_agent.agent.runtime.observation_reducer import (
     ObservationReducer,
@@ -63,6 +71,8 @@ from career_agent.storage.capability_confirmations import (
 )
 from career_agent.storage.turn_receipts import SQLiteTurnReceiptStore
 
+_LOGGER = logging.getLogger(__name__)
+
 @dataclass(frozen=True)
 class RuntimeComponents:
     """Fully assembled collaborators owned by ``MainAgentRuntime``."""
@@ -84,6 +94,25 @@ class RuntimeComponents:
     agent_loop: AgentLoop
     turn_router: TurnRouter
     confirmation_coordinator: CapabilityConfirmationCoordinator
+
+
+def default_capability_scorer() -> SemanticCapabilityIndex | None:
+    semantic_index = None
+    try:
+        embedding_config = CareerEmbeddingConfig.optional_from_env()
+        if embedding_config is not None:
+            semantic_index = SemanticCapabilityIndex(
+                client=OpenAICompatibleEmbeddingClient(embedding_config),
+                query_client=OpenAICompatibleEmbeddingClient(
+                    embedding_config, timeout_seconds=3.0,
+                ),
+            )
+            semantic_index.warm()
+    except Exception:
+        _LOGGER.exception("capability index warmup failed; lexical search remains available")
+        semantic_index = None
+
+    return semantic_index
 
 
 def build_main_runtime_components(
@@ -111,6 +140,15 @@ def build_main_runtime_components(
 ) -> RuntimeComponents:
     """Build every collaborator from explicit dependencies."""
 
+    semantic_index = (ports.capability_scorer_factory()
+                      if ports.capability_scorer_factory is not None
+                      else default_capability_scorer())
+    if semantic_index is not None:
+        tools.configure_capability_search(semantic_index)
+
+    selection_strategy = SearchStrategy(semantic_index=semantic_index)
+    decision_maker_slot.configure_selection(selection_strategy)
+
     runtime_observability = RuntimeObservability(
         trace_recorder=trace_recorder,
     )
@@ -130,7 +168,6 @@ def build_main_runtime_components(
     authorization_engine = AuthorizationEngine(
         tools=tools,
         confirmation_store=capability_confirmation_store,
-        offers_tool=TurnRouter.offers_tool,
         project_runtime_workflow_arguments=project_runtime_owned_arguments,
         project_atomic_tool_arguments=ports.project_atomic_tool_arguments,
         project_workflow_arguments=project_workflow_arguments,
@@ -146,6 +183,7 @@ def build_main_runtime_components(
         tools=tools,
         action_execution_store=action_execution_store,
         action_policy_epoch=action_policy_epoch,
+        record_trace_event=RuntimeObservability.record_trace_event,
         emit_capability_started=ports.emit_capability_started,
         emit_capability_completed=ports.emit_capability_completed,
         run_capability=lambda pending, run: RuntimeObservability.run_capability(
@@ -161,6 +199,7 @@ def build_main_runtime_components(
         update_atomic_task=ports.update_atomic_task,
         tool_call_fingerprint=DecisionEngine.tool_call_fingerprint,
         tool_observation=tool_observation,
+        emit_tool_card=lambda pending: stream_adapter.deliver_tool_card(pending),
     )
     decision_engine = DecisionEngine(
         emit=RuntimeObservability.emit,
@@ -179,11 +218,13 @@ def build_main_runtime_components(
         decision_maker_provider=decision_maker_slot.get,
         tools=tools,
         career_memory_enabled=career_context_projector is not None,
+        selection_strategy=selection_strategy,
     )
     interaction_coordinator = InteractionCoordinator(
         context_manager=context_manager,
         tools=tools,
         confirmation_store=capability_confirmation_store,
+        record_trace_event=RuntimeObservability.record_trace_event,
     )
     turn_presenter = build_turn_presenter(
         report_degraded=RuntimeObservability.emit_trace,
@@ -192,6 +233,7 @@ def build_main_runtime_components(
         active_turn_id=active_turn_id,
         assistant_message=turn_presenter._assistant_message,
         has_interaction_renderer=ports.has_interaction_renderer,
+        record_trace_event=RuntimeObservability.record_trace_event,
     )
     stream_adapter = StreamAdapter(
         interaction_renderer=interaction_renderer,
@@ -246,6 +288,7 @@ def build_main_runtime_components(
         context_manager=context_manager,
         confirmation_store=capability_confirmation_store,
         agent_loop=agent_loop,
+        selection_strategy=selection_strategy,
     )
     confirmation_coordinator = CapabilityConfirmationCoordinator(
         confirmation_store=capability_confirmation_store,
@@ -326,12 +369,10 @@ def _configure_request_token_estimator(
 
     def estimate_complete_request(context: MainAgentContext) -> tuple[int, int]:
         hydrated = context_hydrator.project_context(context)
+        selection = decision_engine.select(hydrated)
         return request_token_usage(
-            hydrated,
-            decision_engine.tool_schemas(
-                hydrated.task.tool_profile,
-                hydrated.task,
-            ),
+            hydrated.model_copy(update={"capability_selection": selection}),
+            selection.schemas,
         )
 
     static_request_token_usage = getattr(
@@ -342,15 +383,14 @@ def _configure_request_token_estimator(
             "decision makers that report request token usage must also "
             "report static request token usage"
         )
-    static_tokens, max_input_tokens = max(
-        (
-            static_request_token_usage(
-                decision_engine.tool_schemas(profile)
-            )
-            for profile in TOOL_PROFILE_NAMES
-        ),
-        key=lambda usage: usage[0],
+    registered = decision_engine.registered_schemas()
+    registered_names = frozenset(schema["function"]["name"] for schema in registered)
+    initial = prepare_capability_selection(
+        (name for name in ALWAYS_OFFERED_TOOLS if name in registered_names),
+        task=ConversationTaskState(),
+        registered_schemas=registered,
     )
+    static_tokens, max_input_tokens = static_request_token_usage(initial.schemas)
     context_manager.configure_request_token_estimator(
         estimate_complete_request,
         static_input_tokens=static_tokens,

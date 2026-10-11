@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from career_agent.agent.capabilities.search import SemanticCapabilityIndex
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.contracts.decisions import DecisionMaker
 from career_agent.agent.contracts.observations import ToolObservation
@@ -31,12 +32,23 @@ class DecisionMakerSlot:
 
     def __init__(self, decision_maker: DecisionMaker) -> None:
         self._decision_maker = decision_maker
+        self._selection_strategy: Any | None = None
 
     def get(self) -> DecisionMaker:
         return self._decision_maker
 
     def replace(self, decision_maker: DecisionMaker) -> None:
         self._decision_maker = decision_maker
+        self._configure_current()
+
+    def configure_selection(self, strategy: Any) -> None:
+        self._selection_strategy = strategy
+        self._configure_current()
+
+    def _configure_current(self) -> None:
+        configure = getattr(self._decision_maker, "configure_tool_selection", None)
+        if callable(configure) and self._selection_strategy is not None:
+            configure(self._selection_strategy)
 
 
 def project_atomic_tool_arguments(
@@ -112,6 +124,9 @@ def update_atomic_task(
 @dataclass(frozen=True)
 class RuntimePorts:
     """Supported runtime substitutions, supplied explicitly at construction."""
+
+    # An explicit factory bypasses environment-based embedding initialization.
+    capability_scorer_factory: Callable[[], SemanticCapabilityIndex | None] | None = None
 
     project_atomic_tool_arguments: AtomicArgumentProjector = (
         project_atomic_tool_arguments

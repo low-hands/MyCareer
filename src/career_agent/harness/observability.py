@@ -6,7 +6,7 @@ from functools import wraps
 import hashlib
 from threading import Lock
 from time import perf_counter
-from typing import Any, Callable, Literal, Protocol
+from typing import Any, Callable, Literal, Protocol, get_args
 
 from langchain_core.callbacks import BaseCallbackHandler
 from pydantic import BaseModel, ConfigDict, Field
@@ -20,16 +20,16 @@ from career_agent.security.redaction import redact, redact_text
 
 
 EventType = Literal[
-    "run_started",
+    # A turn paused for the owner (approval, questionnaire, a question or a
+    # capability interaction), and a later turn continuing from that pause.
+    # Tool name and closed-set interaction kind only, never argument values.
     "run_resumed",
-    "run_completed",
     "run_interrupted",
-    "node_started",
     "node_completed",
-    "node_failed",
-    "node_interrupted",
     "model_attempt",
     "model_retry",
+    "model_response_corrupted",
+    "model_response_replacement_observed",
     "model_succeeded",
     "model_failed",
     "turn_completed",
@@ -48,9 +48,20 @@ EventType = Literal[
     # narrower surface, and whether that trade is worth its cost depends on how
     # often each gate actually fires — which nothing currently measures.
     "authorization_refused",
+    "capability_search_empty",
+    # One per executed capability: name, result state, disposition, write
+    # outcome and duration. Never arguments, payloads or messages.
+    "capability_executed",
     "capability_failed",
+    # A write whose effect could not be confirmed and now needs reconciliation.
+    "write_outcome_unknown",
     "presentation_degraded",
     "context_compacted",
+    "context_compaction_scheduled",
+    "context_compaction_skipped",
+    "context_compaction_waited",
+    "context_compaction_sync_finished",
+    "summary_facts_dropped",
     # The complete-request estimate a load took, as numbers. Paired with the
     # run's first model_succeeded it gives estimator against provider count,
     # which compaction events alone recorded only on turns that compacted.
@@ -64,13 +75,23 @@ EventType = Literal[
     "working_notes_oversize",
 ]
 
+# Written by the retired job-discovery runner and still present in older
+# run-event stores. Readable so those traces load; never written again.
+LegacyEventType = Literal[
+    "run_started",
+    "run_completed",
+    "node_started",
+    "node_failed",
+    "node_interrupted",
+]
+LEGACY_EVENT_TYPES: frozenset[str] = frozenset(get_args(LegacyEventType))
+
 ModelCallCategory = Literal[
     "orchestrator_decision",
     "capability_agent",
     "planner",
     "evaluator",
     "writer",
-    "legacy_router",
 ]
 
 
@@ -79,7 +100,7 @@ class RunEvent(BaseModel):
 
     run_id: str
     sequence: int = Field(ge=1)
-    event_type: EventType
+    event_type: EventType | LegacyEventType
     stage: str
     attempt: int | None = Field(default=None, ge=1)
     occurred_at: datetime
@@ -175,7 +196,43 @@ def record_active_trace(
         return
 
 
+BACKGROUND_PROVIDER_CALL: ContextVar[bool] = ContextVar("background_provider_call", default=False)
+
+
 TraceStage = str | Callable[..., str]
+
+
+def traced_provider_call(stage: str):
+    """Time a non-orchestrator provider operation without recording its content.
+
+    One terminal event includes validation and retries inside the operation.
+    These timings can nest inside capability execution and must not be added
+    to that inclusive duration.
+    """
+    def decorate(function):
+        @wraps(function)
+        def wrapped(*args, **kwargs):
+            if ACTIVE_TRACE_CONTEXT.get() is None:
+                return function(*args, **kwargs)
+            started = perf_counter()
+            outcome = "succeeded"
+            error_code = None
+            try:
+                return function(*args, **kwargs)
+            except Exception as error:
+                outcome = "failed"
+                code = getattr(error, "code", None)
+                error_code = code if isinstance(code, str) and code else type(error).__name__
+                raise
+            finally:
+                record_active_trace(
+                    "provider_request", stage, outcome=outcome,
+                    duration_ms=int((perf_counter() - started) * 1000),
+                    error_code=error_code,
+                    details={"background": True} if BACKGROUND_PROVIDER_CALL.get() else None,
+                )
+        return wrapped
+    return decorate
 
 
 def traced_model_call(
@@ -437,11 +494,19 @@ def validate_model_call_category(
     event_type: EventType,
     model_call_category: ModelCallCategory | None,
 ) -> None:
-    """Enforce classification at the new-write boundary, not while reading v1."""
+    """Enforce classification at the new-write boundary, not while reading v1.
 
+    Retired event types are refused here too: old stores may hold them, but
+    nothing new may write them.
+    """
+
+    if event_type in LEGACY_EVENT_TYPES:
+        raise ValueError(f"{event_type} is a retired event type; it is read-only")
     is_model_event = event_type in {
         "model_attempt",
         "model_retry",
+        "model_response_corrupted",
+        "model_response_replacement_observed",
         "model_succeeded",
         "model_failed",
     }

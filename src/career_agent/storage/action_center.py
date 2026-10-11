@@ -146,6 +146,15 @@ class SQLiteActionItemStore:
                 item = self._item(row)
                 if item.stable_key in active_keys:
                     continue
+                latest = connection.execute(
+                    "SELECT event_type, previous_status FROM action_item_events "
+                    "WHERE user_id = ? AND action_item_id = ? ORDER BY occurred_at DESC, rowid DESC LIMIT 1",
+                    (user_id, item.id),
+                ).fetchone()
+                # An explicit undo of completion is an owner's request to keep
+                # working, even if a saved retro fulfilled the derived condition.
+                if latest is not None and tuple(latest) == ("reopened", "completed"):
+                    continue
                 # The candidate stopped being generated, which says nothing about
                 # whether the user acted. Record it as obsolete so completion
                 # counts stay honest.
@@ -197,6 +206,7 @@ class SQLiteActionItemStore:
         status: ActionStatus,
         snoozed_until: datetime | None = None,
         now: datetime | None = None,
+        expected_status: ActionStatus | None = None,
     ) -> ActionItem | None:
         changed_at = now or datetime.now(timezone.utc)
         with self._connect() as connection:
@@ -208,7 +218,11 @@ class SQLiteActionItemStore:
             if row is None:
                 return None
             item = self._item(row)
-            if item.status in USER_RESOLVED_ACTION_STATUSES:
+            if expected_status is not None and item.status != expected_status:
+                return None
+            if item.status in USER_RESOLVED_ACTION_STATUSES and not (
+                item.status in {"dismissed", "completed"} and status == "open"
+            ):
                 return item
             resolved_at = changed_at if status in RESOLVED_ACTION_STATUSES else None
             updated = item.model_copy(
@@ -331,6 +345,34 @@ class SQLiteActionItemStore:
             )
             return connection.execute(
                 f"DELETE FROM action_items WHERE {condition}", (user_id,)
+            ).rowcount
+
+    def clear_for_application(self, *, user_id: str, application_id: str) -> int:
+        condition = "user_id = ? AND application_id = ?"
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "DELETE FROM action_item_events WHERE action_item_id IN "
+                f"(SELECT id FROM action_items WHERE {condition})",
+                (user_id, application_id),
+            )
+            return connection.execute(
+                f"DELETE FROM action_items WHERE {condition}",
+                (user_id, application_id),
+            ).rowcount
+
+    def clear_for_interview(self, *, user_id: str, interview_round_id: str) -> int:
+        condition = "user_id = ? AND source_type = 'interview_round' AND source_id = ?"
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "DELETE FROM action_item_events WHERE action_item_id IN "
+                f"(SELECT id FROM action_items WHERE {condition})",
+                (user_id, interview_round_id),
+            )
+            return connection.execute(
+                f"DELETE FROM action_items WHERE {condition}",
+                (user_id, interview_round_id),
             ).rowcount
 
     def _connect(self) -> sqlite3.Connection:

@@ -1,0 +1,108 @@
+{
+  "baseline": "step1_metadata_vocab_dev_2026-10-08.json",
+  "current": "uniform_gate_dev_2026-10-08.json",
+  "baseline_exposure_recomputed_from_saved_top5": {
+    "模型风格": {
+      "write_offer_count": 19,
+      "non_write_query_write_offer_count": 7,
+      "propose_offer_count": 1,
+      "non_write_query_propose_offer_count": 1,
+      "action_offer_count": 20,
+      "non_write_query_action_offer_count": 8
+    },
+    "用户整句": {
+      "write_offer_count": 106,
+      "non_write_query_write_offer_count": 56,
+      "propose_offer_count": 4,
+      "non_write_query_propose_offer_count": 2,
+      "action_offer_count": 110,
+      "non_write_query_action_offer_count": 58
+    }
+  },
+  "recall_changes": {
+    "模型风格": [
+      {
+        "id": "dev_interview",
+        "query": "面试",
+        "expected_tools": [
+          "list_interviews"
+        ],
+        "before": [
+          "list_interviews",
+          "get_interview",
+          "get_interview_preparation",
+          "list_calendar_links",
+          "get_mock_interview_result"
+        ],
+        "after": [
+          "prepare_interview",
+          "list_interviews",
+          "complete_interview",
+          "get_interview",
+          "update_interview"
+        ]
+      },
+      {
+        "id": "dev_calendar",
+        "query": "calendar",
+        "expected_tools": [
+          "list_calendar_links"
+        ],
+        "before": [
+          "list_calendar_accounts",
+          "get_calendar_proposal",
+          "list_calendar_links"
+        ],
+        "after": [
+          "prepare_interview_calendar_sync",
+          "list_calendar_accounts",
+          "execute_calendar_proposal",
+          "get_calendar_proposal",
+          "list_calendar_links"
+        ]
+      },
+      {
+        "id": "dev_control_experience",
+        "query": "帮我看看我的经历",
+        "expected_tools": [
+          "search_career_memory"
+        ],
+        "before": [
+          "propose_memory_amendment",
+          "resolve_claim_source",
+          "search_career_memory",
+          "search_career_history",
+          "get_career_memory_detail"
+        ],
+        "after": [
+          "confirm_career_fact",
+          "propose_memory_tombstone",
+          "confirm_memory_amendment",
+          "propose_memory_amendment",
+          "resolve_claim_source"
+        ]
+      }
+    ],
+    "用户整句": [
+      {
+        "id": "selection_dev_actions_next",
+        "query": "刚才提到的待办都列给我看看。",
+        "expected_tools": [
+          "list_action_items"
+        ],
+        "before": [
+          "dismiss_action_item",
+          "snooze_action_item",
+          "list_action_items"
+        ],
+        "after": [
+          "dismiss_action_item",
+          "snooze_action_item",
+          "complete_action_item",
+          "list_action_items",
+          "prepare_interview"
+        ]
+      }
+    ]
+  }
+}

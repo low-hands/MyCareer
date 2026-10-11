@@ -153,7 +153,13 @@ _OTHER_SAVED_JOB = SavedJobCandidateContextItem(
 # the originals back is visibly more expensive than paging in.
 SPAN_PAGE_IN_FACT = "Pinnacle Robotics"
 SPAN_WINDOW_DECOY = "美团"
+_SPAN_DECOY_AS_ANSWER = (
+    r"(?:目标公司|全名)\s*(?:是|叫|应该(?:就)?是|[:：])\s*[“\"]?美团(?![^。]{0,6}[吗？?])",
+    r"美团\s*(?:就)?是\s*(?:你(?:的)?|用户(?:的)?)?\s*目标公司(?![^。]{0,6}[吗？?])",
+    r"我猜(?:你说的)?(?:应该)?(?:就)?是\s*[“\"]?美团(?![^。]{0,6}[吗？?])",
+)
 SPAN_HIDDEN_QUESTION = "我一开始指定的目标公司全名叫什么？"
+SPAN_COLD_QUESTION = "我的目标公司全名叫什么？"
 SPAN_OUT_OF_RANGE_QUESTION = "把序号 100 到 110 的对话读回来。"
 _SPAN_FILLER = "这一段只占压缩前原文的预算，不包含公司名。" * 8
 
@@ -206,6 +212,10 @@ _SPAN_POST_WATERMARK = (
         f"{SPAN_WINDOW_DECOY} 这份只是窗口里的对照，不是你一开始指定的目标。",
     ),
 )
+_SPAN_COLD_WINDOW = (
+    _span_message("user", f"刚才窗口里这份 {SPAN_WINDOW_DECOY} 的 JD 看起来怎么样？"),
+    _span_message("assistant", f"这份 {SPAN_WINDOW_DECOY} JD 只是对照，你还没告诉我目标公司。"),
+)
 _SPAN_SUMMARY = ConversationSummaryContent(
     user_goals=("找算法工程师岗位",),
     confirmed_decisions=("先从已保存岗位里挑，不全国盲搜",),
@@ -219,15 +229,14 @@ def compacted_span_context(
 ) -> MainAgentContext:
     """Compacted window: summary plus the post-watermark decoy.
 
-    ``page_in=True`` is production CE-1 (watermark projected, so the always-
-    offered span tool has a valid range). ``page_in=False`` is the pre-CE-1
-    ablation: the same summary and decoy, but no pointer, so the model cannot
-    validly page the hidden fact back.
+    ``page_in=True`` projects the watermark and permits a span read.
+    ``page_in=False`` retains an older synthetic fixture for the context-size
+    comparison; decision scenarios use a reachable short-session fixture.
     """
     if page_in:
         return _context(
             user_message=user_message,
-            task=ConversationTaskState(tool_profile="core"),
+            task=ConversationTaskState(),
             conversation_summary=_SPAN_SUMMARY,
             through_sequence=len(_SPAN_PRE_WATERMARK),
             recent_from_sequence=len(_SPAN_PRE_WATERMARK) + 1,
@@ -235,7 +244,7 @@ def compacted_span_context(
         )
     return _context(
         user_message=user_message,
-        task=ConversationTaskState(tool_profile="core"),
+        task=ConversationTaskState(),
         conversation_summary=_SPAN_SUMMARY,
         recent_messages=_SPAN_POST_WATERMARK,
     )
@@ -245,7 +254,7 @@ def stuffed_span_context(*, user_message: str) -> MainAgentContext:
     """The same turns with pre-watermark originals forced back into the window."""
     return _context(
         user_message=user_message,
-        task=ConversationTaskState(tool_profile="core"),
+        task=ConversationTaskState(),
         recent_messages=_SPAN_PRE_WATERMARK + _SPAN_POST_WATERMARK,
     )
 
@@ -312,6 +321,16 @@ def _span_empty_observation() -> DecisionObservation:
     )
 
 
+def _span_unavailable_observation() -> DecisionObservation:
+    return DecisionObservation(
+        tool_name="read_conversation_span",
+        state="conversation_span_unavailable",
+        message="本会话还没有被压缩的历史。",
+        facts={"through_sequence": 0},
+        arguments={"from_sequence": 1, "through_sequence": 2},
+    )
+
+
 SCENARIOS: tuple[TrajectoryScenario, ...] = (
     TrajectoryScenario(
         name="a_missing_city_is_asked_for_not_guessed",
@@ -325,7 +344,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         # downstream reports that the search was unscoped.
         context=_context(
             user_message="帮我找找工作吧",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
         ),
         decisive_facts=(
             "career_profile.memory/profile.md",
@@ -354,7 +373,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             # (as before 5c9415d's analysis precondition) the scenario was
             # measuring the missing precondition, not the research rule.
             task=ConversationTaskState(
-                tool_profile="resume",
+
                 saved_job_candidates=(_SAVED_JOB,),
                 active_job_posting_id="job-1",
                 active_jd_snapshot_id="jd-1",
@@ -370,11 +389,10 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             "task.has_active_job_analysis",
         ),
         known_gap=(
-            "2026-09-25/26 gpt-5.6-sol cuts passed 5/5, 2/5, 2/5 (the same code "
-            "without that day's changes), 1/3, 1/1 and 0/1: the failing samples "
-            "first call route_to_capability to the profile they are already in, "
-            "or list_resumes, instead of match_resume_to_job. No sample started "
-            "research, which is what this policy is about."
+            "Earlier recordings sometimes listed resumes instead of using the "
+            "already bound version for match_resume_to_job. No sample started "
+            "research; keep measuring the next-tool choice separately from the "
+            "prohibition on unrequested company research."
         ),
         steps=(
             TrajectoryStep(
@@ -401,7 +419,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
             user_message=(
                 "请把我的求职意向记下来：我想找上海的算法岗，期望薪资 40K 以上"
             ),
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
         ),
         decisive_facts=("task.target_roles", "user_message"),
         steps=(
@@ -433,7 +451,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="这个岗位看着还不错",
             task=ConversationTaskState(
-                tool_profile="job",
+
                 saved_job_candidates=(_SAVED_JOB,),
                 active_job_posting_id="job-1",
             ),
@@ -442,7 +460,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         steps=(
             TrajectoryStep(
                 forbid_tools=frozenset(
-                    {"propose_job_intent", "confirm_job_intent"}
+                    {"propose_job_intent", "confirm_job_intent", "analyze_job"}
                 ),
             ),
         ),
@@ -464,7 +482,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 revision="aaaaaaaaaaaa",
             ),
             task=ConversationTaskState(
-                tool_profile="job",
+
                 saved_job_candidates=(_SAVED_JOB, _OTHER_SAVED_JOB),
             ),
         ),
@@ -511,7 +529,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="帮我找岗位",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
             working_notes=WorkingNotesContext(
                 markdown="- 未确认观察：用户可能偏好 Rust 岗位",
                 revision="aaaaaaaaaaaa",
@@ -553,7 +571,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="帮我找岗位",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
             working_notes=WorkingNotesContext(
                 markdown="- 未确认观察：用户偏好 Rust 岗位",
                 revision="aaaaaaaaaaaa",
@@ -587,7 +605,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="可以",
             task=ConversationTaskState(
-                tool_profile="memory",
+
                 pending_job_intent_update=JobIntentUpdate(city="上海"),
                 bare_confirmation_target=None,
             ),
@@ -628,13 +646,15 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="我准备投这个岗位了",
             task=ConversationTaskState(
-                tool_profile="application",
+
                 saved_job_candidates=(_SAVED_JOB,),
                 active_job_posting_id="job-1",
             ),
         ),
         decisive_facts=("task.candidates",),
-        steps=(TrajectoryStep(forbid_tools=frozenset({"create_application"})),),
+        steps=(TrajectoryStep(forbid_tools=frozenset({
+            "create_application", "analyze_job",
+        })),),
     ),
     TrajectoryScenario(
         name="a_calendar_write_is_never_executed_in_the_turn_that_prepared_it",
@@ -646,7 +666,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="把这场面试同步到我的日历",
             task=ConversationTaskState(
-                tool_profile="interview",
+
                 active_interview_round_id="round-1",
                 active_calendar_proposal_id="proposal-1",
                 active_calendar_proposal_expires_at=_NOW.replace(hour=12),
@@ -743,7 +763,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="确认，执行吧",
             task=ConversationTaskState(
-                tool_profile="interview",
+
                 active_calendar_proposal_id="proposal-1",
                 active_calendar_proposal_expires_at=datetime(
                     2026, 8, 31, 12, tzinfo=timezone.utc
@@ -772,7 +792,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="我那场面试怎么样了",
             task=ConversationTaskState(
-                tool_profile="interview",
+
                 active_interview_round_id="round-1",
                 interview_candidates=(
                     InterviewCandidateContextItem(
@@ -807,7 +827,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="那份调研里说这家公司的主要竞争对手是谁？",
             task=ConversationTaskState(
-                tool_profile="job",
+
                 active_job_posting_id="job-1",
                 active_job_research_report_id="report-1",
                 job_research_status="current",
@@ -863,7 +883,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         # differed only in an opaque suffix, presented as the complete set.
         context=_context(
             user_message="上个月 Shopee 那份调研里，他们的主要竞争对手是谁？",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
             archived_resources=tuple(
                 ConversationMessageContext(
                     role="assistant",
@@ -961,7 +981,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="示例科技那份调研里，他们的主要竞争对手是谁？",
             task=ConversationTaskState(
-                tool_profile="job",
+
                 active_job_posting_id="job-2",
                 active_job_research_report_id="report-b",
                 job_research_status="current",
@@ -1072,7 +1092,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="示例科技那份调研里，他们的主要竞争对手是谁？",
             task=ConversationTaskState(
-                tool_profile="job",
+
                 active_job_posting_id="job-2",
                 active_job_research_report_id="report-b",
                 job_research_status="current",
@@ -1154,7 +1174,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="上次那份调研里提到的竞品是谁来着",
             task=ConversationTaskState(
-                tool_profile="job",
+
                 saved_job_candidates=(_SAVED_JOB,),
             ),
             archived_resources=(
@@ -1296,7 +1316,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "不是 weak 就到这里。"
             ),
             task=ConversationTaskState(
-                tool_profile="resume",
+
                 active_job_posting_id="job-1",
                 active_resume_version_id="resume-version-1",
                 active_resume_job_match_id="match-1",
@@ -1335,7 +1355,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "如果没有明确要求就到这里。"
             ),
             task=ConversationTaskState(
-                tool_profile="resume",
+
                 active_job_posting_id="job-1",
                 active_resume_version_id="resume-version-1",
                 saved_job_candidates=(_SAVED_JOB,),
@@ -1384,7 +1404,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "如果没有明确要求就到这里。"
             ),
             task=ConversationTaskState(
-                tool_profile="resume",
+
                 active_job_posting_id="job-1",
                 active_resume_version_id="resume-version-1",
                 saved_job_candidates=(_SAVED_JOB,),
@@ -1437,7 +1457,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="调研完了吗？一句话说说结论就行。",
             task=ConversationTaskState(
-                tool_profile="job",
+
                 active_job_posting_id="job-1",
                 active_job_research_report_id="report-1",
                 job_research_status="current",
@@ -1500,7 +1520,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "如果是刚完成的新报告就直接结束。"
             ),
             task=ConversationTaskState(
-                tool_profile="job",
+
                 active_job_posting_id="job-1",
                 active_job_research_report_id="report-1",
                 job_research_status="current",
@@ -1541,7 +1561,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         # never told, so a model that loops burns the whole budget on one call.
         context=_context(
             user_message="看看我保存的岗位",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
         ),
         decisive_facts=("task.candidates",),
         steps=(
@@ -1567,7 +1587,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="找我保存过的 RAG 岗位",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
             tool_observations=(
                 DecisionObservation(
                     tool_name="find_saved_jobs",
@@ -1597,7 +1617,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="找我保存过的 RAG 岗位",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
             tool_observations=(
                 DecisionObservation(
                     tool_name="find_saved_jobs",
@@ -1628,7 +1648,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="确认执行刚才的日历变更",
             task=ConversationTaskState(
-                tool_profile="interview",
+
                 active_interview_round_id="interview-1",
             ),
             tool_observations=(
@@ -1667,7 +1687,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
         context=_context(
             user_message="再查一下我保存的算法岗位",
-            task=ConversationTaskState(tool_profile="job"),
+            task=ConversationTaskState(),
             tool_observations=(
                 DecisionObservation(
                     tool_name="find_saved_jobs",
@@ -1716,7 +1736,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="我刚在官网投了示例科技的算法工程师，帮我记一下。",
             task=ConversationTaskState(
-                tool_profile="application",
+
                 saved_job_candidates=(_SAVED_JOB,),
                 active_job_posting_id="job-1",
             ),
@@ -1764,7 +1784,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="打开第 2 个岗位的完整 JD",
             task=ConversationTaskState(
-                tool_profile="job",
+
                 saved_job_candidates=(_SAVED_JOB,),
             ),
             tool_observations=(
@@ -1817,10 +1837,8 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         steps=(
             TrajectoryStep(
                 expect_tool="read_conversation_span",
-                expect_arguments={
-                    "from_sequence": 1,
-                    "through_sequence": 8,
-                },
+                forbid_message_regexes=_SPAN_DECOY_AS_ANSWER,
+                forbid_non_null_arguments=frozenset({"from_sequence", "through_sequence"}),
                 forbid_tools=frozenset(
                     {"research_job", "open_job_search", "find_saved_jobs"}
                 ),
@@ -1880,10 +1898,8 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         steps=(
             TrajectoryStep(
                 expect_tool="read_conversation_span",
-                expect_arguments={
-                    "from_sequence": 1,
-                    "through_sequence": 120,
-                },
+                forbid_message_regexes=_SPAN_DECOY_AS_ANSWER,
+                forbid_non_null_arguments=frozenset({"from_sequence", "through_sequence"}),
                 expect_nonempty_string_arguments=frozenset({"query"}),
                 forbid_tools=frozenset(
                     {"research_job", "open_job_search", "find_saved_jobs"}
@@ -1892,46 +1908,58 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         ),
     ),
     TrajectoryScenario(
-        name="a_compacted_fact_without_page_in_is_not_invented",
+        name="an_unmentioned_company_without_compaction_is_not_invented",
         policy=(
             "Decide exactly one next action using only the supplied context. "
             "Never invent a proper name that was not shown to you."
         ),
-        # Pre-CE-1 ablation of the same question: summary and decoy are
-        # present, but the watermark is not. The fixed schema universe still
-        # offers the span tool, so calling it would require inventing a range.
-        # Mentioning the decoy to reject it is allowed; emitting the hidden
-        # name would be invention.
-        context=compacted_span_context(
-            user_message=SPAN_HIDDEN_QUESTION, page_in=False
+        # A short conversation has no summary or compressed history. Its entire
+        # history is in the recent window, which mentions only the decoy.
+        # The requested company was never named, so paging in or naming one
+        # would invent evidence. Rejecting the decoy by name remains allowed.
+        context=_context(
+            user_message=SPAN_COLD_QUESTION,
+            recent_messages=_SPAN_COLD_WINDOW,
+            through_sequence=0,
+            recent_from_sequence=1,
         ),
         decisive_facts=("conversation_summary", "recent_messages", "user_message"),
         steps=(
             TrajectoryStep(
                 forbid_tools=frozenset(
-                    {"read_conversation_span", "research_job", "open_job_search"}
+                    {"research_job", "open_job_search"}
                 ),
                 forbid_message_contains=frozenset({SPAN_PAGE_IN_FACT}),
-                quality_message_contains_any=(
-                    frozenset(
-                        {
-                            "不确定",
-                            "没有",
-                            "看不到",
-                            "无法",
-                            "不在",
-                            "记不清",
-                            "摘要",
-                            "再问",
-                            "哪家",
-                            "请问",
-                        }
-                    ),
-                ),
+                forbid_message_regexes=_SPAN_DECOY_AS_ANSWER,
             ),
         ),
         recording_samples=3,
-        quality_min_pass_rate=0.6,
+    ),
+    TrajectoryScenario(
+        name="an_unavailable_span_does_not_supply_an_unmentioned_company",
+        policy=(
+            "A failed read supplies no missing company name. Decide from the "
+            "visible history and observation without guessing."
+        ),
+        context=_context(
+            user_message=SPAN_COLD_QUESTION,
+            recent_messages=_SPAN_COLD_WINDOW,
+            through_sequence=0,
+            recent_from_sequence=1,
+            tool_observations=(_span_unavailable_observation(),),
+        ),
+        decisive_facts=(
+            "conversation_summary", "recent_messages", "user_message",
+            "tool_observations.0.state",
+        ),
+        steps=(
+            TrajectoryStep(
+                forbid_tools=frozenset({"read_conversation_span", "research_job", "open_job_search"}),
+                forbid_message_contains=frozenset({SPAN_PAGE_IN_FACT}),
+                forbid_message_regexes=_SPAN_DECOY_AS_ANSWER,
+            ),
+        ),
+        recording_samples=3,
     ),
     TrajectoryScenario(
         name="a_fact_still_in_the_window_is_answered_without_page_in",
@@ -1951,7 +1979,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 forbid_tools=frozenset(
                     {"read_conversation_span", "research_job", "open_job_search"}
                 ),
-                forbid_message_contains=frozenset({SPAN_WINDOW_DECOY}),
+                forbid_message_regexes=_SPAN_DECOY_AS_ANSWER,
                 quality_message_contains_any=(frozenset({SPAN_PAGE_IN_FACT}),),
             ),
         ),
@@ -1980,9 +2008,8 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 forbid_tools=frozenset(
                     {"read_conversation_span", "research_job", "open_job_search"}
                 ),
-                forbid_message_contains=frozenset(
-                    {SPAN_WINDOW_DECOY, SPAN_PAGE_IN_FACT}
-                ),
+                forbid_message_contains=frozenset({SPAN_PAGE_IN_FACT}),
+                forbid_message_regexes=_SPAN_DECOY_AS_ANSWER,
             ),
         ),
         recording_samples=3,
@@ -1990,34 +2017,19 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
     TrajectoryScenario(
         name="a_core_request_routes_before_job_analysis",
         policy=(
-            "When the current profile lacks a required domain tool, route to "
-            "that domain first, then use the tool under the updated profile."
+            "Discover the requested job analysis capability if needed, then "
+            "analyze the selected job without starting resume matching."
         ),
         context=_context(
             user_message="请对当前选中的示例科技岗位做独立 JD 分析，不要做简历匹配。",
             task=ConversationTaskState(
-                tool_profile="core",
+
                 active_job_posting_id="job-1",
                 saved_job_candidates=(_SAVED_JOB,),
             ),
         ),
-        decisive_facts=("task.tool_profile", "task.saved_jobs.0.selection_index"),
-        steps=(
-            TrajectoryStep(
-                expect_tool="route_to_capability",
-                expect_arguments={"domain": "job"},
-            ),
-            TrajectoryStep(
-                task_update={"tool_profile": "job"},
-                observation=DecisionObservation(
-                    tool_name="route_to_capability",
-                    state="tool_profile_switched",
-                    message="工具档已切换为 job。",
-                    arguments={"domain": "job"},
-                ),
-                expect_tool="analyze_job",
-            ),
-        ),
+        decisive_facts=("task.saved_jobs.0.selection_index",),
+        steps=(TrajectoryStep(expect_tool="analyze_job"),),
     ),
     TrajectoryScenario(
         name="a_resume_critique_loads_its_skill",
@@ -2029,7 +2041,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
         context=_context(
             user_message="帮我点评一下这份简历，看看哪里写得不好、应该怎么改。",
             task=ConversationTaskState(
-                tool_profile="resume",
+
                 active_resume_version_id="resume-version-1",
             ),
         ).model_copy(
@@ -2072,9 +2084,9 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "4 AI 编程工具；5 开源项目或博客。每项都需要我分别回答，"
                 "允许跳过或明确回答没有。请一次性生成结构化五题问卷。"
             ),
-            task=ConversationTaskState(tool_profile="resume"),
+            task=ConversationTaskState(),
         ),
-        decisive_facts=("user_message", "task.tool_profile"),
+        decisive_facts=("user_message",),
         steps=(TrajectoryStep(expect_action="questionnaire", expect_question_count=5),),
     ),
     TrajectoryScenario(
@@ -2096,7 +2108,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 '{"question":"开源项目或博客","answer":"跳过"}]'
             ),
             task=ConversationTaskState(
-                tool_profile="resume",
+
                 active_job_posting_id="job-1",
                 active_resume_version_id="resume-version-1",
                 active_resume_job_match_id="match-1",
@@ -2137,7 +2149,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "把刚才问卷里我说的 AI 编程工具使用情况，作为我在示例科技的"
                 "工作经历事实提案；先让我确认，不要直接写入。"
             ),
-            task=ConversationTaskState(tool_profile="memory"),
+            task=ConversationTaskState(),
             recent_messages=(
                 ConversationMessageContext(
                     role="user",
@@ -2154,6 +2166,7 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 "career_memory": CareerMemoryContext(
                     records=(
                         CareerMemoryRecord(
+                            record_id="career_record_" + "a" * 32,
                             record_type="work",
                             organization="示例科技",
                             title="软件工程师",
@@ -2172,6 +2185,68 @@ SCENARIOS: tuple[TrajectoryScenario, ...] = (
                 expect_tool="propose_career_fact",
                 expect_nonempty_string_arguments=frozenset({"user_quote"}),
                 expect_argument_contains={"user_quote": "Claude Code 和 Cursor"},
+            ),
+        ),
+        recording_samples=3,
+    ),
+    TrajectoryScenario(
+        name="tool_selection_switches_from_resume_to_job_research",
+        policy=(
+            "When a requested business tool is not yet offered, discover it "
+            "and continue the user's task in the same conversation."
+        ),
+        context=_context(
+            user_message="现在研究一下当前岗位公司的主要竞争对手。",
+            task=ConversationTaskState(
+
+                saved_job_candidates=(_SAVED_JOB,),
+                active_job_posting_id="job-1",
+            ),
+            recent_messages=(
+                ConversationMessageContext(
+                    role="user", content="先帮我看简历。", created_at=_NOW,
+                ),
+            ),
+        ),
+        decisive_facts=("task.has_active_job_posting", "user_message"),
+        steps=(TrajectoryStep(expect_tool="research_job"),),
+        recording_samples=3,
+    ),
+    TrajectoryScenario(
+        name="tool_selection_combines_job_analysis_and_resume_match",
+        policy=(
+            "For a request that needs job analysis followed by resume matching, "
+            "complete the job step and use the analysis result for matching "
+            "without asking the user to restart."
+        ),
+        context=_context(
+            user_message="先分析这个岗位，再和我当前的简历比较匹配程度。",
+            task=ConversationTaskState(
+
+                saved_job_candidates=(_SAVED_JOB,),
+                active_job_posting_id="job-1",
+                active_jd_snapshot_id="jd-1",
+                active_resume_version_id="rv-1",
+            ),
+        ),
+        decisive_facts=(
+            "task.has_active_job_posting", "task.has_active_resume_version",
+        ),
+        steps=(
+            TrajectoryStep(expect_tool="analyze_job"),
+            TrajectoryStep(
+                observation=DecisionObservation(
+                    tool_name="analyze_job",
+                    state="job_analysis_ready",
+                    message="岗位 JD 分析已完成。",
+                    arguments={},
+                ),
+                task_update={
+                    "active_job_analysis_id": "analysis-1",
+                    "active_job_analysis_jd_snapshot_id": "jd-1",
+                    "job_analysis_status": "ready",
+                },
+                expect_tool="match_resume_to_job",
             ),
         ),
         recording_samples=3,

@@ -1,0 +1,139 @@
+{
+  "scenario": "an_unavailable_span_does_not_supply_an_unmentioned_company",
+  "policy": "A failed read supplies no missing company name. Decide from the visible history and observation without guessing.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "a78cb35a2f7a114bfac738fcf9687f4f0de9179be07ffeb5c7354243346500ef",
+  "context_shape_fingerprint": "d5a03093a638d2e25feb0e65cef260effd1f74287f055887a6dcf3f836a29dab",
+  "recorded_at": "2026-10-10T01:23:34.815078+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"当前对话中没有记录你的目标公司。请告诉我你希望分析哪家公司的美团 JD？\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "10588b8e45a7301b463e57cea57243a2ecf40166d11aa040dc7843e04e2d6f91",
+      "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_target_roles",
+        "propose_job_intent",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3092.0,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T01:23:29.088102+00:00",
+      "elapsed_ms": 3096.1,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前对话中没有记录你的目标公司。请告诉我你希望分析哪家公司的美团 JD？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "10588b8e45a7301b463e57cea57243a2ecf40166d11aa040dc7843e04e2d6f91",
+          "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3092.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:23:34.882429+00:00",
+      "elapsed_ms": 5792.5,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"当前对话中没有记录目标公司的全名。请告诉我你提到的美团岗位对应的公司全称是什么？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "10588b8e45a7301b463e57cea57243a2ecf40166d11aa040dc7843e04e2d6f91",
+          "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 5788.7,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "当前对话窗口里没有记录过你提到的美团 JD 的完整信息，也没有保存任何已收藏岗位或目标公司记录。\n\n请问你说的\"美团\"是指：\n- **北京三快科技有限公司**（美团运营主体）\n- 还是其他具体子公司名称？\n\n另外，你是想让我分析这份美团的岗位要求，还是有其他具体需求？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:23:34.815078+00:00",
+      "elapsed_ms": 5098.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_career_memory",
+            "arguments": {
+              "query": "美团 目标公司",
+              "limit": 5
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "10588b8e45a7301b463e57cea57243a2ecf40166d11aa040dc7843e04e2d6f91",
+          "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 5094.5,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "当前会话中没有记录你明确提到的目标公司全名。之前的对话中只提到了\"美团 JD\"，但没有确认具体的目标公司名称。\n\n你能告诉我你的目标公司全名是什么吗？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

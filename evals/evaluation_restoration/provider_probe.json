@@ -1,0 +1,16 @@
+[
+  {
+    "model": "deepseek-flash",
+    "prefix": "MAIN_AGENT",
+    "reachable": true,
+    "finish_reason": "stop",
+    "http_completed": true
+  },
+  {
+    "model": "qwen3.7-plus",
+    "prefix": "RESUME_ANALYSIS_AGENT",
+    "reachable": true,
+    "finish_reason": "stop",
+    "http_completed": true
+  }
+]

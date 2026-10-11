@@ -22,7 +22,7 @@ _TOOLS_SOURCE = Path(inspect.getsourcefile(MainAgentToolRegistry))
 
 def _registered_handler_names() -> set[str]:
     """Read every registry assignment, including optional service branches."""
-    tree = ast.parse(_TOOLS_SOURCE.read_text())
+    tree = ast.parse(_TOOLS_SOURCE.read_text(encoding="utf-8"))
     registry = next(
         node
         for node in tree.body
@@ -135,7 +135,7 @@ def test_every_write_handler_result_constructor_declares_execution_outcome() -> 
     deliberately insufficient.
     """
 
-    tree = ast.parse(_TOOLS_SOURCE.read_text())
+    tree = ast.parse(_TOOLS_SOURCE.read_text(encoding="utf-8"))
     registry = next(
         node
         for node in tree.body
@@ -213,7 +213,7 @@ def test_external_writes_are_a_declared_subset_of_writes() -> None:
 
 def _runtime_workflow_handler_names() -> set[str]:
     """Keys assigned into ``_runtime_workflow_handlers`` in the registry source."""
-    tree = ast.parse(_TOOLS_SOURCE.read_text())
+    tree = ast.parse(_TOOLS_SOURCE.read_text(encoding="utf-8"))
     names: set[str] = set()
     for node in ast.walk(tree):
         if not (

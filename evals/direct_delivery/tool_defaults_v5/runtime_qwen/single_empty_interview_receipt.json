@@ -1,0 +1,223 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "single_empty_interview_receipt",
+  "suite_fingerprint": "e33a184238d752a7b681bcba955d981c8bd07caa8a40e8a198e3aa5709f3ac33",
+  "recorded_at": "2026-10-10T01:41:32.836712+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "请查看我的面试安排。": {
+            "list_interviews": 0.7721326101765401,
+            "get_interview": 0.7514006501392195,
+            "update_interview": 0.7062918281672248,
+            "create_interview": 0.6974078327182229,
+            "prepare_interview_calendar_sync": 0.6924337206674711,
+            "complete_interview": 0.6597795018562554,
+            "list_calendar_links": 0.6401410097197242,
+            "get_interview_preparation": 0.6242364674078986,
+            "prepare_interview": 0.6139622917975087,
+            "record_interview_retro": 0.6082521284388359
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "当前没有找到任何面试安排。\n\n如果您有即将进行的面试需要记录，我可以帮您创建面试轮次并纳入跟踪。请告诉我：\n- 公司名称\n- 岗位名称\n- 面试时间（如有）\n\n或者，如果您想先浏览已收藏的岗位或投递记录，我也可以协助您查看。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "482637e89114a579aa7fc3ed3a087acc874c4e3a53c18b7a8ed887d85836efa8",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何面试安排。\\n\\n如果您有即将进行的面试需要记录，我可以帮您创建面试轮次并纳入跟踪。请告诉我：\\n- 公司名称\\n- 岗位名称\\n- 面试时间（如有）\\n\\n或者，如果您想先浏览已收藏的岗位或投递记录，我也可以协助您查看。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "482637e89114a579aa7fc3ed3a087acc874c4e3a53c18b7a8ed887d85836efa8",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "请查看我的面试安排。": {
+            "list_interviews": 0.7721326101765401,
+            "get_interview": 0.7514006501392195,
+            "update_interview": 0.7062918281672248,
+            "create_interview": 0.6974078327182229,
+            "prepare_interview_calendar_sync": 0.6924337206674711,
+            "complete_interview": 0.6597795018562554,
+            "list_calendar_links": 0.6401410097197242,
+            "get_interview_preparation": 0.6242364674078986,
+            "prepare_interview": 0.6139622917975087,
+            "record_interview_retro": 0.6082521284388359
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "目前没有面试安排。如果您有即将进行的面试需要记录，我可以帮您创建面试轮次并关联到相应的投递记录或岗位。请告诉我公司名称和岗位信息，或者您是否希望先查看已收藏的岗位或投递记录？",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "482637e89114a579aa7fc3ed3a087acc874c4e3a53c18b7a8ed887d85836efa8",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有面试安排。如果您有即将进行的面试需要记录，我可以帮您创建面试轮次并关联到相应的投递记录或岗位。请告诉我公司名称和岗位信息，或者您是否希望先查看已收藏的岗位或投递记录？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "482637e89114a579aa7fc3ed3a087acc874c4e3a53c18b7a8ed887d85836efa8",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "请查看我的面试安排。": {
+            "list_interviews": 0.7721326101765401,
+            "get_interview": 0.7514006501392195,
+            "update_interview": 0.7062918281672248,
+            "create_interview": 0.6974078327182229,
+            "prepare_interview_calendar_sync": 0.6924337206674711,
+            "complete_interview": 0.6597795018562554,
+            "list_calendar_links": 0.6401410097197242,
+            "get_interview_preparation": 0.6242364674078986,
+            "prepare_interview": 0.6139622917975087,
+            "record_interview_retro": 0.6082521284388359
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "目前没有找到任何面试安排。如果您有即将进行的面试，可以告诉我公司和岗位信息，我可以帮您创建面试记录并跟踪相关进展。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "482637e89114a579aa7fc3ed3a087acc874c4e3a53c18b7a8ed887d85836efa8",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有找到任何面试安排。如果您有即将进行的面试，可以告诉我公司和岗位信息，我可以帮您创建面试记录并跟踪相关进展。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "482637e89114a579aa7fc3ed3a087acc874c4e3a53c18b7a8ed887d85836efa8",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

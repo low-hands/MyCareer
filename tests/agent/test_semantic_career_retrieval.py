@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from career_agent.agent.context.semantic_retrieval import (
     CareerEmbeddingConfig,
     OpenAICompatibleEmbeddingClient,
@@ -24,6 +26,30 @@ class FakeEmbeddingClient:
         if "推荐" in value or "candidate" in value:
             return (1.0, 0.0)
         return (0.0, 1.0)
+
+
+def test_embedding_client_caps_provider_batches_at_twenty(monkeypatch) -> None:
+    requests = []
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            self.embeddings = self
+
+        def create(self, *, model, input):
+            requests.append(tuple(input))
+            return SimpleNamespace(data=[
+                SimpleNamespace(index=index, embedding=[float(len(value))])
+                for index, value in reversed(list(enumerate(input)))
+            ])
+
+    monkeypatch.setattr("career_agent.agent.context.semantic_retrieval.OpenAI", FakeOpenAI)
+    config = CareerEmbeddingConfig(
+        base_url="https://example.test/v1", api_key="key", model="model", batch_size=64,
+    )
+    texts = tuple(str(index) for index in range(45))
+    vectors = OpenAICompatibleEmbeddingClient(config).embed(texts)
+    assert tuple(row[0] for row in vectors) == tuple(float(len(text)) for text in texts)
+    assert [len(batch) for batch in requests] == [20, 20, 5]
 
 
 def _confirmed(store, *, record_id: str, claim: str):

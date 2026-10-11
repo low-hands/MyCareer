@@ -1,0 +1,508 @@
+{
+  "capture_wall_ms": 706124,
+  "baseline_rejected_bodies_available": 0,
+  "groups": [
+    {
+      "action": "ask_user",
+      "has_text_rejection": true,
+      "decisions": 7,
+      "duration_ms": 208911,
+      "provider_requests": 21,
+      "text_rejection_events": 14,
+      "mean_ms": 29844.429,
+      "share_capture_wall": 0.29585596864006886
+    },
+    {
+      "action": "final",
+      "has_text_rejection": true,
+      "decisions": 5,
+      "duration_ms": 90399,
+      "provider_requests": 13,
+      "text_rejection_events": 8,
+      "mean_ms": 18079.8,
+      "share_capture_wall": 0.1280214239991843
+    },
+    {
+      "action": "tool_call",
+      "has_text_rejection": false,
+      "decisions": 67,
+      "duration_ms": 239524,
+      "provider_requests": 67,
+      "text_rejection_events": 0,
+      "mean_ms": 3574.985,
+      "share_capture_wall": 0.3392095439327937
+    },
+    {
+      "action": "tool_call",
+      "has_text_rejection": true,
+      "decisions": 3,
+      "duration_ms": 35530,
+      "provider_requests": 6,
+      "text_rejection_events": 3,
+      "mean_ms": 11843.333,
+      "share_capture_wall": 0.05031694150035971
+    }
+  ],
+  "cassette_examples": [
+    {
+      "path": "evals/main_agent_search/a_card_backed_report_is_answered_without_reproducing_it.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "调研已完成：示例科技在2026年第二季度将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。"
+    },
+    {
+      "path": "evals/main_agent_search/a_card_backed_report_is_answered_without_reproducing_it.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "调研已完成：示例科技在2026年第二季度将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。"
+    },
+    {
+      "path": "evals/main_agent_search/a_card_backed_report_is_answered_without_reproducing_it.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "调研已完成：示例科技在2026年Q2将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。"
+    },
+    {
+      "path": "evals/main_agent_search/a_card_backed_report_is_answered_without_reproducing_it.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "调研已完成：示例科技在2026年第二季度将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。"
+    },
+    {
+      "path": "evals/main_agent_search/a_card_backed_report_is_answered_without_reproducing_it.json",
+      "sample": 3,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "调研已完成：示例科技在 2026 年第二季度将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。"
+    },
+    {
+      "path": "evals/main_agent_search/a_card_backed_report_is_answered_without_reproducing_it.json",
+      "sample": 3,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "调研已完成：示例科技在2026年第二季度将检索业务拆分为独立事业部，招聘规模扩大约四成，且主要竞争对手尚未公开同类产品。"
+    },
+    {
+      "path": "evals/main_agent_search/a_fact_still_in_the_window_is_answered_without_page_in.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。"
+    },
+    {
+      "path": "evals/main_agent_search/a_fact_still_in_the_window_is_answered_without_page_in.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "你一开始指定的目标公司全名是 Pinnacle Robotics。"
+    },
+    {
+      "path": "evals/main_agent_search/a_fact_still_in_the_window_is_answered_without_page_in.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "你一开始指定的目标公司全名是 Pinnacle Robotics。"
+    },
+    {
+      "path": "evals/main_agent_search/a_fact_still_in_the_window_is_answered_without_page_in.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。"
+    },
+    {
+      "path": "evals/main_agent_search/a_fact_still_in_the_window_is_answered_without_page_in.json",
+      "sample": 3,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。"
+    },
+    {
+      "path": "evals/main_agent_search/a_fact_still_in_the_window_is_answered_without_page_in.json",
+      "sample": 3,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "你一开始指定的目标公司全名是 Pinnacle Robotics。"
+    },
+    {
+      "path": "evals/main_agent_search/a_nonretryable_read_failure_is_not_reissued.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "岗位库当前无法完成这次查询，暂时无法查找你保存过的 RAG 岗位。"
+    },
+    {
+      "path": "evals/main_agent_search/a_nonretryable_read_failure_is_not_reissued.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "岗位库当前无法完成这次查询，暂时无法查找您保存过的 RAG 岗位。"
+    },
+    {
+      "path": "evals/main_agent_search/a_nonretryable_read_failure_is_not_reissued.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "岗位库当前无法完成这次查询，暂时无法查找你保存过的 RAG 岗位。"
+    },
+    {
+      "path": "evals/main_agent_search/a_nonretryable_read_failure_is_not_reissued.json",
+      "sample": 3,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "岗位库当前无法完成这次查询，因此无法列出您保存过的 RAG 相关岗位。"
+    },
+    {
+      "path": "evals/main_agent_search/a_nonretryable_read_failure_is_not_reissued.json",
+      "sample": 3,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "岗位库当前无法完成这次查询，因此无法列出你保存过的 RAG 相关岗位。"
+    },
+    {
+      "path": "evals/main_agent_search/a_repeated_call_is_not_reissued_after_an_observation.json",
+      "sample": 1,
+      "step": 1,
+      "accepted_tool_call": {
+        "name": "get_saved_job",
+        "arguments": {
+          "selection_index": 1
+        }
+      },
+      "rejected_text": "已找到 1 个已保存岗位：\n\n1. **算法工程师** - 示例科技（上海，30-50K）\n\n如需查看该岗位的完整职位描述，请告诉我。"
+    },
+    {
+      "path": "evals/main_agent_search/a_repeated_call_is_not_reissued_after_an_observation.json",
+      "sample": 3,
+      "step": 1,
+      "accepted_tool_call": {
+        "name": "get_saved_job",
+        "arguments": {
+          "selection_index": 1
+        }
+      },
+      "rejected_text": "已找到 1 个已保存岗位：\n\n1. **算法工程师** - 示例科技（上海，30-50K）\n\n需要查看该岗位的详细信息吗？"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_made_this_turn_is_read_back_by_its_index.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": {
+        "name": "get_job_research",
+        "arguments": {
+          "reference": "report_440400"
+        }
+      },
+      "rejected_text": "根据调研结果：\n\n- **示例科技**：已完成企业搜索产品调研，但当前工具返回的是摘要（receipt_only），需要读取完整报告才能看到竞争对手信息。\n- **另一家科技**：主要竞争对手为 **B 公司**。\n\n您想了解哪家公司的详细竞争对手信息？我可以读取对应的完整调研报告。"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_made_this_turn_without_an_index_cannot_be_named.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "示例科技那份调研结果显示，他们的主要竞争对手是 **B 公司**。"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_made_this_turn_without_an_index_cannot_be_named.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "根据调研结果，另一家科技（示例科技）的主要竞争对手是 B 公司。"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_made_this_turn_without_an_index_cannot_be_named.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "示例科技那份调研里，他们的主要竞争对手是 B 公司。"
+    },
+    {
+      "path": "evals/main_agent_search/a_retryable_read_failure_does_not_change_the_user_intent.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "岗位库暂时不可用，无法查询你保存过的 RAG 岗位。你可以稍后再试，或者告诉我是否需要其他帮助。"
+    },
+    {
+      "path": "evals/main_agent_search/a_retryable_read_failure_does_not_change_the_user_intent.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "岗位库暂时不可用，无法查找您保存过的 RAG 岗位。您可以稍后再试。"
+    },
+    {
+      "path": "evals/main_agent_search/a_retryable_read_failure_does_not_change_the_user_intent.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "岗位库暂时不可用，无法查找已保存的 RAG 岗位。请稍后再试。"
+    },
+    {
+      "path": "evals/main_agent_search/a_retryable_read_failure_does_not_change_the_user_intent.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "岗位库暂时不可用，无法查询你保存过的 RAG 岗位。请稍后再试或检查系统状态。"
+    },
+    {
+      "path": "evals/main_agent_search/a_retryable_read_failure_does_not_change_the_user_intent.json",
+      "sample": 3,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "岗位库暂时不可用，无法查找已保存的 RAG 岗位。请稍后再试。"
+    },
+    {
+      "path": "evals/main_agent_search/a_retryable_read_failure_does_not_change_the_user_intent.json",
+      "sample": 3,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "岗位库暂时不可用，无法查询已保存的 RAG 岗位。你可以稍后重试，或者告诉我你是否需要打开 BOSS 直聘搜索新的 RAG 相关岗位。"
+    },
+    {
+      "path": "evals/main_agent_search/a_returned_span_body_is_used_not_the_window_decoy.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。"
+    },
+    {
+      "path": "evals/main_agent_search/a_returned_span_body_is_used_not_the_window_decoy.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。"
+    },
+    {
+      "path": "evals/main_agent_search/a_returned_span_body_is_used_not_the_window_decoy.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。"
+    },
+    {
+      "path": "evals/main_agent_search/a_returned_span_body_is_used_not_the_window_decoy.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。"
+    },
+    {
+      "path": "evals/main_agent_search/a_returned_span_body_is_used_not_the_window_decoy.json",
+      "sample": 3,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。"
+    },
+    {
+      "path": "evals/main_agent_search/a_returned_span_body_is_used_not_the_window_decoy.json",
+      "sample": 3,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。"
+    },
+    {
+      "path": "evals/main_agent_search/an_authorization_refusal_is_explained_not_bypassed.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "本轮读取操作额度已用完，无法继续查询。下一轮可以继续查找你保存的算法岗位。"
+    },
+    {
+      "path": "evals/main_agent_search/an_authorization_refusal_is_explained_not_bypassed.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "本轮读取操作额度已用完，无法继续查询。下一轮可以继续查找你保存的算法岗位。"
+    },
+    {
+      "path": "evals/main_agent_search/an_authorization_refusal_is_explained_not_bypassed.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "本轮读取操作额度已用完，无法查询已保存的算法岗位。下一轮可以继续查询。"
+    },
+    {
+      "path": "evals/main_agent_search/an_authorization_refusal_is_explained_not_bypassed.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "本轮读取操作额度已用完，暂时无法查询您保存的算法岗位。下一轮可以继续为您查找。"
+    },
+    {
+      "path": "evals/main_agent_search/an_authorization_refusal_is_explained_not_bypassed.json",
+      "sample": 3,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "本轮读取操作额度已用完，暂时无法查询你保存的算法岗位。下一轮可以继续执行该查询。"
+    },
+    {
+      "path": "evals/main_agent_search/an_authorization_refusal_is_explained_not_bypassed.json",
+      "sample": 3,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "本轮读取操作额度已用完，暂时无法查询已保存的算法岗位。下一轮可以继续查找。"
+    },
+    {
+      "path": "evals/main_agent_search/an_empty_conversation_span_is_not_filled_from_the_window.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "会话序号 100–110 范围内没有消息（返回 0/0 条），这段对话目前不存在。"
+    },
+    {
+      "path": "evals/main_agent_search/an_empty_conversation_span_is_not_filled_from_the_window.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "会话序号 100–110 范围内没有消息（返回 0/0 条）。这个区间在当前对话中是空的。\n\n你是想查看之前某段关于美团 JD 的讨论吗？如果是，可以告诉我更具体的序号范围，或者描述一下你想找的内容关键词，我可以帮你搜索。"
+    },
+    {
+      "path": "evals/main_agent_search/an_empty_conversation_span_is_not_filled_from_the_window.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "会话序号 100–110 区间是空的，没有消息可以读回。\n\n目前对话只进行到第 10 条消息左右，100–110 还不存在。你是想查看更早的某段历史吗？如果是，请告诉我具体的序号范围，或者描述你想找的内容（比如“美团 JD”、“算法岗位”等关键词），我可以帮你搜索。"
+    },
+    {
+      "path": "evals/main_agent_search/an_invalid_selection_is_not_reconstructed.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "当前收藏列表中只有 1 个岗位（序号 1：示例科技 - 算法工程师），不存在序号 2 的岗位。\n\n请问您是想查看这唯一的岗位（序号 1）的完整 JD 吗？"
+    },
+    {
+      "path": "evals/main_agent_search/an_invalid_selection_is_not_reconstructed.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "当前收藏列表中只有 1 个岗位（序号 1：示例科技 - 算法工程师），不存在序号 2 的岗位。\n\n请确认您想查看的是否是这唯一的岗位，或者您是否需要先搜索并收藏更多岗位？"
+    },
+    {
+      "path": "evals/main_agent_search/an_invalid_selection_is_not_reconstructed.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "当前只有 1 个已收藏岗位（序号 1：示例科技 - 算法工程师），不存在序号 2 的岗位。请确认您想查看的是哪一个岗位，或者先收藏更多岗位后再选择。"
+    },
+    {
+      "path": "evals/main_agent_search/an_invalid_selection_is_not_reconstructed.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "当前只有 1 个已收藏岗位（序号 1：示例科技 - 算法工程师），不存在序号 2 的岗位。请确认您想查看的岗位序号，或先收藏更多岗位后再选择。"
+    },
+    {
+      "path": "evals/main_agent_search/an_invalid_selection_is_not_reconstructed.json",
+      "sample": 3,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "当前收藏的岗位列表中只有 1 个岗位（序号 1：示例科技 - 算法工程师），不存在序号 2 的岗位。\n\n请确认您想查看的是否是序号 1 的岗位，或者如果您有其他已收藏的岗位需要查看，请先告知我正确的序号。"
+    },
+    {
+      "path": "evals/main_agent_search/an_invalid_selection_is_not_reconstructed.json",
+      "sample": 3,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "当前收藏列表中只有 1 个岗位（序号 1：示例科技 - 算法工程师），不存在序号 2 的岗位。请确认您想查看的岗位序号，或先收藏更多岗位后再选择。"
+    },
+    {
+      "path": "evals/main_agent_search/an_owner_rule_that_stopped_an_action_is_not_proposed_away.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "已准备创建投递记录：示例科技 · 算法工程师。\n\n你设置了此操作需要确认。是否执行？"
+    },
+    {
+      "path": "evals/main_agent_search/an_owner_rule_that_stopped_an_action_is_not_proposed_away.json",
+      "sample": 3,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "准备创建投递记录：示例科技 · 算法工程师。\n\n你设置了此操作需要确认。是否执行？"
+    },
+    {
+      "path": "evals/main_agent_search/an_unseen_result_is_delivered_rather_than_characterized.json",
+      "sample": 2,
+      "step": 1,
+      "accepted_tool_call": null,
+      "rejected_text": "今日职业简报已生成，包含 3 个待办事项（2 个今天到期，1 个逾期）。由于简报内容以卡片形式交付且无法在此处直接读取完整详情，你可以查看系统提供的简报卡片来获取具体内容。"
+    },
+    {
+      "path": "evals/main_agent_search/an_unseen_result_is_delivered_rather_than_characterized.json",
+      "sample": 2,
+      "step": 1,
+      "accepted_tool_call": null,
+      "rejected_text": "今日职业简报已生成，包含 3 个待办事项（2 项今日到期，1 项逾期）。\n\n简报内容已通过卡片形式提供，请查看。"
+    },
+    {
+      "path": "evals/main_agent_search/an_unseen_result_is_delivered_rather_than_characterized.json",
+      "sample": 3,
+      "step": 1,
+      "accepted_tool_call": null,
+      "rejected_text": "今天的职业简报已生成，包含 3 个待办事项（2 项今日到期，1 项逾期）。\n\n简报内容通过卡片形式提供，请直接查看。"
+    },
+    {
+      "path": "evals/main_agent_search/intent_is_not_inferred_from_a_job_the_user_liked.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": {
+        "name": "analyze_job",
+        "arguments": {
+          "selection_index": 1
+        }
+      },
+      "rejected_text": "我看到你收藏了一个\"示例科技\"的\"算法工程师\"岗位（上海，30-50K）。\n\n你想对这个岗位做什么？我可以：\n1. 分析这个岗位的职位要求\n2. 获取更详细的岗位信息\n\n请告诉我你的需求。"
+    },
+    {
+      "path": "evals/main_agent_search/planning_to_apply_does_not_create_an_application.json",
+      "sample": 2,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "我看到你有一个已收藏的岗位：示例科技的算法工程师（上海，30-50K）。\n\n在创建投递记录之前，我需要确认你是否已经实际提交了申请。请问你是否已经向这个岗位投递了简历？"
+    },
+    {
+      "path": "evals/main_agent_search/working_notes_never_choose_or_rank_a_job.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "我无法根据未确认的工作便笺来做推荐。工作便笺中标注的\"用户可能更偏好大厂，可能愿意为品牌接受较少自主权\"是未确认的观察，不能用于筛选、排序或推荐决策。\n\n要比较这两个已收藏岗位并给出建议，我需要先了解您的实际偏好。请问：\n\n1. 您更看重哪个方面？\n   - 薪资水平\n   - 公司规模/品牌\n   - 岗位具体方向（算法工程师 vs 推荐算法工程师）\n   - 其他因素\n\n2. 您对这两家公司的了解程度如何？是否有特别倾向的公司？\n\n或者，我可以使用 compare_saved_jobs 工具来客观对比这两个岗位的已知信息（如薪资范围、城市等），但不做主观推荐。您希望我先做客观对比吗？"
+    },
+    {
+      "path": "evals/main_agent_search/working_notes_never_choose_or_rank_a_job.json",
+      "sample": 1,
+      "step": 0,
+      "accepted_tool_call": null,
+      "rejected_text": "根据当前系统状态，我无法直接基于\"记得的偏好\"进行推荐，原因如下：\n\n1. **工作便笺中的观察是未确认的**：working_notes 中记录\"用户可能更偏好大厂，可能愿意为品牌接受较少自主权\"明确标注为\"未确认观察\"。根据系统规则，未确认的工作便笺不能用于筛选、排序或推荐决策。\n\n2. **没有已确认的自由文本偏好**：free_text_preferences 显示\"无\"已确认偏好，待确认偏好也为\"无\"。\n\n3. **两个岗位信息有限**：目前只知道这两个岗位的标题、公司和薪资范围，缺乏详细的职位描述、要求等信息来进行实质性比较。\n\n为了给您提供有意义的建议，我需要先了解更多信息。请问您希望我：\n\n1. **读取这两个岗位的详细信息**（使用 get_saved_job），然后帮您比较它们的具体差异？\n2. **或者您先确认一下您的实际偏好**，比如是否确实更看重大厂品牌、对薪资/职级/工作内容有什么具体要求？\n\n请告诉我您希望如何进行。"
+    },
+    {
+      "path": "evals/main_agent_search/working_notes_never_choose_or_rank_a_job.json",
+      "sample": 2,
+      "step": 1,
+      "accepted_tool_call": null,
+      "rejected_text": "工作便笺中记录了\"用户可能更偏好大厂，可能愿意为品牌接受较少自主权\"这一未确认观察。但根据系统规则，未确认的工作便笺不能用于筛选、排序或推荐决策。\n\n目前两个岗位的信息如下：\n- **示例科技 算法工程师**：上海，30-50K，大型公司\n- **另一家科技 推荐算法工程师**：上海，35-55K，中型公司\n\n由于您的偏好（是否偏好大厂）尚未确认，我无法基于此做出推荐。请问您是否确认自己更偏好大型公司？或者您可以直接告诉我您倾向于哪个岗位。"
+    },
+    {
+      "path": "evals/main_agent_search/working_notes_never_choose_or_rank_a_job.json",
+      "sample": 3,
+      "step": 1,
+      "accepted_tool_call": null,
+      "rejected_text": "工作便笺中记录的\"用户可能更偏好大厂\"属于未确认观察，不能用于筛选、排序或推荐。\n\n从已比较的两个岗位来看：\n- **示例科技 算法工程师**：大型公司，薪资30-50K\n- **另一家科技 推荐算法工程师**：中型公司，薪资35-55K\n\n由于我没有已确认的偏好来指导推荐，需要您明确说明：您更看重公司规模（大厂品牌）还是薪资范围？或者有其他考量因素？"
+    },
+    {
+      "path": "evals/main_agent_search/working_notes_never_choose_or_rank_a_job.json",
+      "sample": 3,
+      "step": 1,
+      "accepted_tool_call": null,
+      "rejected_text": "根据当前已确认的职业档案，没有任何已确认的偏好或约束可用于筛选或推荐岗位。工作便笺中提到的\"用户可能更偏好大厂\"属于未确认观察，不能作为推荐依据。\n\n从比较结果来看：\n- **示例科技 算法工程师**：大型公司，薪资30-50K\n- **另一家科技 推荐算法工程师**：中型公司，薪资35-55K\n\n由于缺乏已确认的偏好（如公司规模倾向、具体技术方向、薪资优先级等），我无法基于您的偏好做出推荐。\n\n请问您更看重哪个因素？例如：\n1. 公司规模（大厂vs中小厂）\n2. 薪资水平\n3. 具体技术方向（通用算法vs推荐算法）"
+    }
+  ],
+  "limits": [
+    "Duration is for the entire logical decision, including useful output and retries; not measured wasted time.",
+    "Baseline trace stores rejection reasons, not rejected bodies or separate per-attempt durations.",
+    "Cassette bodies come from different authored evaluation scenarios, not the 24-turn latency capture.",
+    "No automatic quality grade: inspect source scenario and observations before calling text usable."
+  ]
+}

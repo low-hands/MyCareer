@@ -12,6 +12,7 @@ from career_agent.agent.contracts.observations import (
     append_decision_observation,
 )
 from career_agent.agent.capabilities.registry import MainAgentToolOutput
+from career_agent.agent.capabilities.proactive import eligible_successors, retainable_tool_result
 from career_agent.agent.runtime.state import LoopControl, MainAgentState, PendingAction
 from career_agent.agent.capabilities.effects import is_external_write
 from career_agent.agent.presentation.delivery_policy import condenses_message
@@ -40,6 +41,8 @@ def tool_observation(
         return DecisionObservation(
             tool_name=result.tool_name,
             state=result.state,
+            disposition=result.disposition,
+            execution_outcome=result.execution_outcome,
             message=receipt,
             body=body,
             facts=dict(result.facts),
@@ -51,6 +54,8 @@ def tool_observation(
     return DecisionObservation(
         tool_name=name,
         state=result.state,
+        disposition=result.disposition,
+        execution_outcome=result.execution_outcome,
         message=receipt,
         body=body,
         facts=dict(result.facts),
@@ -108,6 +113,7 @@ class ObservationReducer:
             [str, MainAgentToolOutput, dict[str, Any] | None],
             DecisionObservation,
         ],
+        emit_tool_card: Callable[[PendingAction], None] = lambda pending: None,
     ) -> None:
         self._context_manager = context_manager
         self._emit_trace = emit_trace
@@ -115,12 +121,17 @@ class ObservationReducer:
         self._update_atomic_task = update_atomic_task
         self._tool_call_fingerprint = tool_call_fingerprint
         self._tool_observation = tool_observation
+        self._emit_tool_card = emit_tool_card
 
     def reduce(self, state: MainAgentState) -> MainAgentState:
         context = state["context"]
         pending = state["pending"]
         result = pending["result"]
         capability_name = pending["name"]
+        if capability_name == "read_conversation_span":
+            result = result.model_copy(update={
+                "explicit_sequence_span": bool(pending.get("policy_prelude")),
+            })
         control = dict(state.get("control", {}))
         synthetic_kind = pending.get("synthetic_kind")
 
@@ -163,8 +174,17 @@ class ObservationReducer:
                         "task": updated.task,
                         "attached_resumes": context.attached_resumes,
                         "attached_jobs": context.attached_jobs,
+                        "turn_proactive_capabilities": context.turn_proactive_capabilities,
+                        "turn_continuation_capability": context.turn_continuation_capability,
                     }
                 )
+            if retainable_tool_result(
+                capability_name, result.state, result.disposition,
+                result.execution_outcome,
+            ):
+                updated = updated.model_copy(update={
+                    "task": updated.task.add_loaded_capabilities((capability_name,)),
+                })
             self._account_for_call(state, pending, result, control)
 
         decision = state.get("decision")
@@ -181,7 +201,11 @@ class ObservationReducer:
                 "tool_observations": append_decision_observation(
                     updated.tool_observations,
                     observation,
-                )
+                ),
+                "turn_proactive_capabilities": tuple(dict.fromkeys((
+                    *updated.turn_proactive_capabilities,
+                    *eligible_successors(observation),
+                ))),
             }
         )
 
@@ -207,6 +231,7 @@ class ObservationReducer:
         ):
             career_memory_scope_keys = (*career_memory_scope_keys, result_scope_key)
 
+        self._emit_tool_card(pending)
         return {
             "context": updated,
             "tool_results": tool_results,
@@ -246,6 +271,8 @@ class ObservationReducer:
             "CONTROL": "control_calls",
         }[effect]
         control[budget_key] = control.get(budget_key, 0) + 1
+        if pending["name"] == "search_capabilities":
+            control["search_calls"] = control.get("search_calls", 0) + 1
         if effect == "WRITE" and is_external_write(pending["name"]):
             control["external_write_calls"] = (
                 control.get("external_write_calls", 0) + 1

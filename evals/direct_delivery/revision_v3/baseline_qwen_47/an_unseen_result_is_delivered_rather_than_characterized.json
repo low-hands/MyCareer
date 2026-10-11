@@ -1,0 +1,241 @@
+{
+  "scenario": "an_unseen_result_is_delivered_rather_than_characterized",
+  "policy": "An observation without body exposes only a bounded receipt and selected flat decision facts, not the internal payload. Use values explicitly present there, but never expand them into omitted details; when the user asks only for the brief, the runtime presenter remains the authoritative delivery.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "0f2355d6764c7b3c148c59efa0423b05eb0b8b7c3006303024c76b792c766b43",
+  "context_shape_fingerprint": "fa20350bf0e20525e9c4084304522faf92339028eb10141ca7f3ccfe283afdd0",
+  "recorded_at": "2026-10-09T18:17:21.687781+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "get_daily_brief",
+        "arguments": {
+          "timezone": "Asia/Shanghai"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+      "decision_shape_fingerprint": "b1b6c8f7bb62f3df9c066316ec3aee6f35dbb84158fc87f84ab72aabe4a4b9e3",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_daily_brief",
+        "list_action_items",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2411.0,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "content": "{\"action\":\"final\",\"message\":\"今天的职业简报已生成，包含 3 个待办事项（2 个今日到期，1 个逾期）。由于简报内容通过卡片形式提供且无法直接读取正文，请查看系统推送的简报卡片获取详细信息。\",\"questions\":[]}",
+      "scenario_step": 1,
+      "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+      "decision_shape_fingerprint": "17948ff47a2ab61ee67974dc949b8bf02cf7fba1e81fee811502e8c327d252b7",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_daily_brief",
+        "list_action_items",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2809.7,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-09T18:17:18.523625+00:00",
+      "elapsed_ms": 5224.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_daily_brief",
+            "arguments": {
+              "timezone": "Asia/Shanghai"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "decision_shape_fingerprint": "b1b6c8f7bb62f3df9c066316ec3aee6f35dbb84158fc87f84ab72aabe4a4b9e3",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2411.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"final\",\"message\":\"今天的职业简报已生成，包含 3 个待办事项（2 个今日到期，1 个逾期）。由于简报内容通过卡片形式提供且无法直接读取正文，请查看系统推送的简报卡片获取详细信息。\",\"questions\":[]}",
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "decision_shape_fingerprint": "17948ff47a2ab61ee67974dc949b8bf02cf7fba1e81fee811502e8c327d252b7",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2809.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-09T18:17:23.644015+00:00",
+      "elapsed_ms": 9157.0,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_daily_brief",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "decision_shape_fingerprint": "b1b6c8f7bb62f3df9c066316ec3aee6f35dbb84158fc87f84ab72aabe4a4b9e3",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2465.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"final\",\"message\":\"今天的职业简报已生成，包含 3 个待办事项（2 个今日到期，1 个逾期）。简报内容已通过卡片形式提供，请查看。\",\"questions\":[]}",
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "decision_shape_fingerprint": "17948ff47a2ab61ee67974dc949b8bf02cf7fba1e81fee811502e8c327d252b7",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6687.9,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "今日职业简报已生成，包含 3 个待办事项（2 个今天到期，1 个逾期）。由于简报内容以卡片形式交付且无法在此处直接读取完整详情，你可以查看系统提供的简报卡片来获取具体内容。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "今日职业简报已生成，包含 3 个待办事项（2 项今日到期，1 项逾期）。\n\n简报内容已通过卡片形式提供，请查看。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-09T18:17:21.687781+00:00",
+      "elapsed_ms": 7137.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_daily_brief",
+            "arguments": {
+              "timezone": "Asia/Shanghai"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "decision_shape_fingerprint": "b1b6c8f7bb62f3df9c066316ec3aee6f35dbb84158fc87f84ab72aabe4a4b9e3",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2628.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"final\",\"message\":\"今天的职业简报已生成，包含 3 个待办事项（其中 2 个今天到期，1 个已逾期）。\\n\\n简报内容已通过卡片形式提供给您，请直接查看。\",\"questions\":[]}",
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "9fb6498730bea43f78822ef72a146541c5a3c8496f37852d27455f545ef38bb9",
+          "decision_shape_fingerprint": "17948ff47a2ab61ee67974dc949b8bf02cf7fba1e81fee811502e8c327d252b7",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_daily_brief",
+            "list_action_items",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4505.1,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "今天的职业简报已生成，包含 3 个待办事项（2 项今日到期，1 项逾期）。\n\n简报内容通过卡片形式提供，请直接查看。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

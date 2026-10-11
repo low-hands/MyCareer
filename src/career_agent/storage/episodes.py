@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections import OrderedDict
 from datetime import datetime, timezone
 import json
 import math
@@ -8,18 +9,24 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+from threading import RLock
+from typing import get_args
 from uuid import uuid4
 
 from career_agent.domain.episodes import (
     CareerEpisode,
     CareerEpisodeDraft,
+    EpisodeKind,
     EpisodeResourceRef,
 )
 from career_agent.storage.schema import apply_schema
+from career_agent.storage.episode_terms import search_terms, title_entities
 
 _SHORT_QUERY_CANDIDATE_LIMIT = 200
 _PROJECTION_CANDIDATE_LIMIT = 200
 _MAX_ACCESS_MULTIPLIER = 2.0
+_EPISODE_KINDS = frozenset(get_args(EpisodeKind))
+_ENTITY_CACHE_USERS = 128
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +87,15 @@ def _like_fragment(value: str) -> str:
     )
 
 
+def word_is_explicit(word: str, entities: tuple[str, ...]) -> bool:
+    """Distinguish one intentional search term from an unspaced sentence."""
+    return (
+        word in entities
+        or bool(re.fullmatch(r"[a-z0-9][a-z0-9+#.×-]*", word))
+        or (2 <= len(word) <= 6 and all("\u4e00" <= char <= "\u9fff" for char in word))
+    )
+
+
 def _utc_bound(value: datetime, *, name: str) -> datetime:
     if value.utcoffset() is None:
         raise ValueError(f"{name} must include a timezone offset")
@@ -92,7 +108,7 @@ def apply_episode_schema(connection: sqlite3.Connection) -> None:
     apply_schema(
         connection,
         "career_episodes",
-        8,
+        9,
         SQLiteCareerEpisodeStore._baseline,
         {
             2: SQLiteCareerEpisodeStore._upgrade_to_v2,
@@ -102,7 +118,9 @@ def apply_episode_schema(connection: sqlite3.Connection) -> None:
             6: SQLiteCareerEpisodeStore._upgrade_to_v6,
             7: SQLiteCareerEpisodeStore._upgrade_to_v7,
             8: SQLiteCareerEpisodeStore._upgrade_to_v8,
+            9: SQLiteCareerEpisodeStore._ensure_entity_revision_schema,
         },
+        finalize=SQLiteCareerEpisodeStore._ensure_entity_revision_schema,
     )
 
 
@@ -117,6 +135,8 @@ class SQLiteCareerEpisodeStore:
     ) -> None:
         self.path = path.expanduser()
         self.decay_policy = decay_policy or DecayPolicy()
+        self._entity_cache: OrderedDict[str, tuple[int, tuple[str, ...]]] = OrderedDict()
+        self._entity_cache_lock = RLock()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
         with self._connect() as connection:
@@ -364,6 +384,7 @@ class SQLiteCareerEpisodeStore:
         start_datetime: datetime | None = None,
         end_datetime: datetime | None = None,
         kinds: tuple[str, ...] = (),
+        _terms: tuple[str, ...] | None = None,
     ) -> tuple[CareerEpisode, ...]:
         if limit < 1:
             raise ValueError("limit must be positive")
@@ -376,25 +397,12 @@ class SQLiteCareerEpisodeStore:
         if start_datetime is not None and end_datetime is not None:
             if start_datetime > end_datetime:
                 raise ValueError("start_datetime cannot exceed end_datetime")
-        allowed_kinds = {
-            "mock_interview",
-            "job_research",
-            "application",
-            "interview_round",
-        }
         selected_kinds = tuple(dict.fromkeys(kinds))
-        if any(kind not in allowed_kinds for kind in selected_kinds):
+        if any(kind not in _EPISODE_KINDS for kind in selected_kinds):
             raise ValueError("unknown episode kind")
         normalized_query = query.strip()
-        tokens = tuple(
-            dict.fromkeys(
-                token.casefold()
-                for token in re.findall(
-                    r"[\w+#.-]+",
-                    normalized_query,
-                    flags=re.UNICODE,
-                )
-            )
+        tokens = _terms if _terms is not None else self.query_terms(
+            user_id=user_id, query=normalized_query
         )
         short_tokens = tuple(token for token in tokens if len(token) < 3)
         long_tokens = tuple(token for token in tokens if len(token) >= 3)
@@ -566,13 +574,14 @@ class SQLiteCareerEpisodeStore:
 
         if not 1 <= limit <= 5:
             raise ValueError("episode projection limit must be between 1 and 5")
-        terms = self._projection_terms(query)
+        terms = self.query_terms(user_id=user_id, query=query)
         if not terms:
             return ()
         candidates = self.search(
             user_id=user_id,
             query=" ".join(terms),
             limit=max(_PROJECTION_CANDIDATE_LIMIT, limit * 10),
+            _terms=terms,
         )
         if exclude_conversation_id is not None:
             candidates = tuple(
@@ -646,21 +655,133 @@ class SQLiteCareerEpisodeStore:
                 ),
             )
 
-    @staticmethod
-    def _projection_terms(query: str) -> tuple[str, ...]:
-        normalized = query.casefold()
-        terms: list[str] = re.findall(
-            r"[a-z0-9][a-z0-9+#.-]{1,}",
-            normalized,
-        )
-        for run in re.findall(r"[\u4e00-\u9fff]+", normalized):
-            width = 3 if len(run) >= 3 else len(run)
-            if width:
-                terms.extend(
-                    run[index : index + width]
-                    for index in range(len(run) - width + 1)
+    def query_terms(self, *, user_id: str, query: str) -> tuple[str, ...]:
+        return self.prepare_query(user_id=user_id, query=query)[0]
+
+    def prepare_query(
+        self, *, user_id: str, query: str
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        with self._connect() as connection:
+            # Revision and titles must come from one snapshot. Otherwise a
+            # concurrent commit could associate old titles with a new revision.
+            connection.execute("BEGIN")
+            row = connection.execute(
+                "SELECT revision FROM career_episode_entity_revisions WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            revision = row[0] if row is not None else 0
+            with self._entity_cache_lock:
+                cached = self._entity_cache.get(user_id)
+                if cached is not None and cached[0] == revision:
+                    self._entity_cache.move_to_end(user_id)
+            if cached is not None and cached[0] == revision:
+                entities = cached[1]
+            else:
+                entities = title_entities(
+                    row[0] for row in connection.execute(
+                        "SELECT title FROM career_episodes WHERE user_id = ?", (user_id,)
+                    )
                 )
-        return tuple(dict.fromkeys(terms))
+                with self._entity_cache_lock:
+                    current = self._entity_cache.get(user_id)
+                    # An older read snapshot must not replace a newer cache
+                    # entry published while its database read was in progress.
+                    if current is None or current[0] <= revision:
+                        self._entity_cache[user_id] = (revision, entities)
+                        self._entity_cache.move_to_end(user_id)
+                        if len(self._entity_cache) > _ENTITY_CACHE_USERS:
+                            self._entity_cache.popitem(last=False)
+        return search_terms(query, entities), entities
+
+    def term_matches(
+        self,
+        *,
+        user_id: str,
+        query: str,
+        start_datetime: datetime | None = None,
+        end_datetime: datetime | None = None,
+        kinds: tuple[str, ...] = (),
+        entities: tuple[str, ...] | None = None,
+    ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+        """Classify explicit query words within the requested episode scope."""
+        words = tuple(dict.fromkeys(query.casefold().split()))
+        if not words:
+            return (), (), ()
+        filters = ["user_id = ?"]
+        parameters: list[object] = [user_id]
+        if start_datetime is not None:
+            filters.append("julianday(occurred_at) >= julianday(?)")
+            parameters.append(_utc_bound(start_datetime, name="start_datetime").isoformat())
+        if end_datetime is not None:
+            filters.append("julianday(occurred_at) <= julianday(?)")
+            parameters.append(_utc_bound(end_datetime, name="end_datetime").isoformat())
+        if kinds:
+            filters.append("kind IN (" + ",".join("?" for _ in kinds) + ")")
+            parameters.extend(kinds)
+        with self._connect() as connection:
+            rows = tuple(
+                connection.execute(
+                    "SELECT title, summary FROM career_episodes WHERE " + " AND ".join(filters),
+                    parameters,
+                )
+            )
+        bodies = tuple(f"{title} {summary}".casefold() for title, summary in rows)
+        if entities is None:
+            _, entities = self.prepare_query(user_id=user_id, query=query)
+        if len(words) == 1 and not word_is_explicit(words[0], entities):
+            # A long unspaced sentence is a retrieval fallback, not an object.
+            return (), (), ()
+        matched: list[str] = []
+        partial: list[str] = []
+        unmatched: list[str] = []
+        for word in words:
+            if any(word in body for body in bodies):
+                matched.append(word)
+            elif any(
+                fragment in body
+                for fragment in search_terms(word, entities)
+                if fragment != word
+                for body in bodies
+            ):
+                partial.append(word)
+            elif len(word) >= 2:
+                unmatched.append(word)
+        return tuple(matched), tuple(partial), tuple(unmatched)
+
+    @staticmethod
+    def _ensure_entity_revision_schema(connection: sqlite3.Connection) -> None:
+        """Invalidate per-user title caches in the same transaction as writes.
+
+        Triggers also cover caller-owned context transactions, other store
+        instances, and deletes. Access counts and summary-only updates do not
+        change title entities, so they leave the revision intact.
+        """
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS career_episode_entity_revisions ("
+            "user_id TEXT PRIMARY KEY, revision INTEGER NOT NULL)"
+        )
+        for operation, owner in (("INSERT", "NEW"), ("DELETE", "OLD")):
+            connection.execute(f"""
+                CREATE TRIGGER IF NOT EXISTS career_episode_entities_{operation.lower()}
+                AFTER {operation} ON career_episodes BEGIN
+                    INSERT INTO career_episode_entity_revisions(user_id, revision)
+                    VALUES ({owner}.user_id, 1)
+                    ON CONFLICT(user_id) DO UPDATE SET revision = revision + 1;
+                END
+            """)
+        connection.execute("""
+            CREATE TRIGGER IF NOT EXISTS career_episode_entities_update
+            AFTER UPDATE OF title, user_id ON career_episodes
+            WHEN OLD.title IS NOT NEW.title OR OLD.user_id IS NOT NEW.user_id
+            BEGIN
+                INSERT INTO career_episode_entity_revisions(user_id, revision)
+                VALUES (OLD.user_id, 1)
+                ON CONFLICT(user_id) DO UPDATE SET revision = revision + 1;
+                INSERT INTO career_episode_entity_revisions(user_id, revision)
+                SELECT NEW.user_id, 1 WHERE OLD.user_id IS NOT NEW.user_id
+                ON CONFLICT(user_id) DO UPDATE SET revision = revision + 1;
+            END
+        """)
 
     @staticmethod
     def _baseline(connection: sqlite3.Connection) -> None:

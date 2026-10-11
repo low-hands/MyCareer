@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "runs_with_execution": 5,
+  "runs_without_execution_events": 227,
+  "semantics": "The first subsequent decision is classified. A model final is a candidate, not proof that direct delivery preserves requested synthesis.",
+  "results": [
+    {
+      "tool_name": "analyze_job",
+      "result_state": "job_analysis_ready",
+      "executions": 3,
+      "following_model": 3,
+      "continued_tool_work": 3,
+      "final_decision_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "single_request_policy_eligible": true
+    },
+    {
+      "tool_name": "find_saved_jobs",
+      "result_state": "saved_jobs_found",
+      "executions": 2,
+      "following_model": 2,
+      "continued_tool_work": 2,
+      "final_decision_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "single_request_policy_eligible": false
+    },
+    {
+      "tool_name": "get_saved_job",
+      "result_state": "saved_job_ready",
+      "executions": 2,
+      "following_model": 2,
+      "continued_tool_work": 1,
+      "model_final": 1,
+      "final_decision_duration_ms": {
+        "samples": 1,
+        "total": 8879,
+        "mean": 8879.0,
+        "p50": 8879,
+        "p95": 8879,
+        "max": 8879
+      },
+      "single_request_policy_eligible": true
+    },
+    {
+      "tool_name": "list_applications",
+      "result_state": "no_applications_found",
+      "executions": 2,
+      "following_model": 2,
+      "continued_tool_work": 2,
+      "final_decision_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "single_request_policy_eligible": true
+    },
+    {
+      "tool_name": "list_interviews",
+      "result_state": "no_interviews_found",
+      "executions": 2,
+      "following_model": 2,
+      "model_final": 1,
+      "continued_tool_work": 1,
+      "final_decision_duration_ms": {
+        "samples": 1,
+        "total": 2558,
+        "mean": 2558.0,
+        "p50": 2558,
+        "p95": 2558,
+        "max": 2558
+      },
+      "single_request_policy_eligible": true
+    },
+    {
+      "tool_name": "list_resumes",
+      "result_state": "resumes_found",
+      "executions": 2,
+      "following_model": 2,
+      "continued_tool_work": 2,
+      "final_decision_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "single_request_policy_eligible": false
+    },
+    {
+      "tool_name": "list_target_roles",
+      "result_state": "target_roles_found",
+      "executions": 1,
+      "following_model": 1,
+      "model_final": 1,
+      "final_decision_duration_ms": {
+        "samples": 1,
+        "total": 2378,
+        "mean": 2378.0,
+        "p50": 2378,
+        "p95": 2378,
+        "max": 2378
+      },
+      "single_request_policy_eligible": false
+    },
+    {
+      "tool_name": "search_capabilities",
+      "result_state": "capabilities_found",
+      "executions": 5,
+      "following_model": 5,
+      "continued_tool_work": 5,
+      "final_decision_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "single_request_policy_eligible": false
+    },
+    {
+      "tool_name": "search_capabilities",
+      "result_state": "exception",
+      "executions": 1,
+      "no_following_model_terminal": 1,
+      "final_decision_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "single_request_policy_eligible": false
+    }
+  ]
+}

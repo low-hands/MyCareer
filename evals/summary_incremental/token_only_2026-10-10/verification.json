@@ -1,0 +1,101 @@
+{
+  "deterministic": {
+    "command": "CAREER_EMBEDDING_BASE_URL='' CAREER_EMBEDDING_API_KEY='' CAREER_EMBEDDING_MODEL='' .venv/bin/python -m pytest -q -k 'not holdout'",
+    "passed": 2727,
+    "skipped": 1,
+    "deselected_holdout": 3,
+    "existing_xfailed": 4,
+    "duration_seconds": 81.38,
+    "provider_calls": 0,
+    "initial_environment_issue": "An initial run inherited local embedding settings and an unrelated scorer attempted warmup; sandbox blocked the connection. Final deterministic runs explicitly clear all embedding settings."
+  },
+  "related": {
+    "core_passed": 165,
+    "isolated_export_total_tests": 409,
+    "isolated_export_validated": 409,
+    "basis": "HEAD plus only token compaction repair and existing ignored tokenizer vocabulary; source unaffected by unrelated receipt changes. 407 passed initially; two capture tests failed because git archive has no revision metadata; all 12 capture tests passed after supplying read-only GIT_DIR/GIT_WORK_TREE. No production source repair required."
+  },
+  "offline_replay": {
+    "qwen": {
+      "scenarios": 47,
+      "contract_failed": 0,
+      "behaviour_failed": 4,
+      "quality_failed": 1,
+      "stale": 0,
+      "unrecorded": 0,
+      "offline_lexical_fallback_warning_count": 10,
+      "provider_calls": 0,
+      "matches_previous_report": true
+    },
+    "deepseek": {
+      "scenarios": 47,
+      "contract_failed": 0,
+      "behaviour_failed": 11,
+      "quality_failed": 1,
+      "stale": 0,
+      "unrecorded": 0,
+      "offline_lexical_fallback_warning_count": 10,
+      "provider_calls": 0,
+      "matches_previous_report": true
+    }
+  },
+  "additional_runtime_replay": {
+    "qwen": {
+      "statuses": {
+        "stale": 11,
+        "unrecorded": 8
+      },
+      "provider_calls": 0,
+      "interpretation": "Additional runtime fixture/implementation changes already present in working tree; stale historical recordings are excluded from quality denominators, not rerecorded for this memory fix."
+    },
+    "deepseek": {
+      "statuses": {
+        "stale": 11,
+        "unrecorded": 8
+      },
+      "provider_calls": 0,
+      "interpretation": "Additional runtime fixture/implementation changes already present in working tree; stale historical recordings are excluded from quality denominators, not rerecorded for this memory fix."
+    }
+  },
+  "interpretation": "Deterministic and offline replay are not model-quality evidence. Existing failure outcomes remain. Frozen holdout excluded; no final-merge online rerecording.",
+  "latency": {
+    "gap0": {
+      "attempted_turns": 24,
+      "returned_turns": 24,
+      "load_wait_count": 0,
+      "load_wait_total_ms": 0,
+      "load_sync_count": 0,
+      "commit_sync_count": 0,
+      "background_summary_count": 0,
+      "summary_failures": 0,
+      "provider_failures": 0,
+      "skipped_jobs": 0,
+      "wall_mean_ms": 17103.75,
+      "reading_gap_total_ms": 0,
+      "reading_gap_requested_seconds": 0,
+      "all_fingerprints_valid": true,
+      "load_request_ratio_min": 0.45125,
+      "load_request_ratio_max": 0.5299375,
+      "task_quality": "Not separately graded; returned counts are not model quality successes."
+    },
+    "gap20": {
+      "attempted_turns": 24,
+      "returned_turns": 24,
+      "load_wait_count": 0,
+      "load_wait_total_ms": 0,
+      "load_sync_count": 0,
+      "commit_sync_count": 0,
+      "background_summary_count": 0,
+      "summary_failures": 0,
+      "provider_failures": 0,
+      "skipped_jobs": 0,
+      "wall_mean_ms": 17123.958333333332,
+      "reading_gap_total_ms": 360063,
+      "reading_gap_requested_seconds": 20,
+      "all_fingerprints_valid": true,
+      "load_request_ratio_min": 0.45125,
+      "load_request_ratio_max": 0.54196875,
+      "task_quality": "Not separately graded; returned counts are not model quality successes."
+    }
+  }
+}

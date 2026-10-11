@@ -12,9 +12,8 @@ from pypdf.generic import (
 )
 
 from career_agent.agent.resources import resume_document_prompt as prompts
-from career_agent.agent.workflows.resume_tailoring.worker import (
-    DeepAgentResumeTailoringWorker, DeepAgentResumeFinalizationWorker,
-)
+from career_agent.agent.workflows.resume_tailoring.finalizer import OpenAIResumeFinalizationWorker
+from career_agent.agent.workflows.resume_tailoring.worker import OpenAIResumeTailoringWorker
 from career_agent.agent.providers.resume_job_match import OpenAIResumeJobMatchWorker
 from career_agent.agent.workflows.resume_tailoring.reviewer import OpenAIResumeTailoringReviewer
 from career_agent.agent.providers.openai_client import AgentWorkerError
@@ -100,12 +99,12 @@ def test_all_pipeline_stages_share_text_or_original_pdf_route(text_pdf):
     match = ResumeJobMatchResult(overall_fit="moderate", summary="Summary", requirements=())
     contents = [
         OpenAIResumeJobMatchWorker._document_content(doc, "JD", ()),
-        DeepAgentResumeTailoringWorker._document_content(
+        OpenAIResumeTailoringWorker._document_content(
             doc, jd_text="JD", match_result=match, confirmed_facts=(), tailoring_goal=None,
             user_feedback=None, review_feedback=(), previous_draft=None,
         ),
         OpenAIResumeTailoringReviewer._document_content(doc, "Review context"),
-        DeepAgentResumeFinalizationWorker._document_content(doc, accepted_changes=(), confirmed_facts=()),
+        OpenAIResumeFinalizationWorker._document_content(doc, accepted_changes=(), confirmed_facts=()),
     ]
     for content in contents:
         assert content[0]["type"] in (("text", "input_text") if text_pdf else ("file", "input_file"))

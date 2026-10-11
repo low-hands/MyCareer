@@ -1,0 +1,153 @@
+{
+  "scenario": "research_is_not_started_as_part_of_matching",
+  "policy": "Never start research_job automatically as part of job discovery, matching, resume tailoring, application tracking, interview preparation, or mock interview.",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "78d08944e706187ddf814b532367de5db2a5064d723481aff53fed18a01f158e",
+  "context_shape_fingerprint": "440eb6def0ff5ec368c471e5454842c418ebdcdd72094764137273a1400c3807",
+  "recorded_at": "2026-10-11T07:45:04.747440+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "match_resume_to_job",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "992b7e23d16b0b5c8dc44935a26c2065a2ca1c4eece5c51729fe791dd35d7921",
+      "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "analyze_job",
+        "compare_saved_jobs",
+        "match_resume_to_job",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2366.6,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "I can run that match, but I need the resume first.\n\nYour saved job (示例科技 · 算法工程师 · 上海) has a ready job analysis, so the job side is set. What's missing is the resume: there's no resume version available to compare against. Please attach your resume to your next message (or tell me to use a specific saved version if you have one on file), and I'll run the resume-to-job match right away.",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-11T07:45:03.537695+00:00",
+      "elapsed_ms": 2369.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "match_resume_to_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "992b7e23d16b0b5c8dc44935a26c2065a2ca1c4eece5c51729fe791dd35d7921",
+          "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "compare_saved_jobs",
+            "match_resume_to_job",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2366.6,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I can run that match, but I need the resume first.\n\nYour saved job (示例科技 · 算法工程师 · 上海) has a ready job analysis, so the job side is set. What's missing is the resume: there's no resume version available to compare against. Please attach your resume to your next message (or tell me to use a specific saved version if you have one on file), and I'll run the resume-to-job match right away.",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:04.265733+00:00",
+      "elapsed_ms": 1404.0,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "match_resume_to_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "992b7e23d16b0b5c8dc44935a26c2065a2ca1c4eece5c51729fe791dd35d7921",
+          "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "compare_saved_jobs",
+            "match_resume_to_job",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1399.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:04.747440+00:00",
+      "elapsed_ms": 1364.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "match_resume_to_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "992b7e23d16b0b5c8dc44935a26c2065a2ca1c4eece5c51729fe791dd35d7921",
+          "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "compare_saved_jobs",
+            "match_resume_to_job",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1360.2,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

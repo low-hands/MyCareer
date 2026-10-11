@@ -1,6 +1,6 @@
-"""Which interview-style profile in the mock-interview skill a company gets.
+"""Which interview-style profile in the mock-interview prompt a company gets.
 
-The profiles themselves live in ``skills/mock-interview/references/company.md``;
+The profiles themselves live in ``prompts/mock-interview/references/company.md``;
 this table only maps what users and job boards call an employer to one of its
 ``###`` headings, so matching does not depend on the model translating "字节"
 into "ByteDance". Only exact names match (after folding case and spaces):

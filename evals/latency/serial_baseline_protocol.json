@@ -1,0 +1,17 @@
+{
+  "fixed_at": "2026-10-10T04:57:47.080191+00:00",
+  "fixture": "evals/latency/scenarios.json",
+  "fixture_sha256": "9d54be5dd23b6222e3c8841961d82197f7058605e9dfaf844fb314db84fbe139",
+  "conversations": 6,
+  "maximum_turns": 24,
+  "serial": true,
+  "concurrent_live_evaluations": 0,
+  "decision_model": "qwen3.7-plus",
+  "summary_disable_thinking": true,
+  "summary_timeout_seconds": 30,
+  "summary_max_output_tokens": 1200,
+  "stop_rule": "Stop each conversation on runtime error or pending owner input; keep all attempted turns, no replacement successes.",
+  "summary_validation": "Keep strict schema and grounded memory validation.",
+  "measurement": "End-to-end run_turn wall time plus five inclusive trace phases; report post-tool final and ask_user separately.",
+  "exclusions": "No first-card latency inferred from synchronous capture; no claim about production traffic or successful matching worker without execution."
+}

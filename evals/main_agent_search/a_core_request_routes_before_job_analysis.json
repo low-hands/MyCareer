@@ -1,0 +1,133 @@
+{
+  "scenario": "a_core_request_routes_before_job_analysis",
+  "policy": "Discover the requested job analysis capability if needed, then analyze the selected job without starting resume matching.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "770e87ad518fc1142e1ff3281128416c7b39b5790ea20d5cc95598ef2457d162",
+  "context_shape_fingerprint": "2aa360c39eadbf98b807908a01ae52f5b981555d4d3e1b54908e774f1a9b4225",
+  "recorded_at": "2026-10-11T07:48:42.929151+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "analyze_job",
+        "arguments": {
+          "selection_index": 1
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "487f5e31566cfb19ecbec157260c9398f5d0bd3878817afdb83ca71003d19f46",
+      "decision_shape_fingerprint": "0d7e1a2cd6155b0523ce17d52b124df86576b62c6deed3b095703b3e886b34b9",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "analyze_job",
+        "correct_job_requirement_tier",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3110.3,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-11T07:48:40.781772+00:00",
+      "elapsed_ms": 3115.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {
+              "selection_index": 1
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "487f5e31566cfb19ecbec157260c9398f5d0bd3878817afdb83ca71003d19f46",
+          "decision_shape_fingerprint": "0d7e1a2cd6155b0523ce17d52b124df86576b62c6deed3b095703b3e886b34b9",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "correct_job_requirement_tier",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3110.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:48:41.441175+00:00",
+      "elapsed_ms": 2650.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {
+              "selection_index": 1
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "487f5e31566cfb19ecbec157260c9398f5d0bd3878817afdb83ca71003d19f46",
+          "decision_shape_fingerprint": "0d7e1a2cd6155b0523ce17d52b124df86576b62c6deed3b095703b3e886b34b9",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "correct_job_requirement_tier",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2647.2,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:48:42.929151+00:00",
+      "elapsed_ms": 2143.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "487f5e31566cfb19ecbec157260c9398f5d0bd3878817afdb83ca71003d19f46",
+          "decision_shape_fingerprint": "0d7e1a2cd6155b0523ce17d52b124df86576b62c6deed3b095703b3e886b34b9",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "correct_job_requirement_tier",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2140.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

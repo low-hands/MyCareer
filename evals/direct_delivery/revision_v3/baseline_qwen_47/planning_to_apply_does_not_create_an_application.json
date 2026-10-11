@@ -1,0 +1,134 @@
+{
+  "scenario": "planning_to_apply_does_not_create_an_application",
+  "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "38fe48d06ebce31b728bc628807e57341d0f63f90274636b2d72407ecbe98e2d",
+  "context_shape_fingerprint": "19863eb67cb394d3676b27e179a7258cc12b11bdc829c26f953d9c95f1736fec",
+  "recorded_at": "2026-10-09T18:17:01.928909+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"请问你是否已经实际向示例科技的算法工程师岗位提交了申请？还是只是准备投递但尚未提交？\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "d5fd67bae4f1a9feb5b5382c9400cd72fdceea8dba6efe24364a20103dfc6952",
+      "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "analyze_job",
+        "propose_job_intent",
+        "create_application",
+        "get_interview_preparation",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3563.7,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-09T18:17:00.743851+00:00",
+      "elapsed_ms": 3567.4,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问你是否已经实际向示例科技的算法工程师岗位提交了申请？还是只是准备投递但尚未提交？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "d5fd67bae4f1a9feb5b5382c9400cd72fdceea8dba6efe24364a20103dfc6952",
+          "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "propose_job_intent",
+            "create_application",
+            "get_interview_preparation",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3563.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-09T18:17:04.141578+00:00",
+      "elapsed_ms": 5836.8,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问您已经完成投递了吗？如果已经投递，我可以为您创建投递记录进行跟踪。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "d5fd67bae4f1a9feb5b5382c9400cd72fdceea8dba6efe24364a20103dfc6952",
+          "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "propose_job_intent",
+            "create_application",
+            "get_interview_preparation",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 5834.5,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "我看到你有一个已收藏的岗位：示例科技的算法工程师（上海，30-50K）。\n\n在创建投递记录之前，我需要确认你是否已经实际提交了申请。请问你是否已经向这个岗位投递了简历？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-09T18:17:01.928909+00:00",
+      "elapsed_ms": 2984.4,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问你是否已经实际向示例科技的算法工程师岗位提交了申请？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "d5fd67bae4f1a9feb5b5382c9400cd72fdceea8dba6efe24364a20103dfc6952",
+          "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "propose_job_intent",
+            "create_application",
+            "get_interview_preparation",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2981.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

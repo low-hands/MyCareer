@@ -1,0 +1,203 @@
+{
+  "scenario": "a_returned_span_body_is_used_not_the_window_decoy",
+  "policy": "A read result whose receipt condenses a larger presenter output may also include body: the bounded text rendered from the same source shown to the user. You may reason from body when it is present. Ground the reply only in message, facts and body.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "3c1b0c21eb87f3f16c53a8ea68f7bd65c9292e0154527dd375376ad4b24d0cb0",
+  "context_shape_fingerprint": "596b1be988e8398b455e446c44e9ef7812ea294ec614fb0d019adeb71da432d5",
+  "recorded_at": "2026-10-11T07:48:17.067575+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "75e3144b34262a2d2057558b9ea01ded25aed612c309531bfc17e89ce64ba977",
+      "decision_shape_fingerprint": "e9b5cead6a5dd334e9612ccfbd9814571145ff418233d0765ed16942d73cd70f",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_target_roles",
+        "propose_job_intent",
+        "start_mock_interview",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 10516.6,
+      "model_request_count": 3,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        },
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": true,
+          "raw_output": {
+            "content": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-11T07:48:14.659321+00:00",
+      "elapsed_ms": 10520.1,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "75e3144b34262a2d2057558b9ea01ded25aed612c309531bfc17e89ce64ba977",
+          "decision_shape_fingerprint": "e9b5cead6a5dd334e9612ccfbd9814571145ff418233d0765ed16942d73cd70f",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "start_mock_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 10516.6,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:48:13.560745+00:00",
+      "elapsed_ms": 9366.5,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "75e3144b34262a2d2057558b9ea01ded25aed612c309531bfc17e89ce64ba977",
+          "decision_shape_fingerprint": "e9b5cead6a5dd334e9612ccfbd9814571145ff418233d0765ed16942d73cd70f",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "start_mock_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 9363.0,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:48:17.067575+00:00",
+      "elapsed_ms": 10741.1,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"你一开始指定的目标公司全名是 **Pinnacle Robotics**。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "75e3144b34262a2d2057558b9ea01ded25aed612c309531bfc17e89ce64ba977",
+          "decision_shape_fingerprint": "e9b5cead6a5dd334e9612ccfbd9814571145ff418233d0765ed16942d73cd70f",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "start_mock_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 10737.0,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "你一开始指定的目标公司全名是 **Pinnacle Robotics**。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

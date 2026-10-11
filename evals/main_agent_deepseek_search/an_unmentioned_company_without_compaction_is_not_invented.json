@@ -1,0 +1,206 @@
+{
+  "scenario": "an_unmentioned_company_without_compaction_is_not_invented",
+  "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "800f2de109ecb5a950946cc335eaf0be934617cbabd506b94d1f6bb664d53f62",
+  "context_shape_fingerprint": "50fe34d484f6fd66869bc1ab8ded0fe6df1901306ded2c5eea550a3075bba81a",
+  "recorded_at": "2026-10-11T07:46:05.631095+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "search_career_memory",
+        "arguments": {
+          "query": "目标公司"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "902451cdedca118a31c58f651ab70eb7acc5217137ed8777b1b19ae428d0fdc8",
+      "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_target_roles",
+        "propose_job_intent",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3449.1,
+      "model_request_count": 3,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "I don't have that in front of me. Your saved profile shows no confirmed job intent — no target company, no target role, and no active targets recorded — and there's no saved job, application, or JD in the current state.\n\nEarlier I mentioned a 美团 JD \"in the window,\" but I have no record of its contents, and nothing in your saved memory names your target company. So I can't tell you what your target company's full name is.\n\nIf you'd like, tell me the company (and role) and I'll show it back to you for confirmation before recording it as your job intent.\n\nWhat I can see right now:\n- Default city: not confirmed\n- Hard constraints: none confirmed\n- Free-text preferences: none confirmed\n- Saved jobs / applications / interviews: none active",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        },
+        {
+          "reason": "provider_retry",
+          "retried": true,
+          "raw_output": {
+            "content": "I don't have that in front of me. Your saved profile shows no confirmed job intent — no target company, no target role, and no active targets recorded — and there's no saved job, application, or JD in the current state.\n\nEarlier I mentioned a 美团 JD \"in the window,\" but I have no record of its contents, and nothing in your saved memory names your target company. So I can't tell you what your target company's full name is.\n\nIf you'd like, tell me the company (and role) and I'll show it back to you for confirmation before recording it as your job intent.\n\nWhat I can see right now:\n- Default city: not confirmed\n- Hard constraints: none confirmed\n- Free-text preferences: none confirmed\n- Saved jobs / applications / interviews: none active",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-11T07:46:06.288530+00:00",
+      "elapsed_ms": 3452.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_career_memory",
+            "arguments": {
+              "query": "目标公司"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "902451cdedca118a31c58f651ab70eb7acc5217137ed8777b1b19ae428d0fdc8",
+          "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3449.1,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I don't have that in front of me. Your saved profile shows no confirmed job intent — no target company, no target role, and no active targets recorded — and there's no saved job, application, or JD in the current state.\n\nEarlier I mentioned a 美团 JD \"in the window,\" but I have no record of its contents, and nothing in your saved memory names your target company. So I can't tell you what your target company's full name is.\n\nIf you'd like, tell me the company (and role) and I'll show it back to you for confirmation before recording it as your job intent.\n\nWhat I can see right now:\n- Default city: not confirmed\n- Hard constraints: none confirmed\n- Free-text preferences: none confirmed\n- Saved jobs / applications / interviews: none active",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "provider_retry",
+              "retried": true,
+              "raw_output": {
+                "content": "I don't have that in front of me. Your saved profile shows no confirmed job intent — no target company, no target role, and no active targets recorded — and there's no saved job, application, or JD in the current state.\n\nEarlier I mentioned a 美团 JD \"in the window,\" but I have no record of its contents, and nothing in your saved memory names your target company. So I can't tell you what your target company's full name is.\n\nIf you'd like, tell me the company (and role) and I'll show it back to you for confirmation before recording it as your job intent.\n\nWhat I can see right now:\n- Default city: not confirmed\n- Hard constraints: none confirmed\n- Free-text preferences: none confirmed\n- Saved jobs / applications / interviews: none active",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:46:06.423136+00:00",
+      "terminal_error": "MAIN_AGENT_UNAVAILABLE_TOOL",
+      "steps": [
+        {
+          "scenario_step": 0,
+          "recording_error": "MAIN_AGENT_UNAVAILABLE_TOOL",
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "multiple_tool_calls",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "search_career_memory",
+                    "arguments": "{\"query\": \"目标公司\"}"
+                  },
+                  {
+                    "name": "fetch_archived_constraints",
+                    "arguments": "{}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I don't have your target company name — there's no target company recorded in your current career profile, and no active target roles or saved jobs in this context.\n\nFrom the runtime state, I can also see your profile currently shows \"No active targets,\" so there's nothing to resolve a target company from.\n\nIf you tell me the company name, I can record it as your stated job intent (I'll show it back to you for confirmation before saving anything).",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "unavailable_tool",
+              "retried": false,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "search_conversation_history",
+                    "arguments": "{\"query\": \"目标公司 美团 JD\"}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": []
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:46:05.631095+00:00",
+      "elapsed_ms": 2664.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "read_conversation_span",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "902451cdedca118a31c58f651ab70eb7acc5217137ed8777b1b19ae428d0fdc8",
+          "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2663.3,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I don't have that information — nothing in the visible context records your target company's full name.\n\nTo be precise about what I can see: your career profile shows no active targets and no confirmed person-level intent beyond \"Default city: Not confirmed,\" `list_target_roles` candidates are empty, and there's no active saved job, JD snapshot, or job posting in this session. The only company name that has come up is the 美团 JD you used as a 对照 (comparison reference), which you explicitly did not name as your target.\n\nIf you tell me the full name (or your target role direction), I can record it via the job-intent tool so it's on file.",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

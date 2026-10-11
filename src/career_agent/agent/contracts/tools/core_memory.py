@@ -23,11 +23,6 @@ from career_agent.agent.contracts.memory import (
 )
 from career_agent.agent.providers.token_budget import serialized_token_count
 from career_agent.agent.capabilities.effects import approval_policy, owner_rule_capabilities
-from career_agent.agent.capabilities.catalog import (
-    DOMAIN_TOOL_PROFILES,
-    TOOL_PROFILE_NAMES,
-    ToolProfile,
-)
 from career_agent.agent.contracts.questionnaire import PendingQuestionnaire, UserQuestion
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
@@ -44,6 +39,26 @@ from career_agent.domain.mock_interviews import MockInterviewType
 
 from career_agent.agent.contracts.candidates import *
 
+
+class SearchCapabilitiesToolArguments(ContractModel):
+    query: str | None = Field(default=None, min_length=1, max_length=200)
+    names: tuple[str, ...] | None = Field(default=None, min_length=1, max_length=10)
+    limit: int = Field(
+        default=5, ge=1, le=10,
+        description="Maximum results for query mode; names mode expands all exact matches.",
+    )
+
+    @model_validator(mode="after")
+    def _one_search_mode(self) -> "SearchCapabilitiesToolArguments":
+        if (self.query is None) == (self.names is None):
+            raise ValueError("provide exactly one of query or names")
+        if self.query is not None and not self.query.strip():
+            raise ValueError("query must contain non-whitespace text")
+        if self.names is not None and any(not name.strip() for name in self.names):
+            raise ValueError("names must be nonempty")
+        return self
+
+
 class OpenJobSearchToolArguments(ContractModel):
     platform: Literal["boss"] = "boss"
     keyword: str = Field(min_length=1, max_length=100)
@@ -55,22 +70,25 @@ class OpenJobSearchToolArguments(ContractModel):
 
 
 class ReadConversationSpanToolArguments(ContractModel):
-    from_sequence: int = Field(ge=1)
-    through_sequence: int = Field(ge=1)
+    from_sequence: int | None = Field(default=None, ge=1)
+    through_sequence: int | None = Field(default=None, ge=1)
     query: str | None = Field(
         default=None,
         min_length=1,
         max_length=200,
         description=(
             "Focused terms from the user's request, such as 目标公司 or Rust. "
-            "Use this for long omitted ranges; omit it only for an exact "
-            "sequence span the user named."
+            "Use this for long omitted ranges. Omit sequence bounds unless "
+            "the user explicitly named an exact sequence span."
         ),
     )
 
     @model_validator(mode="after")
     def require_forward_span(self) -> "ReadConversationSpanToolArguments":
-        if self.from_sequence > self.through_sequence:
+        if (self.from_sequence is None) != (self.through_sequence is None):
+            raise ValueError("provide both sequence bounds or neither")
+        if (self.from_sequence is not None and self.through_sequence is not None
+                and self.from_sequence > self.through_sequence):
             raise ValueError("from_sequence cannot exceed through_sequence")
         return self
 

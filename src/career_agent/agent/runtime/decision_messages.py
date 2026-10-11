@@ -8,7 +8,6 @@ from typing import Any, Mapping
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from career_agent.agent.contracts.context import MainAgentContext
-from career_agent.agent.capabilities.profiles import project_tool_availability
 
 
 CONTROL_CONTEXT_LABEL = "Harness control state (authoritative runtime state):"
@@ -75,7 +74,6 @@ _TASK_CONTROL_KEYS = frozenset(
         "has_active_calendar_proposal",
         "active_calendar_proposal_expires_at",
         "active_workflow",
-        "tool_profile",
         "phase",
         "email_sync_phase",
         "resume_job_match_status",
@@ -277,7 +275,12 @@ def project_decision_messages(
 
     projected = context.model_context()
     projected_task = dict(projected["task"])
-    classified = _TASK_CONTROL_KEYS | _TASK_DATA_KEYS
+    selection = getattr(context, "capability_selection", None)
+    control_keys = (
+        _TASK_CONTROL_KEYS | {"available_now", "loaded_capabilities", "blocked"}
+        if selection is not None else _TASK_CONTROL_KEYS
+    )
+    classified = control_keys | _TASK_DATA_KEYS
     unknown = set(projected_task) - classified
     missing = classified - set(projected_task)
     if unknown or missing:
@@ -285,10 +288,7 @@ def project_decision_messages(
             "decision task projection classification is stale; "
             f"unknown={sorted(unknown)!r}, missing={sorted(missing)!r}"
         )
-    task_control = {key: projected_task[key] for key in _TASK_CONTROL_KEYS}
-    # Derived from the profile and precondition tables rather than stored, so
-    # the control slot can never disagree with what the runtime will enforce.
-    task_control.update(project_tool_availability(context.task))
+    task_control = {key: projected_task[key] for key in control_keys}
     task_data = {key: projected_task[key] for key in _TASK_DATA_KEYS}
 
     control: dict[str, Any] = {
@@ -338,8 +338,24 @@ def project_decision_messages(
     stable_data, volatile_data = split_context_cache_data(data)
 
     recent_messages = []
-    for message in context.recent_messages:
+    if context.recent_from_sequence is not None and context.recent_from_sequence > 1:
+        recent_messages.append({
+            "role": "user",
+            "content": (
+                f"<{CONTROL_REMINDER_TAG}>\n"
+                f"Runtime history boundary: 1–{context.recent_from_sequence - 1} omitted; "
+                f"summary covers 1–{context.through_sequence}. "
+                "Readback: read_conversation_span.\n"
+                f"</{CONTROL_REMINDER_TAG}>"
+            ),
+        })
+    for index, message in enumerate(context.recent_messages):
         content = message.content
+        if context.recent_from_sequence is not None:
+            content = (
+                f"[sequence: {context.recent_from_sequence + index}]\n"
+                + content
+            )
         if message.content_clipped:
             content += _CONTENT_CLIPPED_MARKER
         if message.resource_refs:

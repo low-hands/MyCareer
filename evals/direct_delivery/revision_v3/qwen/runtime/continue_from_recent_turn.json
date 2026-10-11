@@ -1,0 +1,2180 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "continue_from_recent_turn",
+  "suite_fingerprint": "81d7bec4e347fab7fee2f885634bf023cf6e2ead0e8e4b0defdda98455316793",
+  "recorded_at": "2026-10-10T01:05:19.037533+00:00",
+  "k": 10,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先查我的简历。下一轮我会让你接着查看投递和面试。": {
+            "get_interview": 0.6864538035334896,
+            "list_interviews": 0.6696278634998079,
+            "create_interview": 0.6675271576667605,
+            "update_interview": 0.6456998732128827,
+            "record_interview_retro": 0.631424495313221,
+            "search_career_episodes": 0.6267921424076223,
+            "complete_interview": 0.6236433427404721,
+            "list_resumes": 0.6200638436875263,
+            "get_resume_job_match": 0.6157257705781799,
+            "prepare_interview": 0.6021141936154012
+          },
+          "继续刚才说的，先看投递，再看面试，然后汇总。": {
+            "create_interview": 0.6445394728581361,
+            "list_interviews": 0.6311553874063364,
+            "search_career_episodes": 0.6199709530994418,
+            "list_applications": 0.6119378456635757,
+            "record_interview_retro": 0.6104983454690901,
+            "get_interview": 0.6052051461817427,
+            "prepare_interview": 0.5932419668475207,
+            "complete_interview": 0.5818664887368544,
+            "compare_saved_jobs": 0.581251377035454,
+            "update_interview": 0.5782037231666352
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查我的简历。下一轮我会让你接着查看投递和面试。",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "7972dd7b81f7771564e07006c4c2c86ce10eb5fd2ec879054e7f51ad208f95ab",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "cad8df346fa428e56110b6b1cb34693965b3d6ed33a16057d24fb19b9eb3de82",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 2,
+          "direct_delivery": true,
+          "result_states": [
+            "capabilities_found",
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "继续刚才说的，先看投递，再看面试，然后汇总。",
+          "assistant_message": "已完成简历、投递和面试的查询：\n\n- **简历**：没有找到匹配的简历。\n- **投递记录**：没有找到投递记录。\n- **面试安排**：没有找到面试安排。\n\n目前系统中暂无相关求职数据。如需开始新的求职流程，可以告诉我您的目标岗位方向，我可以帮您创建投递记录或安排面试跟踪。",
+          "executed_calls": [
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已完成简历、投递和面试的查询：\\n\\n- **简历**：没有找到匹配的简历。\\n- **投递记录**：没有找到投递记录。\\n- **面试安排**：没有找到面试安排。\\n\\n目前系统中暂无相关求职数据。如需开始新的求职流程，可以告诉我您的目标岗位方向，我可以帮您创建投递记录或安排面试跟踪。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_applications_found",
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先查我的简历。下一轮我会让你接着查看投递和面试。": {
+            "get_interview": 0.6864538035334896,
+            "list_interviews": 0.6696278634998079,
+            "create_interview": 0.6675271576667605,
+            "update_interview": 0.6456998732128827,
+            "record_interview_retro": 0.631424495313221,
+            "search_career_episodes": 0.6267921424076223,
+            "complete_interview": 0.6236433427404721,
+            "list_resumes": 0.6200638436875263,
+            "get_resume_job_match": 0.6157257705781799,
+            "prepare_interview": 0.6021141936154012
+          },
+          "继续刚才说的，先看投递，再看面试，然后汇总。": {
+            "create_interview": 0.6445261014461692,
+            "list_interviews": 0.6311361634592966,
+            "search_career_episodes": 0.6198775310284813,
+            "list_applications": 0.6119508227830516,
+            "record_interview_retro": 0.610505300973274,
+            "get_interview": 0.605193265320321,
+            "prepare_interview": 0.5932251020013936,
+            "complete_interview": 0.5818565801523004,
+            "compare_saved_jobs": 0.5812124276036207,
+            "update_interview": 0.578200619598053
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查我的简历。下一轮我会让你接着查看投递和面试。",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "7972dd7b81f7771564e07006c4c2c86ce10eb5fd2ec879054e7f51ad208f95ab",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "cad8df346fa428e56110b6b1cb34693965b3d6ed33a16057d24fb19b9eb3de82",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 2,
+          "direct_delivery": true,
+          "result_states": [
+            "capabilities_found",
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "继续刚才说的，先看投递，再看面试，然后汇总。",
+          "assistant_message": "目前系统内没有任何简历、投递记录或面试安排。如果您需要开始求职流程，建议先准备简历并创建目标岗位的投递记录。",
+          "executed_calls": [
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前系统内没有任何简历、投递记录或面试安排。如果您需要开始求职流程，建议先准备简历并创建目标岗位的投递记录。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_applications_found",
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先查我的简历。下一轮我会让你接着查看投递和面试。": {
+            "get_interview": 0.6864538035334896,
+            "list_interviews": 0.6696278634998079,
+            "create_interview": 0.6675271576667605,
+            "update_interview": 0.6456998732128827,
+            "record_interview_retro": 0.631424495313221,
+            "search_career_episodes": 0.6267921424076223,
+            "complete_interview": 0.6236433427404721,
+            "list_resumes": 0.6200638436875263,
+            "get_resume_job_match": 0.6157257705781799,
+            "prepare_interview": 0.6021141936154012
+          },
+          "继续刚才说的，先看投递，再看面试，然后汇总。": {
+            "create_interview": 0.6445261014461692,
+            "list_interviews": 0.6311361634592966,
+            "search_career_episodes": 0.6198775310284813,
+            "list_applications": 0.6119508227830516,
+            "record_interview_retro": 0.610505300973274,
+            "get_interview": 0.605193265320321,
+            "prepare_interview": 0.5932251020013936,
+            "complete_interview": 0.5818565801523004,
+            "compare_saved_jobs": 0.5812124276036207,
+            "update_interview": 0.578200619598053
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查我的简历。下一轮我会让你接着查看投递和面试。",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "7972dd7b81f7771564e07006c4c2c86ce10eb5fd2ec879054e7f51ad208f95ab",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "cad8df346fa428e56110b6b1cb34693965b3d6ed33a16057d24fb19b9eb3de82",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 2,
+          "direct_delivery": true,
+          "result_states": [
+            "capabilities_found",
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "继续刚才说的，先看投递，再看面试，然后汇总。",
+          "assistant_message": "已按你的要求完成查询：\n\n1. **简历**：没有找到匹配的简历。\n2. **投递记录**：没有找到投递记录。\n3. **面试安排**：没有找到面试安排。\n\n目前系统中暂无相关的求职活动记录。如果你需要开始新的求职流程，可以随时告诉我。",
+          "executed_calls": [
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已按你的要求完成查询：\\n\\n1. **简历**：没有找到匹配的简历。\\n2. **投递记录**：没有找到投递记录。\\n3. **面试安排**：没有找到面试安排。\\n\\n目前系统中暂无相关的求职活动记录。如果你需要开始新的求职流程，可以随时告诉我。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_applications_found",
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先查我的简历。下一轮我会让你接着查看投递和面试。": {
+            "get_interview": 0.6864538035334896,
+            "list_interviews": 0.6696278634998079,
+            "create_interview": 0.6675271576667605,
+            "update_interview": 0.6456998732128827,
+            "record_interview_retro": 0.631424495313221,
+            "search_career_episodes": 0.6267921424076223,
+            "complete_interview": 0.6236433427404721,
+            "list_resumes": 0.6200638436875263,
+            "get_resume_job_match": 0.6157257705781799,
+            "prepare_interview": 0.6021141936154012
+          },
+          "继续刚才说的，先看投递，再看面试，然后汇总。": {
+            "create_interview": 0.6445261014461692,
+            "list_interviews": 0.6311361634592966,
+            "search_career_episodes": 0.6198775310284813,
+            "list_applications": 0.6119508227830516,
+            "record_interview_retro": 0.610505300973274,
+            "get_interview": 0.605193265320321,
+            "prepare_interview": 0.5932251020013936,
+            "complete_interview": 0.5818565801523004,
+            "compare_saved_jobs": 0.5812124276036207,
+            "update_interview": 0.578200619598053
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查我的简历。下一轮我会让你接着查看投递和面试。",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "7972dd7b81f7771564e07006c4c2c86ce10eb5fd2ec879054e7f51ad208f95ab",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "cad8df346fa428e56110b6b1cb34693965b3d6ed33a16057d24fb19b9eb3de82",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 2,
+          "direct_delivery": true,
+          "result_states": [
+            "capabilities_found",
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "继续刚才说的，先看投递，再看面试，然后汇总。",
+          "assistant_message": "已完成查询，汇总如下：\n\n1. **简历**：未找到任何简历记录。\n2. **投递记录**：未找到任何投递记录。\n3. **面试安排**：未找到任何面试安排。\n\n目前系统中暂无相关数据。如果您需要开始求职流程，建议先创建或上传简历，随后可以开始投递岗位并跟踪进度。",
+          "executed_calls": [
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已完成查询，汇总如下：\\n\\n1. **简历**：未找到任何简历记录。\\n2. **投递记录**：未找到任何投递记录。\\n3. **面试安排**：未找到任何面试安排。\\n\\n目前系统中暂无相关数据。如果您需要开始求职流程，建议先创建或上传简历，随后可以开始投递岗位并跟踪进度。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_applications_found",
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先查我的简历。下一轮我会让你接着查看投递和面试。": {
+            "get_interview": 0.6863854902871879,
+            "list_interviews": 0.6695473769157291,
+            "create_interview": 0.6673974456402156,
+            "update_interview": 0.6455874737542296,
+            "record_interview_retro": 0.6313672256002212,
+            "search_career_episodes": 0.6268147025511993,
+            "complete_interview": 0.6235177803203362,
+            "list_resumes": 0.6201300008723555,
+            "get_resume_job_match": 0.6157701946471871,
+            "prepare_interview": 0.6020050257365278
+          },
+          "继续刚才说的，先看投递，再看面试，然后汇总。": {
+            "create_interview": 0.6445261014461692,
+            "list_interviews": 0.6311361634592966,
+            "search_career_episodes": 0.6198775310284813,
+            "list_applications": 0.6119508227830516,
+            "record_interview_retro": 0.610505300973274,
+            "get_interview": 0.605193265320321,
+            "prepare_interview": 0.5932251020013936,
+            "complete_interview": 0.5818565801523004,
+            "compare_saved_jobs": 0.5812124276036207,
+            "update_interview": 0.578200619598053
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查我的简历。下一轮我会让你接着查看投递和面试。",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "7972dd7b81f7771564e07006c4c2c86ce10eb5fd2ec879054e7f51ad208f95ab",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "cad8df346fa428e56110b6b1cb34693965b3d6ed33a16057d24fb19b9eb3de82",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 2,
+          "direct_delivery": true,
+          "result_states": [
+            "capabilities_found",
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "继续刚才说的，先看投递，再看面试，然后汇总。",
+          "assistant_message": "已按你的要求查看简历、投递和面试，结果汇总如下：\n\n- 简历：没有找到匹配的简历。\n- 投递：没有找到投递记录。\n- 面试：没有找到面试安排。\n\n目前系统中暂无相关数据。如果你需要开始建立求职跟踪或添加简历，可以告诉我具体信息。",
+          "executed_calls": [
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已按你的要求查看简历、投递和面试，结果汇总如下：\\n\\n- 简历：没有找到匹配的简历。\\n- 投递：没有找到投递记录。\\n- 面试：没有找到面试安排。\\n\\n目前系统中暂无相关数据。如果你需要开始建立求职跟踪或添加简历，可以告诉我具体信息。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_applications_found",
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先查我的简历。下一轮我会让你接着查看投递和面试。": {
+            "get_interview": 0.686463187882569,
+            "list_interviews": 0.6696224047843072,
+            "create_interview": 0.6674130753728742,
+            "update_interview": 0.6457173328974927,
+            "record_interview_retro": 0.631514151227791,
+            "search_career_episodes": 0.6268462159014148,
+            "complete_interview": 0.6236002667885918,
+            "list_resumes": 0.620211205963756,
+            "get_resume_job_match": 0.6157673353971811,
+            "prepare_interview": 0.6021443667478226
+          },
+          "继续刚才说的，先看投递，再看面试，然后汇总。": {
+            "create_interview": 0.6445394728581361,
+            "list_interviews": 0.6311553874063364,
+            "search_career_episodes": 0.6199709530994418,
+            "list_applications": 0.6119378456635757,
+            "record_interview_retro": 0.6104983454690901,
+            "get_interview": 0.6052051461817427,
+            "prepare_interview": 0.5932419668475207,
+            "complete_interview": 0.5818664887368544,
+            "compare_saved_jobs": 0.581251377035454,
+            "update_interview": 0.5782037231666352
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查我的简历。下一轮我会让你接着查看投递和面试。",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "7972dd7b81f7771564e07006c4c2c86ce10eb5fd2ec879054e7f51ad208f95ab",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "cad8df346fa428e56110b6b1cb34693965b3d6ed33a16057d24fb19b9eb3de82",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 2,
+          "direct_delivery": true,
+          "result_states": [
+            "capabilities_found",
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "继续刚才说的，先看投递，再看面试，然后汇总。",
+          "assistant_message": "目前查询结果如下：\n\n1. **简历**：没有找到匹配的简历。\n2. **投递记录**：没有找到任何投递记录。\n3. **面试安排**：没有找到任何面试安排。\n\n当前系统中暂无相关的求职活动记录。如果您需要开始新的求职流程，可以先创建简历或添加目标岗位方向。",
+          "executed_calls": [
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前查询结果如下：\\n\\n1. **简历**：没有找到匹配的简历。\\n2. **投递记录**：没有找到任何投递记录。\\n3. **面试安排**：没有找到任何面试安排。\\n\\n当前系统中暂无相关的求职活动记录。如果您需要开始新的求职流程，可以先创建简历或添加目标岗位方向。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_applications_found",
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先查我的简历。下一轮我会让你接着查看投递和面试。": {
+            "get_interview": 0.6864538035334896,
+            "list_interviews": 0.6696278634998079,
+            "create_interview": 0.6675271576667605,
+            "update_interview": 0.6456998732128827,
+            "record_interview_retro": 0.631424495313221,
+            "search_career_episodes": 0.6267921424076223,
+            "complete_interview": 0.6236433427404721,
+            "list_resumes": 0.6200638436875263,
+            "get_resume_job_match": 0.6157257705781799,
+            "prepare_interview": 0.6021141936154012
+          },
+          "继续刚才说的，先看投递，再看面试，然后汇总。": {
+            "create_interview": 0.6445261014461692,
+            "list_interviews": 0.6311361634592966,
+            "search_career_episodes": 0.6198775310284813,
+            "list_applications": 0.6119508227830516,
+            "record_interview_retro": 0.610505300973274,
+            "get_interview": 0.605193265320321,
+            "prepare_interview": 0.5932251020013936,
+            "complete_interview": 0.5818565801523004,
+            "compare_saved_jobs": 0.5812124276036207,
+            "update_interview": 0.578200619598053
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查我的简历。下一轮我会让你接着查看投递和面试。",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "7972dd7b81f7771564e07006c4c2c86ce10eb5fd2ec879054e7f51ad208f95ab",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "cad8df346fa428e56110b6b1cb34693965b3d6ed33a16057d24fb19b9eb3de82",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 2,
+          "direct_delivery": true,
+          "result_states": [
+            "capabilities_found",
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "继续刚才说的，先看投递，再看面试，然后汇总。",
+          "assistant_message": "目前的情况如下：\n\n1. **简历**：没有找到匹配的简历。\n2. **投递记录**：没有找到任何投递记录。\n3. **面试安排**：没有找到任何面试安排。\n\n如果您需要开始求职流程，建议先创建或上传简历，然后我们可以协助您进行岗位搜索和投递跟踪。",
+          "executed_calls": [
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前的情况如下：\\n\\n1. **简历**：没有找到匹配的简历。\\n2. **投递记录**：没有找到任何投递记录。\\n3. **面试安排**：没有找到任何面试安排。\\n\\n如果您需要开始求职流程，建议先创建或上传简历，然后我们可以协助您进行岗位搜索和投递跟踪。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_applications_found",
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先查我的简历。下一轮我会让你接着查看投递和面试。": {
+            "get_interview": 0.686463187882569,
+            "list_interviews": 0.6696224047843072,
+            "create_interview": 0.6674130753728742,
+            "update_interview": 0.6457173328974927,
+            "record_interview_retro": 0.631514151227791,
+            "search_career_episodes": 0.6268462159014148,
+            "complete_interview": 0.6236002667885918,
+            "list_resumes": 0.620211205963756,
+            "get_resume_job_match": 0.6157673353971811,
+            "prepare_interview": 0.6021443667478226
+          },
+          "继续刚才说的，先看投递，再看面试，然后汇总。": {
+            "create_interview": 0.6445261014461692,
+            "list_interviews": 0.6311361634592966,
+            "search_career_episodes": 0.6198775310284813,
+            "list_applications": 0.6119508227830516,
+            "record_interview_retro": 0.610505300973274,
+            "get_interview": 0.605193265320321,
+            "prepare_interview": 0.5932251020013936,
+            "complete_interview": 0.5818565801523004,
+            "compare_saved_jobs": 0.5812124276036207,
+            "update_interview": 0.578200619598053
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查我的简历。下一轮我会让你接着查看投递和面试。",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "7972dd7b81f7771564e07006c4c2c86ce10eb5fd2ec879054e7f51ad208f95ab",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "cad8df346fa428e56110b6b1cb34693965b3d6ed33a16057d24fb19b9eb3de82",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 2,
+          "direct_delivery": true,
+          "result_states": [
+            "capabilities_found",
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "继续刚才说的，先看投递，再看面试，然后汇总。",
+          "assistant_message": "已按您的要求完成查询，汇总如下：\n\n1. **简历**：当前没有可用的简历。\n2. **投递记录**：没有找到任何投递记录。\n3. **面试安排**：目前没有安排任何面试。\n\n如果您需要开始求职流程，我们可以先从创建或上传简历开始，或者您可以告诉我您感兴趣的岗位方向，以便我协助您进行下一步操作。",
+          "executed_calls": [
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已按您的要求完成查询，汇总如下：\\n\\n1. **简历**：当前没有可用的简历。\\n2. **投递记录**：没有找到任何投递记录。\\n3. **面试安排**：目前没有安排任何面试。\\n\\n如果您需要开始求职流程，我们可以先从创建或上传简历开始，或者您可以告诉我您感兴趣的岗位方向，以便我协助您进行下一步操作。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_applications_found",
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先查我的简历。下一轮我会让你接着查看投递和面试。": {
+            "get_interview": 0.686541322701432,
+            "list_interviews": 0.6697353115840328,
+            "create_interview": 0.6675422038523533,
+            "update_interview": 0.6457566959717342,
+            "record_interview_retro": 0.631507559083576,
+            "search_career_episodes": 0.6268324508900406,
+            "complete_interview": 0.623674685123753,
+            "list_resumes": 0.620146922506586,
+            "get_resume_job_match": 0.6157196837454928,
+            "prepare_interview": 0.6021121509532891
+          },
+          "继续刚才说的，先看投递，再看面试，然后汇总。": {
+            "create_interview": 0.6445261014461692,
+            "list_interviews": 0.6311361634592966,
+            "search_career_episodes": 0.6198775310284813,
+            "list_applications": 0.6119508227830516,
+            "record_interview_retro": 0.610505300973274,
+            "get_interview": 0.605193265320321,
+            "prepare_interview": 0.5932251020013936,
+            "complete_interview": 0.5818565801523004,
+            "compare_saved_jobs": 0.5812124276036207,
+            "update_interview": 0.578200619598053
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查我的简历。下一轮我会让你接着查看投递和面试。",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "7972dd7b81f7771564e07006c4c2c86ce10eb5fd2ec879054e7f51ad208f95ab",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "cad8df346fa428e56110b6b1cb34693965b3d6ed33a16057d24fb19b9eb3de82",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 2,
+          "direct_delivery": true,
+          "result_states": [
+            "capabilities_found",
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "继续刚才说的，先看投递，再看面试，然后汇总。",
+          "assistant_message": "汇总如下：\n\n- 简历：没有找到匹配的简历。\n- 投递记录：没有找到投递记录。\n- 面试安排：没有找到面试安排。\n\n目前系统中暂无相关数据。如果你需要开始跟踪求职进度，可以考虑先创建简历、添加目标岗位或记录投递信息。",
+          "executed_calls": [
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"汇总如下：\\n\\n- 简历：没有找到匹配的简历。\\n- 投递记录：没有找到投递记录。\\n- 面试安排：没有找到面试安排。\\n\\n目前系统中暂无相关数据。如果你需要开始跟踪求职进度，可以考虑先创建简历、添加目标岗位或记录投递信息。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_applications_found",
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先查我的简历。下一轮我会让你接着查看投递和面试。": {
+            "get_interview": 0.6864538035334896,
+            "list_interviews": 0.6696278634998079,
+            "create_interview": 0.6675271576667605,
+            "update_interview": 0.6456998732128827,
+            "record_interview_retro": 0.631424495313221,
+            "search_career_episodes": 0.6267921424076223,
+            "complete_interview": 0.6236433427404721,
+            "list_resumes": 0.6200638436875263,
+            "get_resume_job_match": 0.6157257705781799,
+            "prepare_interview": 0.6021141936154012
+          },
+          "继续刚才说的，先看投递，再看面试，然后汇总。": {
+            "create_interview": 0.6446523300571111,
+            "list_interviews": 0.6312979684660724,
+            "search_career_episodes": 0.6201379713678454,
+            "list_applications": 0.6120767707606387,
+            "record_interview_retro": 0.6107127741291266,
+            "get_interview": 0.6053787777628811,
+            "prepare_interview": 0.5934559713004689,
+            "complete_interview": 0.5820167982487948,
+            "compare_saved_jobs": 0.5813707695325429,
+            "update_interview": 0.5783591616825426
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先查我的简历。下一轮我会让你接着查看投递和面试。",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "7972dd7b81f7771564e07006c4c2c86ce10eb5fd2ec879054e7f51ad208f95ab",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "cad8df346fa428e56110b6b1cb34693965b3d6ed33a16057d24fb19b9eb3de82",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 2,
+          "direct_delivery": true,
+          "result_states": [
+            "capabilities_found",
+            "no_resumes_found"
+          ]
+        },
+        {
+          "message": "继续刚才说的，先看投递，再看面试，然后汇总。",
+          "assistant_message": "根据查询结果：\n\n1. **简历**：没有找到匹配的简历记录。\n2. **投递记录**：没有找到任何投递记录。\n3. **面试安排**：没有找到任何面试安排。\n\n目前系统中暂无相关的求职活动记录。如果您需要开始追踪求职进度，可以先创建简历、投递记录或面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {
+                    "deliver_direct": false
+                  }
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"根据查询结果：\\n\\n1. **简历**：没有找到匹配的简历记录。\\n2. **投递记录**：没有找到任何投递记录。\\n3. **面试安排**：没有找到任何面试安排。\\n\\n目前系统中暂无相关的求职活动记录。如果您需要开始追踪求职进度，可以先创建简历、投递记录或面试安排。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "40f973b08890f067a0b0dabf86822b1150b9685e751d16891d9fc9c12e15d24a",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_applications_found",
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

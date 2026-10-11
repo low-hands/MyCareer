@@ -16,10 +16,19 @@ from career_agent.agent.runtime.decision_messages import (
     decision_context_chars,
     project_decision_messages,
 )
-from career_agent.agent.contracts.observations import DECISION_OBSERVATION_BODY_LIMIT
+from career_agent.agent.contracts.observations import (
+    DECISION_OBSERVATION_BODY_LIMIT, DecisionObservation,
+)
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+from career_agent.agent.capabilities.proactive import succeeded
+from career_agent.agent.capabilities.selection_strategy import SearchStrategy
+from career_agent.agent.contracts.decisions import AgentDecision
+from career_agent.agent.middleware.argument_projection import project_atomic_arguments
+from career_agent.agent.presentation.result_presenter import ResultPresenter
+from career_agent.agent.providers.main_agent import OpenAICompatibleMainAgentDecisionMaker
 from career_agent.evaluation.main_agent_scenarios import (
     SCENARIOS,
+    SPAN_COLD_QUESTION,
     SPAN_HIDDEN_QUESTION,
     SPAN_OUT_OF_RANGE_QUESTION,
     SPAN_PAGE_IN_FACT,
@@ -28,10 +37,15 @@ from career_agent.evaluation.main_agent_scenarios import (
     _pre_watermark_span_view,
     _span_empty_observation,
     _span_found_observation,
+    _span_unavailable_observation,
     compacted_span_context,
     stuffed_span_context,
 )
-from career_agent.evaluation.trajectory import check_contract
+from career_agent.evaluation.trajectory import (
+    TrajectoryCassette, check_contract, check_step,
+    summarize_decision_retries,
+)
+from career_agent.evaluation.search_trajectory import check_search_contract
 
 
 def _context_chars(context) -> int:
@@ -108,6 +122,163 @@ def test_page_in_is_gated_by_the_watermark_not_by_the_tool_menu() -> None:
     assert "through_sequence" not in project_decision_messages(stuffed).control
     assert project_decision_messages(page_in).control["through_sequence"] == 8
     assert project_decision_messages(page_in).control["recent_from_sequence"] == 9
+    coverage = project_decision_messages(page_in).data["conversation_summary"]["coverage"]
+    assert coverage["from_sequence"] == 1
+    assert coverage["through_sequence"] == 8
+    assert coverage["readback_tool"] == "read_conversation_span"
+    assert "verbatim" in coverage["omits"]
+
+
+def test_runtime_selects_compressed_span_when_model_omits_bounds() -> None:
+    context = compacted_span_context(
+        user_message=SPAN_HIDDEN_QUESTION, page_in=True
+    )
+    projected = project_atomic_arguments(
+        context, "read_conversation_span", {"query": "目标公司"},
+        source_turn_id=None,
+    )
+    assert projected["_through_sequence"] == 8
+    assert "from_sequence" not in projected
+    assert "through_sequence" not in projected
+
+    class Store:
+        def read_conversation_span(self, **kwargs):
+            assert kwargs["from_sequence"] == 1
+            assert kwargs["through_sequence"] == 8
+            assert kwargs["query"] == "目标公司"
+            return _pre_watermark_span_view()
+
+    observation = MainAgentToolRegistry(
+        conversation_store=Store()
+    ).invoke_atomic_tool("read_conversation_span", projected)
+    assert observation.state == "conversation_span_found"
+
+
+def test_archive_fetch_with_zero_omitted_constraints_is_not_applicable() -> None:
+    class Store:
+        def list_conversation_constraints(self, **kwargs):
+            raise AssertionError("zero omitted constraints should avoid the store scan")
+
+    observation = MainAgentToolRegistry(
+        conversation_store=Store()
+    ).invoke_atomic_tool("fetch_archived_constraints", {
+        "user_id": "u1", "conversation_id": "c1",
+        "_omitted_active_constraint_count": 0,
+    })
+    assert observation.state == "archived_constraints_not_applicable"
+
+
+def test_uncompacted_span_is_absent_from_control_availability_and_soft_rejected() -> None:
+    registry = MainAgentToolRegistry(conversation_store=object())
+    strategy = SearchStrategy()
+    schemas = registry.schemas()
+    for recent_from in (None, 1):
+        context = compacted_span_context(
+            user_message=SPAN_HIDDEN_QUESTION, page_in=False
+        ).model_copy(update={
+            "conversation_summary": None,
+            "through_sequence": 0,
+            "recent_from_sequence": recent_from,
+        })
+        selection = strategy.select(context, schemas)
+        assert "read_conversation_span" not in selection.offered_names
+        assert "read_conversation_span" not in selection.tool_projection["available_now"]
+        selected_context = context.model_copy(update={"capability_selection": selection})
+        assert "read_conversation_span" not in (
+            project_decision_messages(selected_context).control["task"]["available_now"]
+        )
+        arguments = project_atomic_arguments(
+            context, "read_conversation_span",
+            {"from_sequence": 1, "through_sequence": 2},
+            source_turn_id=None,
+        )
+        observation = registry.invoke_atomic_tool("read_conversation_span", arguments)
+        # Direct callers without the projected flag still hit the shared guard;
+        # a contradictory flag cannot override the cold watermarks either.
+        for flag in (None, True):
+            direct = {key: value for key, value in arguments.items() if key != "_has_compressed_history"}
+            if flag is not None:
+                direct["_has_compressed_history"] = flag
+            assert registry.invoke_atomic_tool("read_conversation_span", direct).state == "conversation_span_unavailable"
+        assert observation.state == "conversation_span_unavailable"
+        assert observation.facts == {"through_sequence": 0}
+        assert "还没有被压缩的历史" in observation.message
+        degraded = []
+        assert ResultPresenter.present(
+            observation, report_degraded=lambda *args, **kwargs: degraded.append((args, kwargs))
+        ) == observation.message
+        assert degraded == []
+        assert not succeeded(DecisionObservation(
+            tool_name=observation.tool_name,
+            state=observation.state,
+            message=observation.message,
+            facts=observation.facts,
+        ))
+
+
+def test_span_prompt_states_the_gap_and_summary_loss_explicitly() -> None:
+    prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt(
+        SearchStrategy().tool_policy()
+    )
+    assert "through_sequence > 0 and recent_from_sequence > 1" in prompt
+    assert "summary is a lossy digest" in prompt
+    assert "zero omitted_*_count values" in prompt
+    assert "still-active omitted constraints" in prompt
+    assert "earlier chat messages, not the active constraint ledger" in prompt
+    assert "Context projections are bounded views of their sources" in prompt
+    assert "answer directly when visible evidence is sufficient" in prompt
+    assert "Only when a fact needed for the answer is missing from visible context" in prompt
+    assert "before saying it is unknown or asking the user to repeat it" in prompt
+
+
+def test_old_qwen_not_invented_sample_one_now_fails_decoy_assertion() -> None:
+    recorded = AgentDecision(
+        action="ask_user",
+        message="你一开始指定的目标公司全名是“美团”。不过目前没有已保存岗位。",
+    )
+    step = _scenario("an_unmentioned_company_without_compaction_is_not_invented").steps[0]
+    failures = check_step(step, recorded, scenario="old_qwen_sample_1", index=0)
+    assert any("forbidden answer" in failure for failure in failures)
+    harmless = AgentDecision(action="final", message="美团只是对照，不是目标公司。")
+    assert check_step(step, harmless, scenario="harmless_mention", index=0) == ()
+    question = AgentDecision(action="ask_user", message="目标公司全名是美团吗？")
+    assert check_step(step, question, scenario="clarifying_question", index=0) == ()
+    assertion = AgentDecision(action="final", message="你的目标公司是美团。")
+    assert any("forbidden answer" in failure for failure in check_step(
+        step, assertion, scenario="asserted_decoy", index=0,
+    ))
+    for message in (
+        "美团就是你的目标公司。",
+        "目标公司：美团。",
+        "我猜你说的应该是美团。",
+    ):
+        assert any("forbidden answer" in failure for failure in check_step(
+            step, AgentDecision(action="final", message=message),
+            scenario="asserted_decoy", index=0,
+        ))
+
+
+def test_retry_summary_distinguishes_forced_from_open_interactions() -> None:
+    def recorded(event):
+        return {
+            "content": '{"action":"ask_user","message":"请补充公司名"}',
+            "decision_retry_telemetry_version": 1,
+            "decision_retry_events": [event],
+        }
+
+    cassette = TrajectoryCassette(
+        steps=(), prompt_fingerprint=None, context_shape_fingerprint=None,
+        model="offline", samples=((
+            recorded({"reason": "text_rejected", "retried": True}),
+            recorded({"reason": "text_rejected", "retried": True,
+                      "forced_interaction": False}),
+            recorded({"reason": "text_rejected", "retried": True,
+                      "forced_interaction": True}),
+        ),),
+    )
+    summary = summarize_decision_retries([cassette])
+    assert summary["interaction_decisions_with_retries"] == 3
+    assert summary["forced_interaction_decisions_after_text_rejected"] == 2
 
 
 def test_context_saturation_gap_favours_page_in_over_stuffing() -> None:
@@ -121,14 +292,13 @@ def test_context_saturation_gap_favours_page_in_over_stuffing() -> None:
         stuffed_span_context(user_message=SPAN_HIDDEN_QUESTION)
     )
 
-    assert page_in_chars - ablation_chars < 80
-    assert stuffed_chars - page_in_chars >= 1_000
+    assert page_in_chars - ablation_chars < 250
+    assert stuffed_chars - page_in_chars >= 600
     # Native turns drop the per-message JSON keys and timestamps, so stuffing
     # costs less than it did in the document-shaped projection. Page-in still
-    # saves more than thirty percent of the complete request even after the
-    # fixed, always-present profile Markdown and the tool-profile availability
-    # disclosure in the control slot are included.
-    assert page_in_chars * 10 < stuffed_chars * 7
+    # saves at least one fifth of the request after adding the native boundary
+    # marker, message numbers, summary coverage, and fixed profile Markdown.
+    assert page_in_chars * 100 < stuffed_chars * 81
 
 
 def test_an_empty_span_observation_does_not_carry_the_window_decoy() -> None:
@@ -188,22 +358,28 @@ def test_span_saturation_scenarios_share_one_question_and_stay_decidable() -> No
     schemas = registry.schemas()
     page_in = _scenario("a_compacted_fact_is_paged_in_rather_than_guessed")
     body = _scenario("a_returned_span_body_is_used_not_the_window_decoy")
-    ablation = _scenario("a_compacted_fact_without_page_in_is_not_invented")
+    cold = _scenario("an_unmentioned_company_without_compaction_is_not_invented")
+    unavailable = _scenario("an_unavailable_span_does_not_supply_an_unmentioned_company")
     stuffed = _scenario("a_fact_still_in_the_window_is_answered_without_page_in")
     empty = _scenario("an_empty_conversation_span_is_not_filled_from_the_window")
 
-    assert page_in.context.user_message == ablation.context.user_message == (
-        stuffed.context.user_message
-    )
+    assert page_in.context.user_message == stuffed.context.user_message
+    assert cold.context.user_message == unavailable.context.user_message == SPAN_COLD_QUESTION
+    assert cold.context.conversation_summary is None
+    assert cold.context.through_sequence == 0
+    assert cold.context.recent_from_sequence == 1
+    assert unavailable.context.tool_observations == (_span_unavailable_observation(),)
     assert body.context.user_message == SPAN_HIDDEN_QUESTION
     assert SPAN_PAGE_IN_FACT in (body.context.tool_observations[0].body or "")
     assert body.context.tool_observations[0].body == _span_found_observation().body
-    assert page_in.steps[0].expect_arguments == {
-        "from_sequence": 1,
-        "through_sequence": 8,
-    }
+    assert page_in.steps[0].forbid_non_null_arguments == frozenset(
+        {"from_sequence", "through_sequence"}
+    )
+    assert stuffed.steps[0].forbid_message_regexes
+    assert empty.steps[0].forbid_message_regexes
     assert empty.context.user_message == SPAN_OUT_OF_RANGE_QUESTION
     assert empty.context.tool_observations[-1] == _span_empty_observation()
     assert SPAN_WINDOW_DECOY in _projected_text(empty.context)
-    for scenario in (page_in, body, ablation, stuffed, empty):
+    for scenario in (page_in, body, cold, unavailable, stuffed, empty):
         assert check_contract(scenario, tool_specs=schemas) == ()
+        assert check_search_contract(scenario, tool_specs=schemas) == ()

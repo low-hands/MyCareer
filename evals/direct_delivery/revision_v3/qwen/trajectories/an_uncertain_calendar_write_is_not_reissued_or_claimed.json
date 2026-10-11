@@ -1,0 +1,171 @@
+{
+  "scenario": "an_uncertain_calendar_write_is_not_reissued_or_claimed",
+  "policy": "A failed or uncertain Calendar execution requires reconciliation and then a new preview and approval. Never repeat execution or claim Calendar changed without calendar_sync_complete.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "e7a9318cfd42b96c8d059968d4607cc47b69be9153ec34a3d9c06a6d17a972d5",
+  "context_shape_fingerprint": "f6207eee7850f1bcb080bab0968af0356b845eba1d89ec12178476d0c7f61563",
+  "recorded_at": "2026-10-10T00:53:49.539984+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "list_calendar_accounts",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "371e2cda89ff890f99ede429645145888940f773020b2ff865d19ed1c376ef37",
+      "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_interview",
+        "list_calendar_accounts",
+        "prepare_interview_calendar_sync",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3760.6,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T00:53:46.174407+00:00",
+      "elapsed_ms": 3764.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_calendar_accounts",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "371e2cda89ff890f99ede429645145888940f773020b2ff865d19ed1c376ef37",
+          "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3760.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:53:48.748302+00:00",
+      "elapsed_ms": 5477.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "list_interviews"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "371e2cda89ff890f99ede429645145888940f773020b2ff865d19ed1c376ef37",
+          "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3586.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "implicit_capability_load",
+              "retried": true,
+              "raw_output": {
+                "content": "日历写入结果暂时无法确认。我需要先核对外部状态，再生成新预览并重新取得您的确认。\n\n让我先查看当前的面试轮次和日历账户情况：\n\n",
+                "tool_calls": [
+                  {
+                    "name": "list_interviews",
+                    "arguments": "{}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "list_interviews",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "a286f48248ed5615dcdb863e5bd827af0fa572a213d10cd173063254f7280ded",
+          "decision_shape_fingerprint": "8f86577360e2969585f0ea309d147fe24a1e9ab34e2f3532a35942bd1b0bd101",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_interviews",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1879.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:53:49.539984+00:00",
+      "elapsed_ms": 3363.3,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_interview",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "371e2cda89ff890f99ede429645145888940f773020b2ff865d19ed1c376ef37",
+          "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3359.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

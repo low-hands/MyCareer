@@ -1,0 +1,127 @@
+{
+  "scenario": "a_resume_critique_loads_its_skill",
+  "policy": "A request to review, critique or improve an attached resume without naming a job loads the resume-critique skill and follows it; comparing a resume with a job is match_resume_to_job.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "6d4e4929b0be41e4351ec17508355d98d6d6421e7ccef07fce5c87b827ba5d47",
+  "context_shape_fingerprint": "92af7027d1fa4470173dd363bd2f57e6209c21138065300fc113d56f0320ce65",
+  "recorded_at": "2026-10-10T00:54:46.885497+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "load_skill",
+        "arguments": {
+          "skill": "resume-critique"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "edaefaa9ea0cc98434ebf6340cd62da779c8ce56916ac7bb1bd78e409163f588",
+      "decision_shape_fingerprint": "465b918eb253838338e74f7a0d041516bce60ddcc3628e54cd654ec5833fdb03",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "export_resume_artifact",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2311.3,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T00:54:43.925385+00:00",
+      "elapsed_ms": 2316.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "load_skill",
+            "arguments": {
+              "skill": "resume-critique"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "edaefaa9ea0cc98434ebf6340cd62da779c8ce56916ac7bb1bd78e409163f588",
+          "decision_shape_fingerprint": "465b918eb253838338e74f7a0d041516bce60ddcc3628e54cd654ec5833fdb03",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "export_resume_artifact",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2311.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:54:45.168472+00:00",
+      "elapsed_ms": 2703.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "load_skill",
+            "arguments": {
+              "skill": "resume-critique"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "edaefaa9ea0cc98434ebf6340cd62da779c8ce56916ac7bb1bd78e409163f588",
+          "decision_shape_fingerprint": "465b918eb253838338e74f7a0d041516bce60ddcc3628e54cd654ec5833fdb03",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "export_resume_artifact",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2700.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:54:46.885497+00:00",
+      "elapsed_ms": 2956.3,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "load_skill",
+            "arguments": {
+              "skill": "resume-critique"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "edaefaa9ea0cc98434ebf6340cd62da779c8ce56916ac7bb1bd78e409163f588",
+          "decision_shape_fingerprint": "465b918eb253838338e74f7a0d041516bce60ddcc3628e54cd654ec5833fdb03",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "export_resume_artifact",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2952.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,223 @@
+{
+  "version": 1,
+  "model": "deepseek-flash",
+  "scenario": "single_empty_interview_receipt",
+  "suite_fingerprint": "2a75ebf7fa9c6b126b0541b4b10b1491e377049947c377d9ad1ff44be070c8ec",
+  "recorded_at": "2026-10-11T07:48:01.955326+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "请查看我的面试安排。": {
+            "list_interviews": 0.7721326101765401,
+            "get_interview": 0.7514422211102662,
+            "update_interview": 0.7063885529162779,
+            "create_interview": 0.6974825558858221,
+            "prepare_interview_calendar_sync": 0.6924776560868202,
+            "complete_interview": 0.6598710605469827,
+            "list_calendar_links": 0.6403120715046395,
+            "get_interview_preparation": 0.6240720340688181,
+            "prepare_interview": 0.6140197696998294,
+            "record_interview_retro": 0.6083867613567999
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "目前没有查到你名下任何面试安排（identified / scheduled / completed / cancelled 均为空）。\n\n如果你想安排面试跟踪，可以告诉我：\n- 面试的公司与岗位（若已有对应的已收藏岗位或投递记录，我会直接关联，不再让你重复信息）\n- 面试时间（具体日期时间即可，默认按 Asia/Shanghai 时区）\n- 形式（线上／线下／电话等）与准备重点\n\n另外，如果只做面试准备，不一定要先建跟踪记录——我也可以先给一版临时准备方案（涉及 JD 和简历细节的建议需要你补充材料后才可用）。要现在建一条面试记录吗？",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有查到你名下任何面试安排（identified / scheduled / completed / cancelled 均为空）。\\n\\n如果你想安排面试跟踪，可以告诉我：\\n- 面试的公司与岗位（若已有对应的已收藏岗位或投递记录，我会直接关联，不再让你重复信息）\\n- 面试时间（具体日期时间即可，默认按 Asia/Shanghai 时区）\\n- 形式（线上／线下／电话等）与准备重点\\n\\n另外，如果只做面试准备，不一定要先建跟踪记录——我也可以先给一版临时准备方案（涉及 JD 和简历细节的建议需要你补充材料后才可用）。要现在建一条面试记录吗？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "请查看我的面试安排。": {
+            "list_interviews": 0.772064404136424,
+            "get_interview": 0.7513715573500777,
+            "update_interview": 0.7064023209138611,
+            "create_interview": 0.6975220404695813,
+            "prepare_interview_calendar_sync": 0.6924311990970157,
+            "complete_interview": 0.6598918997751938,
+            "list_calendar_links": 0.640352268038721,
+            "get_interview_preparation": 0.6240397772387007,
+            "prepare_interview": 0.6139629941559427,
+            "record_interview_retro": 0.6083961041732847
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "我查看了你的面试安排：目前没有找到任何面试轮次（包括已安排、待定、已完成或已取消的记录）。\n\n如果你最近确实有面试，可以告诉我公司、岗位和时间，我可以帮你创建并跟踪（若已有对应的投递记录，也可以直接关联并更新状态）。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"我查看了你的面试安排：目前没有找到任何面试轮次（包括已安排、待定、已完成或已取消的记录）。\\n\\n如果你最近确实有面试，可以告诉我公司、岗位和时间，我可以帮你创建并跟踪（若已有对应的投递记录，也可以直接关联并更新状态）。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "请查看我的面试安排。": {
+            "list_interviews": 0.7721326101765401,
+            "get_interview": 0.7514422211102662,
+            "update_interview": 0.7063885529162779,
+            "create_interview": 0.6974825558858221,
+            "prepare_interview_calendar_sync": 0.6924776560868202,
+            "complete_interview": 0.6598710605469827,
+            "list_calendar_links": 0.6403120715046395,
+            "get_interview_preparation": 0.6240720340688181,
+            "prepare_interview": 0.6140197696998294,
+            "record_interview_retro": 0.6083867613567999
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "我查了一下，目前没有任何面试记录——系统里没有已识别、已安排、已完成或已取消的面试轮次。\n\n如果你手头有面试（或刚收到面试通知），可以告诉我公司、岗位和时间，我帮你创建一条面试记录并跟踪；也可以顺便准备针对该岗位的面试材料。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"我查了一下，目前没有任何面试记录——系统里没有已识别、已安排、已完成或已取消的面试轮次。\\n\\n如果你手头有面试（或刚收到面试通知），可以告诉我公司、岗位和时间，我帮你创建一条面试记录并跟踪；也可以顺便准备针对该岗位的面试材料。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

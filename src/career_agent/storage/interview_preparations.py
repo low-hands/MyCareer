@@ -167,6 +167,14 @@ class SQLiteInterviewPreparationStore:
                 "DELETE FROM interview_preparations WHERE user_id = ?", (user_id,)
             ).rowcount
 
+    def delete_for_round(self, *, user_id: str, interview_round_id: str) -> int:
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            return connection.execute(
+                "DELETE FROM interview_preparations WHERE user_id = ? AND interview_round_id = ?",
+                (user_id, interview_round_id),
+            ).rowcount
+
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.path, timeout=30.0)
 

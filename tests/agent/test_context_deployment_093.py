@@ -38,9 +38,9 @@ def independent_env() -> dict[str, str]:
 
 def test_production_context_defaults_and_supported_boundaries() -> None:
     config = ContextDeploymentConfig.from_env(environ={})
-    assert (config.recent_message_limit, config.summary_batch_size) == (16, 8)
+    assert (config.recent_message_limit, config.summary_batch_size) == (2048, 8)
     assert config.compact_occupancy_threshold == 0.75
-    for recent, batch, threshold in ((2, 2, 0.7), (64, 32, 0.9)):
+    for recent, batch, threshold in ((128, 2, 0.7), (8192, 32, 0.9)):
         actual = ContextDeploymentConfig.from_env(environ={
             "CONTEXT_RECENT_MESSAGE_LIMIT": str(recent),
             "CONTEXT_SUMMARY_BATCH_SIZE": str(batch),
@@ -51,7 +51,7 @@ def test_production_context_defaults_and_supported_boundaries() -> None:
 
 
 @pytest.mark.parametrize("key,value", [
-    ("CONTEXT_RECENT_MESSAGE_LIMIT", value) for value in ("", "1", "65", "16.5", "bad")
+    ("CONTEXT_RECENT_MESSAGE_LIMIT", value) for value in ("", "1", "127", "8193", "16.5", "bad")
 ] + [
     ("CONTEXT_SUMMARY_BATCH_SIZE", value) for value in ("", "1", "33", "8.5")
 ] + [
@@ -170,7 +170,7 @@ def test_production_factory_passes_independent_summary_and_context_settings(tmp_
         assert worker._config.timeout_seconds == 11
         assert worker._max_output_tokens == 2048
         assert worker._disable_thinking is True
-        assert kwargs["recent_message_limit"] == 20
+        assert kwargs["recent_message_limit"] == 2048
         assert kwargs["summary_batch_size"] == 10
         assert kwargs["compact_occupancy_threshold"] == 0.8
         raise FactoryObserved
@@ -178,7 +178,7 @@ def test_production_factory_passes_independent_summary_and_context_settings(tmp_
     env = independent_env() | {
         "MAIN_AGENT_BASE_URL": "https://main.example.test/v1",
         "MAIN_AGENT_API_KEY": "synthetic-main-key", "MAIN_AGENT_MODEL": "synthetic-main",
-        "CONTEXT_RECENT_MESSAGE_LIMIT": "20", "CONTEXT_SUMMARY_BATCH_SIZE": "10",
+        "CONTEXT_RECENT_MESSAGE_LIMIT": "2048", "CONTEXT_SUMMARY_BATCH_SIZE": "10",
         "CONTEXT_COMPACT_OCCUPANCY_THRESHOLD": "0.8",
         f"{PREFIX}_TIMEOUT_SECONDS": "11", f"{PREFIX}_MAX_OUTPUT_TOKENS": "2048",
         f"{PREFIX}_DISABLE_THINKING": "true",

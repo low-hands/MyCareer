@@ -23,11 +23,6 @@ from career_agent.agent.contracts.memory import (
 )
 from career_agent.agent.providers.token_budget import serialized_token_count
 from career_agent.agent.capabilities.effects import approval_policy, owner_rule_capabilities
-from career_agent.agent.capabilities.catalog import (
-    DOMAIN_TOOL_PROFILES,
-    TOOL_PROFILE_NAMES,
-    ToolProfile,
-)
 from career_agent.agent.contracts.questionnaire import PendingQuestionnaire, UserQuestion
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
@@ -52,8 +47,19 @@ from career_agent.agent.contracts.observations import (
     _HANDLE_PREFIXES, _HANDLE_SUFFIX_LENGTH, _PREFERENCE_CHAR_CAP, _bounded_markdown,
 )
 
+def compressed_history_available(
+    through_sequence: int | None, recent_from_sequence: int | None,
+) -> bool:
+    """Summary coverage or an omitted recent prefix permits readback.
+
+    A missing runtime watermark retains legacy direct-registry behavior.
+    """
+    return not (through_sequence == 0 and recent_from_sequence in (None, 1))
+
+
 class MainAgentContext(ContractModel):
     conversation_id: str
+    capability_selection: Any = Field(default=None, exclude=True)
     received_at: datetime | None = Field(default=None, exclude=True)
     """When this turn's user message arrived; harness-only, never projected.
 
@@ -105,6 +111,10 @@ class MainAgentContext(ContractModel):
     recent_from_sequence: int | None = Field(default=None, ge=1)
     """Sequence of the first raw message projected into the recent window."""
 
+    @property
+    def has_compressed_history(self) -> bool:
+        return compressed_history_available(self.through_sequence, self.recent_from_sequence)
+
     archived_resource_total: int = Field(default=0, ge=0)
     """How many resources the catalogue would list uncapped.
 
@@ -142,6 +152,13 @@ class MainAgentContext(ContractModel):
         default=(),
         max_length=MAX_DECISION_OBSERVATIONS,
     )
+    turn_proactive_capabilities: tuple[str, ...] = ()
+    """Per-turn W successors survive observation trimming and graph checkpointing.
+
+    This runtime field is never included in ``model_context()``; only the
+    selected ``available_now`` names are shown to the model.
+    """
+    turn_continuation_capability: str | None = None
     conversation_summary: ConversationSummaryContent | None = None
     attached_resumes: tuple[AttachedResumeContext, ...] = Field(
         default=(), max_length=8
@@ -424,12 +441,14 @@ class MainAgentContext(ContractModel):
             for reference in message.resource_refs
         ]
         unlisted_count = max(0, self.archived_resource_total - len(archived))
-        for message in self.recent_messages:
+        for index, message in enumerate(self.recent_messages):
             projected = {
                 "role": message.role,
                 "content": message.content,
                 "created_at": message.created_at.isoformat(),
             }
+            if self.recent_from_sequence is not None:
+                projected["sequence"] = self.recent_from_sequence + index
             if message.resource_refs:
                 resources = [
                     {
@@ -615,7 +634,10 @@ class MainAgentContext(ContractModel):
                     if (focus := self.task.focused_saved_job()) is not None
                     else None
                 ),
-                "tool_profile": self.task.tool_profile,
+                **(
+                    self.capability_selection.tool_projection
+                    if self.capability_selection is not None else {}
+                ),
                 "phase": self.task.phase,
                 "email_sync_phase": self.task.email_sync_phase,
                 "manual_search_query": self.task.manual_search_query,
@@ -766,16 +788,21 @@ class MainAgentContext(ContractModel):
                 ),
             },
             "recent_messages": tuple(model_messages),
+            **({
+                "omitted_history": {
+                    "from_sequence": 1,
+                    "through_sequence": self.recent_from_sequence - 1,
+                    "summary_through_sequence": self.through_sequence,
+                    "readback_tool": "read_conversation_span",
+                }
+            } if self.recent_from_sequence is not None
+                 and self.recent_from_sequence > 1 else {}),
             **(
                 {
                     "through_sequence": self.through_sequence,
                     "recent_from_sequence": self.recent_from_sequence,
                 }
-                if self.through_sequence
-                or (
-                    self.recent_from_sequence is not None
-                    and self.recent_from_sequence > 1
-                )
+                if self.has_compressed_history
                 else {}
             ),
             "tool_observations": decision_observation_projection(
@@ -786,7 +813,16 @@ class MainAgentContext(ContractModel):
                 }
             ),
             "conversation_summary": (
-                self.conversation_summary.model_dump(mode="json")
+                {
+                    **self.conversation_summary.model_dump(mode="json"),
+                    "coverage": {
+                        "from_sequence": 1,
+                        "through_sequence": self.through_sequence,
+                        "retains": "key facts with source sequences, user goals, confirmed decisions, unresolved questions, and active constraints",
+                        "omits": "verbatim messages and facts not selected for these bounded summary categories",
+                        "readback_tool": "read_conversation_span",
+                    },
+                }
                 if self.conversation_summary
                 else None
             ),

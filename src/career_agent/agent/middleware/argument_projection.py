@@ -31,9 +31,9 @@ from career_agent.agent.contracts.projections.memory import (
     project_working_notes_arguments,
 )
 from career_agent.agent.contracts.projections.resume import project_resume_arguments
-from career_agent.agent.contracts.task_state import RouteToCapabilityToolArguments
 from career_agent.agent.contracts.tools.application import UpdateOwnerSettingsToolArguments
 from career_agent.agent.contracts.tools.core_memory import (
+    SearchCapabilitiesToolArguments,
     GetCareerMemoryDetailToolArguments,
     ReadConversationSpanToolArguments,
     ResolveClaimSourceToolArguments,
@@ -42,6 +42,7 @@ from career_agent.agent.contracts.tools.core_memory import (
     SearchCareerMemoryToolArguments,
 )
 from career_agent.agent.contracts.tools.job import LoadSkillToolArguments
+from career_agent.agent.resources.conversation_span import explicit_sequence_span
 from career_agent.agent.runtime.state import MainAgentState
 
 
@@ -234,18 +235,32 @@ def project_atomic_arguments(
             "user_id": context.profile.user_id,
             **LoadSkillToolArguments.model_validate(arguments).model_dump(),
         }
-    if name == "route_to_capability":
-        model_arguments = RouteToCapabilityToolArguments.model_validate(arguments)
+    if name == "search_capabilities":
+        model_arguments = SearchCapabilitiesToolArguments.model_validate(arguments)
         return {
-            "current_tool_profile": context.task.tool_profile,
-            **model_arguments.model_dump(),
+            "current_task": context.task.model_dump(mode="python"),
+            **model_arguments.model_dump(exclude_none=True),
         }
     if name == "read_conversation_span":
         model_arguments = ReadConversationSpanToolArguments.model_validate(arguments)
+        explicit = explicit_sequence_span(context.user_message)
+        exact_span = (
+            explicit is not None
+            and model_arguments.from_sequence == explicit.from_sequence
+            and model_arguments.through_sequence == explicit.through_sequence
+        )
         return {
             "user_id": context.profile.user_id,
             "conversation_id": context.conversation_id,
-            **model_arguments.model_dump(exclude_none=True),
+            # Runtime-only watermark fields for the handler's availability guard.
+            "_has_compressed_history": context.has_compressed_history,
+            "_through_sequence": context.through_sequence,
+            "_recent_from_sequence": context.recent_from_sequence,
+            **({
+                "from_sequence": explicit.from_sequence,
+                "through_sequence": explicit.through_sequence,
+            } if exact_span else {}),
+            **({"query": model_arguments.query} if model_arguments.query else {}),
         }
     if name == "resolve_claim_source":
         model_arguments = ResolveClaimSourceToolArguments.model_validate(arguments)

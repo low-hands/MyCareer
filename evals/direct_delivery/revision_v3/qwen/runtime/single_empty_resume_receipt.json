@@ -1,0 +1,640 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "single_empty_resume_receipt",
+  "suite_fingerprint": "81d7bec4e347fab7fee2f885634bf023cf6e2ead0e8e4b0defdda98455316793",
+  "recorded_at": "2026-10-10T01:05:19.052673+00:00",
+  "k": 10,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的简历": {
+            "get_resume_tailoring_draft": 0.6693255779567815,
+            "list_resumes": 0.6606739654192415,
+            "get_resume_metadata": 0.6442114406982047,
+            "get_resume_job_match": 0.6297245210907925,
+            "review_resume_tailoring": 0.6233606617390478,
+            "revise_resume_tailoring": 0.5781773691610697,
+            "export_resume_artifact": 0.5688617461954101,
+            "match_resume_to_job": 0.5535638903968633,
+            "draft_resume_tailoring": 0.5508679285929919
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "bca546fe172e542e1d870b6707d64aa6372a1ff3dd78ebf7dbfd5013d4bcab7b",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的简历": {
+            "get_resume_tailoring_draft": 0.6692649838823901,
+            "list_resumes": 0.660574767594183,
+            "get_resume_metadata": 0.6441154366956091,
+            "get_resume_job_match": 0.6296880491914156,
+            "review_resume_tailoring": 0.6234155430469156,
+            "revise_resume_tailoring": 0.5782034098700838,
+            "export_resume_artifact": 0.5687348162733822,
+            "match_resume_to_job": 0.5535463429850038,
+            "draft_resume_tailoring": 0.5508359372739134
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "bca546fe172e542e1d870b6707d64aa6372a1ff3dd78ebf7dbfd5013d4bcab7b",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的简历": {
+            "get_resume_tailoring_draft": 0.6692649838823901,
+            "list_resumes": 0.660574767594183,
+            "get_resume_metadata": 0.6441154366956091,
+            "get_resume_job_match": 0.6296880491914156,
+            "review_resume_tailoring": 0.6234155430469156,
+            "revise_resume_tailoring": 0.5782034098700838,
+            "export_resume_artifact": 0.5687348162733822,
+            "match_resume_to_job": 0.5535463429850038,
+            "draft_resume_tailoring": 0.5508359372739134
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "bca546fe172e542e1d870b6707d64aa6372a1ff3dd78ebf7dbfd5013d4bcab7b",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的简历": {
+            "get_resume_tailoring_draft": 0.669196371724995,
+            "list_resumes": 0.6605736567817219,
+            "get_resume_metadata": 0.6441614815484193,
+            "get_resume_job_match": 0.6296406346221068,
+            "review_resume_tailoring": 0.6233194997523233,
+            "revise_resume_tailoring": 0.5780597137755977,
+            "export_resume_artifact": 0.5687379204446079,
+            "match_resume_to_job": 0.5535057731963788,
+            "draft_resume_tailoring": 0.5507287838365318
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "bca546fe172e542e1d870b6707d64aa6372a1ff3dd78ebf7dbfd5013d4bcab7b",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的简历": {
+            "get_resume_tailoring_draft": 0.6691502745382265,
+            "list_resumes": 0.6604772389830712,
+            "get_resume_metadata": 0.6440452699763362,
+            "get_resume_job_match": 0.6296121506103333,
+            "review_resume_tailoring": 0.6233054908070699,
+            "revise_resume_tailoring": 0.5780662402541593,
+            "export_resume_artifact": 0.5686427536740039,
+            "match_resume_to_job": 0.5535036183080215,
+            "draft_resume_tailoring": 0.5506809182768472
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "bca546fe172e542e1d870b6707d64aa6372a1ff3dd78ebf7dbfd5013d4bcab7b",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的简历": {
+            "get_resume_tailoring_draft": 0.6691502745382265,
+            "list_resumes": 0.6604772389830712,
+            "get_resume_metadata": 0.6440452699763362,
+            "get_resume_job_match": 0.6296121506103333,
+            "review_resume_tailoring": 0.6233054908070699,
+            "revise_resume_tailoring": 0.5780662402541593,
+            "export_resume_artifact": 0.5686427536740039,
+            "match_resume_to_job": 0.5535036183080215,
+            "draft_resume_tailoring": 0.5506809182768472
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "bca546fe172e542e1d870b6707d64aa6372a1ff3dd78ebf7dbfd5013d4bcab7b",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的简历": {
+            "get_resume_tailoring_draft": 0.6691502745382265,
+            "list_resumes": 0.6604772389830712,
+            "get_resume_metadata": 0.6440452699763362,
+            "get_resume_job_match": 0.6296121506103333,
+            "review_resume_tailoring": 0.6233054908070699,
+            "revise_resume_tailoring": 0.5780662402541593,
+            "export_resume_artifact": 0.5686427536740039,
+            "match_resume_to_job": 0.5535036183080215,
+            "draft_resume_tailoring": 0.5506809182768472
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "bca546fe172e542e1d870b6707d64aa6372a1ff3dd78ebf7dbfd5013d4bcab7b",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的简历": {
+            "get_resume_tailoring_draft": 0.669196371724995,
+            "list_resumes": 0.6605736567817219,
+            "get_resume_metadata": 0.6441614815484193,
+            "get_resume_job_match": 0.6296406346221068,
+            "review_resume_tailoring": 0.6233194997523233,
+            "revise_resume_tailoring": 0.5780597137755977,
+            "export_resume_artifact": 0.5687379204446079,
+            "match_resume_to_job": 0.5535057731963788,
+            "draft_resume_tailoring": 0.5507287838365318
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "bca546fe172e542e1d870b6707d64aa6372a1ff3dd78ebf7dbfd5013d4bcab7b",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的简历": {
+            "get_resume_tailoring_draft": 0.669196371724995,
+            "list_resumes": 0.6605736567817219,
+            "get_resume_metadata": 0.6441614815484193,
+            "get_resume_job_match": 0.6296406346221068,
+            "review_resume_tailoring": 0.6233194997523233,
+            "revise_resume_tailoring": 0.5780597137755977,
+            "export_resume_artifact": 0.5687379204446079,
+            "match_resume_to_job": 0.5535057731963788,
+            "draft_resume_tailoring": 0.5507287838365318
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "bca546fe172e542e1d870b6707d64aa6372a1ff3dd78ebf7dbfd5013d4bcab7b",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的简历": {
+            "get_resume_tailoring_draft": 0.6693255779567815,
+            "list_resumes": 0.6606739654192415,
+            "get_resume_metadata": 0.6442114406982047,
+            "get_resume_job_match": 0.6297245210907925,
+            "review_resume_tailoring": 0.6233606617390478,
+            "revise_resume_tailoring": 0.5781773691610697,
+            "export_resume_artifact": 0.5688617461954101,
+            "match_resume_to_job": 0.5535638903968633,
+            "draft_resume_tailoring": 0.5508679285929919
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "没有找到匹配的简历。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "bca546fe172e542e1d870b6707d64aa6372a1ff3dd78ebf7dbfd5013d4bcab7b",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1,
+          "direct_delivery": true,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

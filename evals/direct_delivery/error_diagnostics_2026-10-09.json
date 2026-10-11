@@ -1,0 +1,193 @@
+[
+  {
+    "vendor": "deepseek",
+    "host": "api.deepseek.com",
+    "scheme": "https",
+    "proxy_env_present": false,
+    "requests": [
+      {
+        "tools": 0,
+        "message_chars": 9,
+        "exception_chain": [
+          {
+            "type": "APIConnectionError",
+            "errno": null
+          },
+          {
+            "type": "ConnectError",
+            "errno": null
+          },
+          {
+            "type": "ConnectError",
+            "errno": null
+          },
+          {
+            "type": "SSLError",
+            "errno": 1
+          }
+        ],
+        "status": null,
+        "body_kind": "NoneType",
+        "provider_code": null,
+        "provider_type": null,
+        "hints": {
+          "quota": false,
+          "auth": false,
+          "rate": false,
+          "policy": false,
+          "waf": false,
+          "schema": false,
+          "dns": false,
+          "proxy": false
+        }
+      },
+      {
+        "tools": 6,
+        "message_chars": 20617,
+        "exception_chain": [
+          {
+            "type": "APIConnectionError",
+            "errno": null
+          },
+          {
+            "type": "ConnectError",
+            "errno": null
+          },
+          {
+            "type": "ConnectError",
+            "errno": null
+          },
+          {
+            "type": "SSLError",
+            "errno": 1
+          }
+        ],
+        "status": null,
+        "body_kind": "NoneType",
+        "provider_code": null,
+        "provider_type": null,
+        "hints": {
+          "quota": false,
+          "auth": false,
+          "rate": false,
+          "policy": false,
+          "waf": false,
+          "schema": false,
+          "dns": false,
+          "proxy": false
+        }
+      },
+      {
+        "tools": 6,
+        "message_chars": 20617,
+        "exception_chain": [
+          {
+            "type": "APIConnectionError",
+            "errno": null
+          },
+          {
+            "type": "ConnectError",
+            "errno": null
+          },
+          {
+            "type": "ConnectError",
+            "errno": null
+          },
+          {
+            "type": "SSLError",
+            "errno": 1
+          }
+        ],
+        "status": null,
+        "body_kind": "NoneType",
+        "provider_code": null,
+        "provider_type": null,
+        "hints": {
+          "quota": false,
+          "auth": false,
+          "rate": false,
+          "policy": false,
+          "waf": false,
+          "schema": false,
+          "dns": false,
+          "proxy": false
+        }
+      },
+      {
+        "tools": 6,
+        "message_chars": 20617,
+        "exception_chain": [
+          {
+            "type": "APIConnectionError",
+            "errno": null
+          },
+          {
+            "type": "ConnectError",
+            "errno": null
+          },
+          {
+            "type": "ConnectError",
+            "errno": null
+          },
+          {
+            "type": "SSLError",
+            "errno": 1
+          }
+        ],
+        "status": null,
+        "body_kind": "NoneType",
+        "provider_code": null,
+        "provider_type": null,
+        "hints": {
+          "quota": false,
+          "auth": false,
+          "rate": false,
+          "policy": false,
+          "waf": false,
+          "schema": false,
+          "dns": false,
+          "proxy": false
+        }
+      }
+    ],
+    "runtime_task_passed": false,
+    "runtime_errors": [
+      "MAIN_AGENT_TRANSPORT_ERROR"
+    ],
+    "tls_followup": {
+      "sdk_ssl_reason": "SSLV3_ALERT_HANDSHAKE_FAILURE",
+      "system_curl_exit_code": 60,
+      "system_curl_ssl_verify_result": 20,
+      "curl_with_sdk_certifi_exit_code": 60,
+      "leaf_subject_organization": "OpenDNS, Inc.",
+      "leaf_issuer": "Cisco Umbrella Secondary SubCA yvr-SG",
+      "conclusion": "Connection presents a Cisco Umbrella inspection certificate; the current CA trust bundle cannot verify its chain. This is a connection/TLS-path failure, not a business tool argument rejection. Historical batch root cause inferred from current reproducible failures, not recovered original exceptions."
+    }
+  },
+  {
+    "vendor": "qwen",
+    "host": "ws-ly4jq6o6g1na6c3z.cn-beijing.maas.aliyuncs.com",
+    "scheme": "https",
+    "proxy_env_present": false,
+    "requests": [
+      {
+        "tools": 0,
+        "message_chars": 9,
+        "status": "success"
+      },
+      {
+        "tools": 6,
+        "message_chars": 20617,
+        "status": "success"
+      },
+      {
+        "tools": 6,
+        "message_chars": 20994,
+        "status": "success"
+      }
+    ],
+    "runtime_task_passed": false,
+    "runtime_errors": [],
+    "conclusion": "Current minimal and runtime requests succeed without HTTP 403. Historical 403 reason remains unknown because original response bodies/headers were not preserved."
+  }
+]

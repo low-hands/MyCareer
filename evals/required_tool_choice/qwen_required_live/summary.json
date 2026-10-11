@@ -1,0 +1,44 @@
+[
+  {
+    "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+    "fixed_samples": 10,
+    "status_counts": {
+      "behaviour_failed": 4,
+      "passed": 6
+    },
+    "provider_requests": 10,
+    "text_rejected_events": 0,
+    "mean_successful_recording_ms": 3305.22
+  },
+  {
+    "scenario": "five_missing_resume_facts_use_one_questionnaire",
+    "fixed_samples": 10,
+    "status_counts": {
+      "passed": 10
+    },
+    "provider_requests": 10,
+    "text_rejected_events": 0,
+    "mean_successful_recording_ms": 7652.43
+  },
+  {
+    "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
+    "fixed_samples": 10,
+    "status_counts": {
+      "passed": 10
+    },
+    "provider_requests": 10,
+    "text_rejected_events": 0,
+    "mean_successful_recording_ms": 3313.1299999999997
+  },
+  {
+    "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
+    "fixed_samples": 10,
+    "status_counts": {
+      "failed": 8,
+      "behaviour_failed": 2
+    },
+    "provider_requests": 18,
+    "text_rejected_events": 0,
+    "mean_successful_recording_ms": 3012.8
+  }
+]

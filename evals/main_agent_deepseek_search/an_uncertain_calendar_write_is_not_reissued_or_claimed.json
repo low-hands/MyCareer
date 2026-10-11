@@ -1,0 +1,201 @@
+{
+  "scenario": "an_uncertain_calendar_write_is_not_reissued_or_claimed",
+  "policy": "A failed or uncertain Calendar execution requires reconciliation and then a new preview and approval. Never repeat execution or claim Calendar changed without calendar_sync_complete.",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "783fc30f15f84a56427f91ff83ab0f040e0b24f130f430c00a16896e1652bfd8",
+  "context_shape_fingerprint": "f6207eee7850f1bcb080bab0968af0356b845eba1d89ec12178476d0c7f61563",
+  "recorded_at": "2026-10-11T07:45:54.822955+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "list_calendar_accounts",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "67f0bfbbf460a577d4faae415aaa233a1bb3cdc4ace6d2c6fea4f97d6b0ea8b1",
+      "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_interview",
+        "list_calendar_accounts",
+        "prepare_interview_calendar_sync",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3013.7,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "I tried to execute the calendar change, but the write did not go through cleanly.\n\nResult: **the calendar write failed** — the outcome could not be confirmed (`calendar_write_failed`, receipt only, no readback possible). This is not a missing-information problem; the external write itself is unconfirmed.\n\nAlso note: there is no active calendar proposal in the current runtime state, so there was no approved preview bound to this execution.\n\nWhat this means and what you can do next:\n- Treat the calendar as **unchanged** until verified — check your Google Calendar yourself to confirm nothing was created or modified.\n- Once the external state is verified, I can generate a fresh preview with `prepare_interview_calendar_sync` for the interview round, show it to you for explicit approval, and only then execute it.\n\nWould you like me to check the available calendar accounts and prepare a new preview for that interview round?",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-11T07:45:53.476746+00:00",
+      "elapsed_ms": 3017.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_calendar_accounts",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "67f0bfbbf460a577d4faae415aaa233a1bb3cdc4ace6d2c6fea4f97d6b0ea8b1",
+          "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3013.7,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I tried to execute the calendar change, but the write did not go through cleanly.\n\nResult: **the calendar write failed** — the outcome could not be confirmed (`calendar_write_failed`, receipt only, no readback possible). This is not a missing-information problem; the external write itself is unconfirmed.\n\nAlso note: there is no active calendar proposal in the current runtime state, so there was no approved preview bound to this execution.\n\nWhat this means and what you can do next:\n- Treat the calendar as **unchanged** until verified — check your Google Calendar yourself to confirm nothing was created or modified.\n- Once the external state is verified, I can generate a fresh preview with `prepare_interview_calendar_sync` for the interview round, show it to you for explicit approval, and only then execute it.\n\nWould you like me to check the available calendar accounts and prepare a new preview for that interview round?",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:55.400354+00:00",
+      "elapsed_ms": 3734.9,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"日历变更执行失败：无法确认写入结果（calendar_write_failed，不可重试同一提案）。\\n\\n说明：本次执行没有可用的回读证据，因此我不能确认日历中是否已产生变更。建议先手动核对外部日历的实际状态，之后我可以重新生成一份变更预览，你在确认预览后再执行写入。\\n\\n另外提醒：当前上下文中没有可见的日历提案（has_active_calendar_proposal 为 false），可用的日历账户列表也是空的，所以我也无法直接读取原提案内容。如果你希望我重新发起，请告知要同步哪一场面试以及使用哪个日历账户。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "67f0bfbbf460a577d4faae415aaa233a1bb3cdc4ace6d2c6fea4f97d6b0ea8b1",
+          "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3731.7,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "日历变更的执行没有成功，也没有得到可确认的结果。\n\n情况说明：\n- 执行结果为 “calendar_write_failed”，即日历写入结果暂时无法确认。\n- 该失败不可自动重试（retryable: false）。\n\n另外需要提醒：当前运行时状态显示没有有效的日历变更提案（`has_active_calendar_proposal: false`），`active_calendar_proposal_expires_at` 也为空，因此不存在一个已批准且仍在有效期内的提案可供直接执行。这与你所说的“刚才的日历变更”可能已经超时或不复存在。\n\n下一步建议（需你确认后我再操作）：\n1. 先核对外部日历的实际状态，确认这次写入到底有没有生效，避免重复创建。\n2. 如果需要，我可以用 `prepare_interview_calendar_sync` 重新生成一份日历变更预览（当前有一个进行中的面试轮次可用），你批准后再执行。\n\n请告诉我：你希望我先核对外部状态，还是直接重新生成预览？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:54.822955+00:00",
+      "elapsed_ms": 2110.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "list_calendar_links"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "67f0bfbbf460a577d4faae415aaa233a1bb3cdc4ace6d2c6fea4f97d6b0ea8b1",
+          "decision_shape_fingerprint": "f4e5f7a608b605e299dba2573cc914221a831334050b055c3797ebf632e2b6ed",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "list_calendar_accounts",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1195.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "implicit_capability_load",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "list_calendar_links",
+                    "arguments": "{}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "list_calendar_links",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9fe8723444472ddcba0710cca0b21bb7977e04097affec0ef15dfd314f162587",
+          "decision_shape_fingerprint": "6f38452e5ddfd7a2df6e49649b3b3b99e0a45e28a2cd477b94f3add4d6134811",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "list_calendar_accounts",
+            "list_calendar_links",
+            "prepare_interview_calendar_sync",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 906.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

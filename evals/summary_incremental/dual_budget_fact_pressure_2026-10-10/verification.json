@@ -1,0 +1,43 @@
+{
+  "verified_at": "2026-10-10T20:40:49.665388+00:00",
+  "providers_called_by_checks": false,
+  "holdout": "Three frozen holdout tests excluded; existing xfails preserved.",
+  "base_revision": "d6044c2f77bdfb034046611b8bbe5289b4e0b3d5",
+  "captures_include_preexisting_unrelated_source_edits": true,
+  "deterministic_full": {
+    "exit_code": 0,
+    "summary": "2736 passed, 1 skipped, 3 deselected, 4 xfailed, 1 warning in 80.96s (0:01:20)"
+  },
+  "isolated_related": {
+    "exit_code": 0,
+    "summary": "135 passed in 7.65s",
+    "description": "Git archive of base HEAD plus only the context-manager fix and its tests, using existing local tokenizer assets; Git metadata points to base repository for read-only revision checks."
+  },
+  "replay": {
+    "qwen": {
+      "scenarios": 47,
+      "contract_failed": 0,
+      "behaviour_failed": 4,
+      "quality_failed": 1,
+      "stale": 0,
+      "unrecorded": 0,
+      "offline_lexical_fallback_warning_count": 10,
+      "results_identical_to_previous_baseline": true,
+      "exit_code": 2
+    },
+    "deepseek": {
+      "scenarios": 47,
+      "contract_failed": 0,
+      "behaviour_failed": 11,
+      "quality_failed": 1,
+      "stale": 0,
+      "unrecorded": 0,
+      "offline_lexical_fallback_warning_count": 10,
+      "results_identical_to_previous_baseline": true,
+      "exit_code": 2
+    }
+  },
+  "source_sha256": "e94e4c2dab9afb4fada433c218a7c24f124af4f542c5cb12b5dbed928bbc8a83",
+  "source_matches_frozen_protocol": true,
+  "isolated_manager_matches_sampled_manager": true
+}

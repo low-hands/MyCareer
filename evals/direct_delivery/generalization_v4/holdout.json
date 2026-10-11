@@ -1,0 +1,194 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "resume_list",
+      "category": "under_action",
+      "turns": [
+        {
+          "message": "简历给我列一下",
+          "required_calls": [
+            "list_resumes"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "resume_inventory",
+      "category": "under_action",
+      "turns": [
+        {
+          "message": "手头存着的那些履历，给我过一眼。",
+          "required_calls": [
+            "list_resumes"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "interview_inventory",
+      "category": "under_action",
+      "turns": [
+        {
+          "message": "我现在有哪些面试",
+          "required_calls": [
+            "list_interviews"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "interview_schedule",
+      "category": "under_action",
+      "turns": [
+        {
+          "message": "面试日程给我调出来。",
+          "required_calls": [
+            "list_interviews"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "brief_today",
+      "category": "under_action",
+      "turns": [
+        {
+          "message": "看下今天的简报",
+          "required_calls": [
+            "get_daily_brief"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "brief_retrieve",
+      "category": "under_action",
+      "turns": [
+        {
+          "message": "把本日职业简报拿给我。",
+          "required_calls": [
+            "get_daily_brief"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "resume_english",
+      "category": "under_action",
+      "turns": [
+        {
+          "message": "Could you pull up the CVs I have on file?",
+          "required_calls": [
+            "list_resumes"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "interview_english",
+      "category": "under_action",
+      "turns": [
+        {
+          "message": "Bring up my interview schedule, please.",
+          "required_calls": [
+            "list_interviews"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "three_sources",
+      "category": "multi_step",
+      "turns": [
+        {
+          "message": "简历、投递和面试分别查一遍，最后给我一份总览。",
+          "required_calls": [
+            "list_resumes",
+            "list_applications",
+            "list_interviews"
+          ],
+          "requires_model_summary": true
+        }
+      ]
+    },
+    {
+      "name": "two_sources",
+      "category": "multi_step",
+      "turns": [
+        {
+          "message": "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。",
+          "required_calls": [
+            "find_saved_jobs",
+            "list_resumes"
+          ],
+          "requires_model_summary": true
+        }
+      ]
+    },
+    {
+      "name": "brief_advice",
+      "category": "under_action",
+      "turns": [
+        {
+          "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+          "required_calls": [
+            "get_daily_brief"
+          ],
+          "requires_model_summary": true
+        }
+      ]
+    },
+    {
+      "name": "interview_advice",
+      "category": "under_action",
+      "turns": [
+        {
+          "message": "查一下我的面试安排，然后帮我规划下一步准备；没有安排也要给建议。",
+          "required_calls": [
+            "list_interviews"
+          ],
+          "requires_model_summary": true
+        }
+      ]
+    },
+    {
+      "name": "resume_then_interview",
+      "category": "cross_turn",
+      "turns": [
+        {
+          "message": "先让我看一下已存的简历。",
+          "required_calls": [
+            "list_resumes"
+          ]
+        },
+        {
+          "message": "另外面试也给我查一下。",
+          "required_calls": [
+            "list_interviews"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "continue_multiple",
+      "category": "cross_turn",
+      "turns": [
+        {
+          "message": "先把简历找出来。",
+          "required_calls": [
+            "list_resumes"
+          ]
+        },
+        {
+          "message": "接着把投递和面试都查到，再用一段话概括这两项。",
+          "required_calls": [
+            "list_applications",
+            "list_interviews"
+          ],
+          "requires_model_summary": true
+        }
+      ]
+    }
+  ]
+}

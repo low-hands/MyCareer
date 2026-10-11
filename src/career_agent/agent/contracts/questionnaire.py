@@ -63,12 +63,19 @@ class PendingQuestionnaire(QuestionnaireContract):
     created_at: datetime
     expires_at: datetime
     active_workflow: str
+    continuation_capability: str | None = None
     resume_version_id: str | None = None
+    resume_job_match_id: str | None = None
     job_posting_id: str | None = None
     jd_snapshot_id: str | None = None
 
     @model_validator(mode="after")
     def validate_questions(self) -> "PendingQuestionnaire":
+        if self.continuation_capability is not None:
+            from career_agent.agent.capabilities.catalog import CAPABILITIES
+            descriptor = CAPABILITIES.get(self.continuation_capability)
+            if descriptor is None or not descriptor.model_callable or descriptor.effect == "CONTROL":
+                raise ValueError("questionnaire continuation must name a callable business capability")
         ids = tuple(question.question_id for question in self.questions)
         if ids != tuple(f"q{index}" for index in range(1, len(ids) + 1)):
             raise ValueError("question ids must be contiguous and ordered")

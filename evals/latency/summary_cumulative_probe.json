@@ -1,0 +1,215 @@
+{
+  "fixed_samples": 10,
+  "fixture_sha256": "9d54be5dd23b6222e3c8841961d82197f7058605e9dfaf844fb314db84fbe139",
+  "input_sha256": "58f67072e903f099dfa732c2f9b19c43f26db3c69c1b0ed52d9e2816640ffd44",
+  "summary_prompt_sha256": "7008e013e7c5f4d83b2854aa87bf97f8d9214c2df5f3877ee73b7a5e4245ef77",
+  "source_characters": 2919,
+  "model": "qwen3.7-plus",
+  "disable_thinking": true,
+  "timeout_seconds": 30.0,
+  "max_output_tokens": 1200,
+  "attempts": [
+    {
+      "sample": 1,
+      "previous_fact_count": 0,
+      "pending_message_count": 8,
+      "previous_characters": 0,
+      "status": "succeeded",
+      "key_fact_count": 11,
+      "summary_characters": 1425,
+      "wall_ms": 16040,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 798,
+        "reasoning_tokens": null,
+        "content_characters": 1697,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "overlong_fact_count": 0,
+        "raw_pydantic_valid": true
+      }
+    },
+    {
+      "sample": 2,
+      "previous_fact_count": 11,
+      "pending_message_count": 1,
+      "previous_characters": 1425,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "summary_characters": 1537,
+      "wall_ms": 16457,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 879,
+        "reasoning_tokens": null,
+        "content_characters": 1840,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "overlong_fact_count": 0,
+        "raw_pydantic_valid": true
+      }
+    },
+    {
+      "sample": 3,
+      "previous_fact_count": 12,
+      "pending_message_count": 1,
+      "previous_characters": 1537,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "summary_characters": 1541,
+      "wall_ms": 15881,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 881,
+        "reasoning_tokens": null,
+        "content_characters": 1844,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "overlong_fact_count": 0,
+        "raw_pydantic_valid": true
+      }
+    },
+    {
+      "sample": 4,
+      "previous_fact_count": 12,
+      "pending_message_count": 1,
+      "previous_characters": 1541,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "summary_characters": 1545,
+      "wall_ms": 17412,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 884,
+        "reasoning_tokens": null,
+        "content_characters": 1848,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "overlong_fact_count": 0,
+        "raw_pydantic_valid": true
+      }
+    },
+    {
+      "sample": 5,
+      "previous_fact_count": 12,
+      "pending_message_count": 1,
+      "previous_characters": 1545,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "summary_characters": 1549,
+      "wall_ms": 16263,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 888,
+        "reasoning_tokens": null,
+        "content_characters": 1852,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "overlong_fact_count": 0,
+        "raw_pydantic_valid": true
+      }
+    },
+    {
+      "sample": 6,
+      "previous_fact_count": 12,
+      "pending_message_count": 1,
+      "previous_characters": 1549,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "summary_characters": 1579,
+      "wall_ms": 16851,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 913,
+        "reasoning_tokens": null,
+        "content_characters": 1895,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "overlong_fact_count": 0,
+        "raw_pydantic_valid": true
+      }
+    },
+    {
+      "sample": 7,
+      "previous_fact_count": 12,
+      "pending_message_count": 1,
+      "previous_characters": 1579,
+      "status": "succeeded",
+      "key_fact_count": 1,
+      "summary_characters": 630,
+      "wall_ms": 7006,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 328,
+        "reasoning_tokens": null,
+        "content_characters": 645,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "overlong_fact_count": 0,
+        "raw_pydantic_valid": true
+      }
+    },
+    {
+      "sample": 8,
+      "previous_fact_count": 1,
+      "pending_message_count": 1,
+      "previous_characters": 630,
+      "status": "succeeded",
+      "key_fact_count": 1,
+      "summary_characters": 653,
+      "wall_ms": 8249,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 344,
+        "reasoning_tokens": null,
+        "content_characters": 673,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "overlong_fact_count": 0,
+        "raw_pydantic_valid": true
+      }
+    },
+    {
+      "sample": 9,
+      "previous_fact_count": 1,
+      "pending_message_count": 1,
+      "previous_characters": 653,
+      "status": "succeeded",
+      "key_fact_count": 1,
+      "summary_characters": 676,
+      "wall_ms": 7534,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 360,
+        "reasoning_tokens": null,
+        "content_characters": 701,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "overlong_fact_count": 0,
+        "raw_pydantic_valid": true
+      }
+    },
+    {
+      "sample": 10,
+      "previous_fact_count": 1,
+      "pending_message_count": 1,
+      "previous_characters": 676,
+      "status": "succeeded",
+      "key_fact_count": 1,
+      "summary_characters": 699,
+      "wall_ms": 7874,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 376,
+        "reasoning_tokens": null,
+        "content_characters": 729,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "overlong_fact_count": 0,
+        "raw_pydantic_valid": true
+      }
+    }
+  ],
+  "measurement": "one_chain_of_dependent_compactions",
+  "cumulative_fixture_sha256": "f483efacc36b3177a929742d99b1ef7118e38f7e0bbfd023b6df98e9c4a34e7b"
+}

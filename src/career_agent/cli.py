@@ -32,11 +32,12 @@ from career_agent.agent.workflows.mock_interview.graph import (
     MockInterviewGraph,
     StoredMockInterviewSourceProvider,
 )
-from career_agent.agent.workflows.mock_interview.skill_loader import MockInterviewSkillLoader
+from career_agent.agent.workflows.mock_interview.prompt_loader import MockInterviewPromptLoader
 from career_agent.agent.providers.openai_client import AgentConfigurationError, AgentWorkerError, OpenAICompatibleAgentConfig
 from career_agent.agent.workflows.job_research.config import job_research_config_from_env
 from career_agent.agent.providers.main_agent import (
     OpenAICompatibleMainAgentDecisionMaker,
+    main_model_options,
     max_output_tokens_from_env,
 )
 from career_agent.agent.providers.conversation_summary import OpenAIConversationSummaryWorker
@@ -49,9 +50,11 @@ from career_agent.agent.workflows.resume_tailoring.reviewer import (
 from career_agent.agent.providers.interview_preparation import OpenAIInterviewPreparationWorker
 from career_agent.agent.workflows.mock_interview.worker import OpenAIMockInterviewWorker
 from career_agent.agent.providers.email_tracking import OpenAIEmailTrackingWorker
+from career_agent.agent.workflows.resume_tailoring.finalizer import (
+    OpenAIResumeFinalizationWorker,
+)
 from career_agent.agent.workflows.resume_tailoring.worker import (
-    DeepAgentResumeFinalizationWorker,
-    DeepAgentResumeTailoringWorker,
+    OpenAIResumeTailoringWorker,
 )
 from career_agent.agent.workflows.job_research.worker import (
     DeepAgentJobResearchWorker,
@@ -168,6 +171,9 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     )
     context_manager = ContextManager(
         context_store,
+        background_summary=True,
+        summary_wait_timeout_seconds=summary_config.provider.timeout_seconds + 5.0,
+        compact_soft_threshold=context_config.compact_soft_threshold,
         summary_worker=OpenAIConversationSummaryWorker(
             summary_config.provider,
             max_output_tokens=summary_config.max_output_tokens,
@@ -300,8 +306,8 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         store=mock_interview_store,
         worker=OpenAIMockInterviewWorker(
             mock_interview_config,
-            skill_loader=MockInterviewSkillLoader(
-                Path(args.mock_interview_skills_dir)
+            prompt_loader=MockInterviewPromptLoader(
+                Path(args.mock_interview_prompts_dir)
             ),
         ),
         sources=StoredMockInterviewSourceProvider(
@@ -324,6 +330,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         ),
         decision_maker=OpenAICompatibleMainAgentDecisionMaker(
             main_config, max_output_tokens=main_output_tokens,
+            **main_model_options(),
         ),
         checkpointer=main_checkpoint_owner.saver,
         career_context_projector=CareerContextProjector(
@@ -346,6 +353,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             main_checkpoint_owner,
             mock_checkpoint_owner,
             job_research_checkpoint_owner,
+            context_manager,
         ),
         tools=MainAgentToolRegistry(
             job_repository=job_repository,
@@ -353,7 +361,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             job_research_service=job_research_service,
             resume_store=resume_store,
             resume_text_service=resume_text_service,
-            skills_root=Path(args.resume_tailoring_skills_dir),
+            skills_root=Path(args.main_agent_skills_dir),
             career_history_store=career_history_store,
             episode_store=episode_store,
             resume_export_service=ResumeExportService(
@@ -393,13 +401,13 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
                 career_history_store,
                 match_store,
                 SQLiteResumeTailoringDraftStore(Path(args.resume_store).expanduser()),
-                DeepAgentResumeTailoringWorker(
+                OpenAIResumeTailoringWorker(
                     resume_tailoring_config,
-                    skills_root=Path(args.resume_tailoring_skills_dir),
+                    prompts_root=Path(args.resume_tailoring_prompts_dir),
                 ),
-                DeepAgentResumeFinalizationWorker(
+                OpenAIResumeFinalizationWorker(
                     resume_tailoring_config,
-                    skills_root=Path(args.resume_tailoring_skills_dir),
+                    prompts_root=Path(args.resume_tailoring_prompts_dir),
                 ),
                 reviewer=OpenAIResumeTailoringReviewer(resume_tailoring_config),
             ),
@@ -466,14 +474,19 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
         help="Local durable LangGraph checkpoint store for mock interviews.",
     )
     parser.add_argument(
-        "--resume-tailoring-skills-dir",
-        default=os.environ.get("RESUME_TAILORING_SKILLS_DIR", "skills"),
-        help="Local skill source directory containing resume-tailoring/SKILL.md (default: RESUME_TAILORING_SKILLS_DIR or skills).",
+        "--main-agent-skills-dir",
+        default=os.environ.get("MAIN_AGENT_SKILLS_DIR", "skills"),
+        help="Local skill source directory for skills the main agent loads on demand (default: MAIN_AGENT_SKILLS_DIR or skills).",
     )
     parser.add_argument(
-        "--mock-interview-skills-dir",
-        default=os.environ.get("MOCK_INTERVIEW_SKILLS_DIR", "skills"),
-        help="Local skill source directory containing mock-interview/SKILL.md (default: MOCK_INTERVIEW_SKILLS_DIR or skills).",
+        "--resume-tailoring-prompts-dir",
+        default=os.environ.get("RESUME_TAILORING_PROMPTS_DIR", "prompts"),
+        help="Local prompt directory containing resume-tailoring/instructions.md (default: RESUME_TAILORING_PROMPTS_DIR or prompts).",
+    )
+    parser.add_argument(
+        "--mock-interview-prompts-dir",
+        default=os.environ.get("MOCK_INTERVIEW_PROMPTS_DIR", "prompts"),
+        help="Local prompt directory containing mock-interview/instructions.md (default: MOCK_INTERVIEW_PROMPTS_DIR or prompts).",
     )
     parser.add_argument(
         "--job-research-skills-dir",
@@ -738,6 +751,10 @@ def build_parser() -> argparse.ArgumentParser:
         "trajectories", help="Replay the scenario catalogue, or re-record it."
     )
     eval_trajectories.add_argument(
+        "--cassette-root", type=Path,
+        help="Cassette directory for recording and replay.",
+    )
+    eval_trajectories.add_argument(
         "--record",
         action="store_true",
         help=(
@@ -779,7 +796,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Set the live recording sample count for every selected scenario "
-            "(1-5). It may increase, but not lower, a scenario's requirement."
+            "(1-5). With --cassette-root, use this count for isolated "
+            "recording and replay; the default catalogue keeps its quality pins."
         ),
     )
     eval_rederivation = eval_subparsers.add_parser(
@@ -1310,24 +1328,6 @@ def _failure_exit_code(result: ToolObservation) -> int:
     if result.state != "failed":
         return EXIT_OK
     return EXIT_WORKFLOW_ERROR
-
-
-def _trajectory_tool_specs():
-    """Every tool the registry can offer, wired with placeholder services.
-
-    Scenarios never execute a tool, so the services only have to exist.
-    The trajectory harness filters this registry by each step's active profile.
-    """
-    import inspect
-
-    from career_agent.agent.capabilities.registry import MainAgentToolRegistry
-
-    parameters = tuple(
-        name
-        for name in inspect.signature(MainAgentToolRegistry.__init__).parameters
-        if name != "self"
-    )
-    return MainAgentToolRegistry(**{name: object() for name in parameters}).schemas()
 
 
 def _run_action_settle(args, stdout) -> int:
@@ -1913,236 +1913,152 @@ def _run_memory_file_command(args, stdout) -> int:
 
 
 def _run_trajectory_evaluation(args, stdout) -> int:
-    """Replay the scenario catalogue, or re-cut it against the live model.
-
-    Reports each scenario's contract result separately from its replay result,
-    because the two mean different things and collapsing them would let a green
-    run be read as "the model behaves" when no cassette exists.
-    """
+    """Evaluate search-mode decisions against separately recorded cassettes."""
     from dataclasses import replace as _replace
 
-    from career_agent.evaluation.main_agent_scenarios import SCENARIOS
+    from career_agent.evaluation.search_scenarios import SEARCH_SCENARIOS
+    from career_agent.evaluation.search_trajectory import (
+        SEARCH_CASSETTE_ROOT, check_search_contract, record_search_catalogue,
+        replay_search_sample, search_cassette_staleness, search_replay_staleness,
+    )
     from career_agent.evaluation.trajectory import (
-        cassette_staleness,
-        check_contract,
-        load_cassette,
-        record_catalogue,
-        replay_cassette,
-        replay_quality,
-        known_gap_reproduction,
-        minimum_detectable_regression,
-        quality_shortfall,
+        known_gap_reproduction, load_cassette, minimum_detectable_regression, quality_shortfall,
+        summarize_decision_retries, trajectory_tool_specs,
     )
 
     try:
-        schemas = _trajectory_tool_specs()
+        schemas = trajectory_tool_specs()
+        cassette_root = args.cassette_root or SEARCH_CASSETTE_ROOT
         selected = (
-            tuple(item for item in SCENARIOS if item.name in set(args.scenario))
-            if args.scenario
-            else SCENARIOS
+            tuple(item for item in SEARCH_SCENARIOS if item.name in set(args.scenario))
+            if args.scenario else SEARCH_SCENARIOS
         )
         if args.scenario and len(selected) != len(set(args.scenario)):
-            known = ", ".join(item.name for item in SCENARIOS)
-            raise ValueError(f"unknown scenario; available: {known}")
-        if args.record and args.samples is not None:
-            required = max(
-                (scenario.recording_samples for scenario in selected),
-                default=1,
-            )
-            if args.samples < required:
-                raise ValueError(
-                    f"selected scenarios require at least {required} sample(s)"
-                )
-            mismatched_quality = tuple(
-                scenario.name
-                for scenario in selected
-                if scenario.has_quality_assertions
-                and args.samples != scenario.recording_samples
-            )
-            if mismatched_quality:
-                raise ValueError(
-                    "quality scenarios pin their sample denominator; omit "
-                    "--samples or use their declared count: "
-                    + ", ".join(mismatched_quality)
-                )
-
+            raise ValueError("unknown search trajectory scenario")
+        if args.samples is not None and args.samples != 3:
+            raise ValueError("search-mode paired evaluation uses exactly 3 samples")
         config = None
-        recording_error: str | None = None
+        recording_error = None
+        recording_failures = []
+        partial_recordings = []
         if args.record:
             config = _replace(
                 OpenAICompatibleAgentConfig.from_env(prefix="MAIN_AGENT"),
                 timeout_seconds=args.main_agent_timeout_seconds,
             )
             try:
-                record_catalogue(
-                    selected,
-                    tool_specs=schemas,
-                    config=config,
-                    sample_count=args.samples,
-                    jobs=args.jobs,
-                    force=args.force,
+                record_search_catalogue(
+                    selected, tool_specs=schemas, config=config,
+                    root=cassette_root, sample_count=3,
+                    jobs=args.jobs, force=args.force,
                 )
             except AgentWorkerError as error:
-                # The catalogue already wrote every scenario that finished.
-                # Report the run instead of dying before the report: the
-                # scenario that failed shows up below as stale or unrecorded,
-                # and the exit status stays non-zero.
                 recording_error = f"{error.code}: {error}"
+                recording_failures = getattr(error, "recording_failures", [])
+                partial_recordings = getattr(error, "partial_recordings", [])
         from dotenv import load_dotenv
-
         load_dotenv()
-        expected_model = config.model if config is not None else os.environ.get("MAIN_AGENT_MODEL", "").strip()
-
+        expected_model = config.model if config else os.environ.get("MAIN_AGENT_MODEL", "").strip()
         results = []
+        retry_cassettes = []
         for scenario in selected:
-            contract = check_contract(scenario, tool_specs=schemas)
-            cassette = load_cassette(scenario.name)
+            contract = check_search_contract(scenario, tool_specs=schemas)
+            cassette = load_cassette(scenario.name, root=cassette_root)
             stale = (
-                cassette_staleness(
-                    cassette,
-                    scenario=scenario,
-                    tool_specs=schemas,
+                search_cassette_staleness(
+                    cassette, scenario=scenario, tool_specs=schemas,
                     expected_model=expected_model,
-                )
-                if cassette is not None
-                else None
-            )
-            sample_failures = (
-                replay_cassette(
-                    scenario,
-                    tool_specs=schemas,
-                    cassette=cassette,
-                )
-                if cassette is not None and stale is None and not contract
-                else ()
-            )
-            behaviour = tuple(
-                f"{failure} (sample {sample_index}/{len(sample_failures)})"
-                for sample_index, failures in enumerate(sample_failures, start=1)
-                for failure in failures
-            )
-            graded = (
-                replay_quality(
-                    scenario,
-                    tool_specs=schemas,
-                    cassette=cassette,
-                )
-                if cassette is not None and stale is None and not contract
-                else ()
+                ) if cassette is not None else None
             )
             replayable = cassette is not None and stale is None and not contract
-            shortfall = (
-                quality_shortfall(scenario, graded)
-                if replayable and scenario.has_quality_assertions
-                else None
+            sample_failures = (
+                tuple(replay_search_sample(scenario, tool_specs=schemas, responses=sample)
+                      for sample in cassette.recordings)
+                if replayable else ()
             )
-            quality_passing = (
-                sum(not item for item in graded)
-                if replayable and scenario.has_quality_assertions
-                else None
+            if replayable:
+                replay_stale = search_replay_staleness(sample_failures)
+                if replay_stale is not None:
+                    stale = replay_stale
+                    replayable = False
+                    sample_failures = ()
+            graded = (
+                tuple(replay_search_sample(scenario, tool_specs=schemas,
+                    responses=sample, quality=True)
+                    for sample in cassette.recordings)
+                if replayable and scenario.has_quality_assertions else ()
             )
-            quality_total = (
-                len(graded)
-                if replayable and scenario.has_quality_assertions
-                else None
-            )
-            quality_rate = (
-                quality_passing / quality_total
-                if quality_passing is not None and quality_total
-                else None
-            )
-            if not scenario.has_quality_assertions:
-                quality_status = "not_applicable"
-            elif cassette is None:
-                quality_status = "unrecorded"
-            elif stale is not None:
-                quality_status = "stale"
-            elif contract:
-                quality_status = "blocked"
-            else:
-                quality_status = "failed" if shortfall is not None else "passed"
+            shortfall = quality_shortfall(scenario, graded) if graded else None
+            if replayable:
+                retry_cassettes.append(cassette)
             failures = list(contract)
-            if stale is not None:
+            if stale:
                 failures.append(f"{scenario.name}: {stale}")
-            if shortfall is not None:
+            if shortfall:
                 failures.append(shortfall)
-            results.append(
-                {
-                    "scenario": scenario.name,
-                    "policy": scenario.policy,
-                    "contract": "passed" if not contract else "failed",
-                    "behaviour": (
-                        "unrecorded"
-                        if cassette is None
-                        else (
-                            "stale"
-                            if stale is not None
-                            else ("passed" if not behaviour else "failed")
-                        )
-                    ),
-                    "sample_count": cassette.sample_count if cassette else 0,
-                    "quality_status": quality_status,
-                    "quality_min_pass_rate": scenario.quality_min_pass_rate,
-                    "quality_min_detectable_regression": (
-                        minimum_detectable_regression(
-                            quality_total,
-                            scenario.quality_min_pass_rate,
-                        )
-                        if quality_total and scenario.quality_min_pass_rate
-                        else None
-                    ),
-                    "quality_samples_passed": quality_passing,
-                    "quality_sample_count": quality_total,
-                    "quality_pass_rate": quality_rate,
-                    "samples_passed": (
-                        sum(not failures for failures in sample_failures)
-                        if stale is None and not contract
-                        else 0
-                    ),
-                    "known_gap_status": (
-                        known_gap_reproduction(sample_failures)
-                        if scenario.known_gap is not None and replayable
-                        else None
-                    ),
-                    "failures": failures + list(behaviour),
-                }
+            failures.extend(
+                f"{failure} (sample {sample_index}/{len(sample_failures)})"
+                for sample_index, group in enumerate(sample_failures, start=1)
+                for failure in group
             )
-
-        unrecorded = sum(1 for item in results if item["behaviour"] == "unrecorded")
-        failed = [item for item in results if item["failures"]]
+            results.append({
+                "scenario": scenario.name,
+                "policy": scenario.policy,
+                "contract": "failed" if contract else "passed",
+                "behaviour": (
+                    "unrecorded" if cassette is None else
+                    "stale" if stale else
+                    "failed" if any(sample_failures) else "passed"
+                ),
+                "sample_count": cassette.sample_count if cassette else 0,
+                "samples_passed": sum(not group for group in sample_failures),
+                "quality_status": (
+                    "not_applicable" if not scenario.has_quality_assertions else
+                    "unrecorded" if cassette is None else
+                    "stale" if stale else
+                    "failed" if shortfall else "passed"
+                ),
+                "quality_min_pass_rate": scenario.quality_min_pass_rate,
+                "quality_min_detectable_regression": (
+                    minimum_detectable_regression(len(graded), scenario.quality_min_pass_rate)
+                    if graded and scenario.quality_min_pass_rate else None
+                ),
+                "quality_samples_passed": sum(not group for group in graded) if graded else None,
+                "quality_sample_count": len(graded) if graded else None,
+                "quality_pass_rate": (
+                    sum(not group for group in graded) / len(graded) if graded else None
+                ),
+                "known_gap_status": (
+                    known_gap_reproduction(sample_failures)
+                    if scenario.known_gap is not None and replayable else None
+                ),
+                "failures": failures,
+            })
         payload = {
             "scenarios": len(results),
-            "contract_failed": sum(
-                1 for item in results if item["contract"] == "failed"
-            ),
-            "behaviour_failed": sum(
-                1 for item in results if item["behaviour"] == "failed"
-            ),
-            "quality_failed": sum(
-                1 for item in results if item["quality_status"] == "failed"
-            ),
-            "stale": sum(1 for item in results if item["behaviour"] == "stale"),
-            "unrecorded": unrecorded,
-            **({"recording_error": recording_error} if recording_error else {}),
-            # Said outright rather than left to be inferred from the counts: a
-            # run with no cassettes is green and proves nothing about the model.
-            "note": (
-                "contract results say the scenario is well posed; hard behaviour "
-                "uses pass^k; quality uses the declared observed-rate floor "
-                "and reports the largest perfect-run drop that floor still "
-                "cannot see (quality_min_detectable_regression)"
-            ),
+            "contract_failed": sum(item["contract"] == "failed" for item in results),
+            "behaviour_failed": sum(item["behaviour"] == "failed" for item in results),
+            "quality_failed": sum(item["quality_status"] == "failed" for item in results),
+            "stale": sum(item["behaviour"] == "stale" for item in results),
+            "unrecorded": sum(item["behaviour"] == "unrecorded" for item in results),
+            "retry_measurement": summarize_decision_retries(retry_cassettes),
+            **({"recording_error": recording_error,
+                "recording_failures": recording_failures,
+                "partial_recordings": partial_recordings} if recording_error else {}),
+            "note": "Search calls are intermediate decisions; business assertions remain unchanged.",
             "results": results,
         }
         json.dump(payload, stdout, ensure_ascii=False, separators=(",", ":"))
         stdout.write("\n")
-        return EXIT_OK if not failed and recording_error is None else EXIT_ARGUMENT_ERROR
+        return EXIT_OK if not any(item["failures"] for item in results) and not recording_error else EXIT_ARGUMENT_ERROR
     except AgentConfigurationError as error:
-        json.dump({"state": "failed", "error_code": error.code, "error_detail": str(error)}, stdout, ensure_ascii=False, separators=(",", ":"))
+        json.dump({"state": "failed", "error_code": error.code,
+                   "error_detail": str(error)}, stdout, ensure_ascii=False)
         stdout.write("\n")
         return EXIT_CONFIGURATION_ERROR
     except (OSError, ValueError) as error:
-        json.dump({"state": "failed", "error_code": "EVAL_INPUT_ERROR", "error_detail": str(error)}, stdout, ensure_ascii=False, separators=(",", ":"))
+        json.dump({"state": "failed", "error_code": "EVAL_INPUT_ERROR",
+                   "error_detail": str(error)}, stdout, ensure_ascii=False)
         stdout.write("\n")
         return EXIT_ARGUMENT_ERROR
 
@@ -2283,6 +2199,19 @@ def _writes_workspace(args: argparse.Namespace) -> bool:
     return getattr(args, attribute) in subcommands
 
 
+def _utf8_stream(stream: TextIO) -> TextIO:
+    """Emit UTF-8 regardless of the platform locale.
+
+    Output is JSON with non-ASCII text; a Windows locale such as GBK would
+    otherwise make piped or redirected output unreadable as UTF-8.
+    """
+    encoding = (getattr(stream, "encoding", None) or "").replace("-", "").lower()
+    reconfigure = getattr(stream, "reconfigure", None)
+    if encoding != "utf8" and reconfigure is not None:
+        reconfigure(encoding="utf-8")
+    return stream
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -2291,8 +2220,8 @@ def main(
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
 ) -> int:
-    stdout = stdout or sys.stdout
-    stderr = stderr or sys.stderr
+    stdout = stdout or _utf8_stream(sys.stdout)
+    stderr = stderr or _utf8_stream(sys.stderr)
     parser = build_parser()
     args = parser.parse_args(argv)
     if not _writes_workspace(args):

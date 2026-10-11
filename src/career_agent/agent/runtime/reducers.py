@@ -13,7 +13,6 @@ from datetime import datetime, timezone
 
 from typing import Any, Callable
 
-from career_agent.agent.capabilities.catalog import TOOL_PROFILE_NAMES
 from career_agent.agent.contracts.candidates import (
     ActionCandidateContextItem,
     ActiveSavedJobContextItem,
@@ -546,13 +545,15 @@ def _fanout(
     return {name: entry for name in names}
 
 
-def _route_to_capability(
+def _search_capabilities(
     task: ConversationTaskState, result: ToolResult
 ) -> ConversationTaskState:
-    profile = result.payload.get("tool_profile")
-    if profile not in TOOL_PROFILE_NAMES:
+    loaded = result.payload.get("loaded", ())
+    if not isinstance(loaded, (list, tuple)):
         return task
-    return task.model_copy(update={"tool_profile": profile})
+    return task.add_loaded_capabilities(
+        tuple(name for name in loaded if isinstance(name, str))
+    )
 
 
 def _propose_job_intent(
@@ -718,7 +719,7 @@ ATOMIC_TASK_REDUCERS: dict[str, ReducerEntry] = {
     "confirm_constraint_retirement": _entry(
         ("constraint_retired",), _confirm_constraint_retirement
     ),
-    "route_to_capability": _entry(("tool_profile_switched",), _route_to_capability),
+    "search_capabilities": _entry(("capabilities_found",), _search_capabilities),
     "sync_application_emails": _entry((), _sync_application_emails),
     "find_saved_jobs": _entry(
         ("saved_jobs_found", "no_saved_jobs_found"), _find_saved_jobs

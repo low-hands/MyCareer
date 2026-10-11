@@ -304,12 +304,15 @@ def test_job_research_reads_back_the_referenced_report_not_the_active_one() -> N
 
 
 def _titled_report_context(user_message: str) -> MainAgentContext:
-    """One stored report titled after 历史科技甲, one saved job at 示例科技."""
+    """A report bound to its employer, alongside a different employer's job."""
     message = _message("上周的调研好了。", kind="job_research_report", resource_id="report-h1")
     titled = message.model_copy(
         update={
             "resource_refs": (
-                message.resource_refs[0].model_copy(update={"title": "历史科技甲"}),
+                message.resource_refs[0].model_copy(update={
+                    "title": "历史科技甲", "job_posting_id": "job-h1",
+                    "company_key": company_key("历史科技甲"),
+                }),
             )
         }
     )
@@ -319,6 +322,9 @@ def _titled_report_context(user_message: str) -> MainAgentContext:
             saved_job_candidates=(
                 SavedJobCandidateContextItem(
                     job_posting_id="job-1", title="算法工程师", company_name="示例科技"
+                ),
+                SavedJobCandidateContextItem(
+                    job_posting_id="job-h1", title="算法工程师", company_name="历史科技甲"
                 ),
             ),
         ),

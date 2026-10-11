@@ -1,0 +1,162 @@
+{
+  "fixed_samples": 10,
+  "fixture_sha256": "9d54be5dd23b6222e3c8841961d82197f7058605e9dfaf844fb314db84fbe139",
+  "input_sha256": "58f67072e903f099dfa732c2f9b19c43f26db3c69c1b0ed52d9e2816640ffd44",
+  "summary_prompt_sha256": "b41bb58eceaabdf8c91a1ffbf85e0bb6a3f391965df0fbc315322f7a312c9892",
+  "source_characters": 2919,
+  "model": "qwen3.7-plus",
+  "disable_thinking": true,
+  "timeout_seconds": 30.0,
+  "attempts": [
+    {
+      "sample": 1,
+      "status": "succeeded",
+      "key_fact_count": 11,
+      "wall_ms": 17154,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 820,
+        "reasoning_tokens": null,
+        "content_characters": 1737,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    },
+    {
+      "sample": 2,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "wall_ms": 15558,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 841,
+        "reasoning_tokens": null,
+        "content_characters": 1787,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    },
+    {
+      "sample": 3,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "wall_ms": 15141,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 827,
+        "reasoning_tokens": null,
+        "content_characters": 1762,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    },
+    {
+      "sample": 4,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "wall_ms": 15924,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 882,
+        "reasoning_tokens": null,
+        "content_characters": 1874,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    },
+    {
+      "sample": 5,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "wall_ms": 17954,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 974,
+        "reasoning_tokens": null,
+        "content_characters": 2029,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    },
+    {
+      "sample": 6,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "wall_ms": 16251,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 864,
+        "reasoning_tokens": null,
+        "content_characters": 1852,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    },
+    {
+      "sample": 7,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "wall_ms": 16998,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 868,
+        "reasoning_tokens": null,
+        "content_characters": 1844,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    },
+    {
+      "sample": 8,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "wall_ms": 16568,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 857,
+        "reasoning_tokens": null,
+        "content_characters": 1816,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    },
+    {
+      "sample": 9,
+      "status": "succeeded",
+      "key_fact_count": 11,
+      "wall_ms": 15485,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 795,
+        "reasoning_tokens": null,
+        "content_characters": 1694,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    },
+    {
+      "sample": 10,
+      "status": "succeeded",
+      "key_fact_count": 12,
+      "wall_ms": 19206,
+      "diagnostic": {
+        "finish_reason": "stop",
+        "completion_tokens": 995,
+        "reasoning_tokens": null,
+        "content_characters": 2050,
+        "missing_fields": [],
+        "extra_field_count": 0,
+        "pydantic_valid": true
+      }
+    }
+  ]
+}

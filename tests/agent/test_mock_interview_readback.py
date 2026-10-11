@@ -29,7 +29,7 @@ from career_agent.domain.mock_interviews import (
     MockInterviewReport,
 )
 from career_agent.storage.mock_interviews import SQLiteMockInterviewStore
-from conftest import FixedSources, OneQuestionWorker, evaluation
+from agent_test_support import FixedSources, OneQuestionWorker, evaluation
 
 NOW = datetime(2026, 8, 29, tzinfo=timezone.utc)
 

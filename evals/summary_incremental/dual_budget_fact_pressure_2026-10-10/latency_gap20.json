@@ -1,0 +1,542 @@
+{
+  "fingerprints": {
+    "source_sha256": true,
+    "summary_prompt_sha256": true,
+    "fixture_sha256": true,
+    "final_source_matches_protocol": true,
+    "reading_gap_matches_protocol": true,
+    "decision_model_matches_protocol": true,
+    "summary_config_matches_protocol": true
+  },
+  "pressure_peaks": {
+    "request_occupancy": 0.49090625,
+    "recent_occupancy": 0.7163840694006309
+  },
+  "attempted_turns": 18,
+  "returned_turns": 18,
+  "planned_turns": 18,
+  "interrupted_turns": [],
+  "capture_stopped_early": false,
+  "failed_turns": [],
+  "inter_turn_delay_seconds": 20.0,
+  "reading_gap_total_ms": 340049,
+  "scheduled_jobs": [
+    {
+      "run_id": "21bd71d2ab774868a5f0876ca0933942",
+      "conversation_id": "latency-1",
+      "turn": 1,
+      "occurred_at": "2026-10-10T20:30:28.617840+00:00",
+      "duration_ms": null,
+      "outcome": "started",
+      "details": {
+        "background": true,
+        "phase": "commit",
+        "trigger": "occupancy",
+        "request_occupancy": 0.47878125,
+        "recent_occupancy": 0.7163840694006309
+      }
+    },
+    {
+      "run_id": "a9bb9b772a67496daac72fea4cd713a1",
+      "conversation_id": "latency-1",
+      "turn": 3,
+      "occurred_at": "2026-10-10T20:31:24.466207+00:00",
+      "duration_ms": null,
+      "outcome": "started",
+      "details": {
+        "background": true,
+        "phase": "commit",
+        "trigger": "occupancy",
+        "request_occupancy": 0.4803125,
+        "recent_occupancy": 0.6122831230283912
+      }
+    },
+    {
+      "run_id": "85b51a034c5940a29c18d6dc2e59a06c",
+      "conversation_id": "latency-1",
+      "turn": 5,
+      "occurred_at": "2026-10-10T20:32:20.847880+00:00",
+      "duration_ms": null,
+      "outcome": "started",
+      "details": {
+        "background": true,
+        "phase": "commit",
+        "trigger": "occupancy",
+        "request_occupancy": 0.48009375,
+        "recent_occupancy": 0.6156348580441641
+      }
+    },
+    {
+      "run_id": "85670abd072e4893958612933151d7e1",
+      "conversation_id": "latency-1",
+      "turn": 9,
+      "occurred_at": "2026-10-10T20:34:11.765159+00:00",
+      "duration_ms": null,
+      "outcome": "started",
+      "details": {
+        "background": true,
+        "phase": "commit",
+        "trigger": "occupancy",
+        "request_occupancy": 0.49090625,
+        "recent_occupancy": 0.6506309148264984
+      }
+    },
+    {
+      "run_id": "5d3e9785ad8a4b62bc9c5ea6ab2dfb65",
+      "conversation_id": "latency-1",
+      "turn": 13,
+      "occurred_at": "2026-10-10T20:36:01.472045+00:00",
+      "duration_ms": null,
+      "outcome": "started",
+      "details": {
+        "background": true,
+        "phase": "commit",
+        "trigger": "occupancy",
+        "request_occupancy": 0.49090625,
+        "recent_occupancy": 0.6506309148264984
+      }
+    },
+    {
+      "run_id": "bd6d969205d1495492b11dd9eef4e2d3",
+      "conversation_id": "latency-1",
+      "turn": 17,
+      "occurred_at": "2026-10-10T20:37:50.573001+00:00",
+      "duration_ms": null,
+      "outcome": "started",
+      "details": {
+        "background": true,
+        "phase": "commit",
+        "trigger": "occupancy",
+        "request_occupancy": 0.49090625,
+        "recent_occupancy": 0.6506309148264984
+      }
+    }
+  ],
+  "load_request_estimates": [
+    {
+      "run_id": "21bd71d2ab774868a5f0876ca0933942",
+      "conversation_id": "latency-1",
+      "turn": 1,
+      "input_tokens": 15282,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.4775625,
+      "recent_occupancy": 0.621352523659306
+    },
+    {
+      "run_id": "8894f062e4c645b6ade6bdf962d23c70",
+      "conversation_id": "latency-1",
+      "turn": 2,
+      "input_tokens": 14333,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.44790625,
+      "recent_occupancy": 0.42222003154574134
+    },
+    {
+      "run_id": "a9bb9b772a67496daac72fea4cd713a1",
+      "conversation_id": "latency-1",
+      "turn": 3,
+      "input_tokens": 15331,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.47909375,
+      "recent_occupancy": 0.5172515772870663
+    },
+    {
+      "run_id": "f0eb409b7d404e6880f9806bd0f4361d",
+      "conversation_id": "latency-1",
+      "turn": 4,
+      "input_tokens": 13489,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.42153125,
+      "recent_occupancy": 0.3451301261829653
+    },
+    {
+      "run_id": "85b51a034c5940a29c18d6dc2e59a06c",
+      "conversation_id": "latency-1",
+      "turn": 5,
+      "input_tokens": 15324,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.478875,
+      "recent_occupancy": 0.44016167192429023
+    },
+    {
+      "run_id": "0da7ae9d7a1d4bacb66647581e1079f9",
+      "conversation_id": "latency-1",
+      "turn": 6,
+      "input_tokens": 12676,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.396125,
+      "recent_occupancy": 0.2705047318611987
+    },
+    {
+      "run_id": "a000f0b2519f4de98e5ab7c5a4b76f59",
+      "conversation_id": "latency-1",
+      "turn": 7,
+      "input_tokens": 13674,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.4273125,
+      "recent_occupancy": 0.36553627760252366
+    },
+    {
+      "run_id": "10dd1ca9c0dd481a8756ce0a628c7610",
+      "conversation_id": "latency-1",
+      "turn": 8,
+      "input_tokens": 14672,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.4585,
+      "recent_occupancy": 0.4605678233438486
+    },
+    {
+      "run_id": "85670abd072e4893958612933151d7e1",
+      "conversation_id": "latency-1",
+      "turn": 9,
+      "input_tokens": 15670,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.4896875,
+      "recent_occupancy": 0.5555993690851735
+    },
+    {
+      "run_id": "d2457e4796734af9abf2591a2d8cc59f",
+      "conversation_id": "latency-1",
+      "turn": 10,
+      "input_tokens": 12687,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.39646875,
+      "recent_occupancy": 0.19006309148264985
+    },
+    {
+      "run_id": "af634608be9b4132a1e6b1196ea7ef2f",
+      "conversation_id": "latency-1",
+      "turn": 11,
+      "input_tokens": 13674,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.4273125,
+      "recent_occupancy": 0.36553627760252366
+    },
+    {
+      "run_id": "838ec9beaef44b8a90995ce1043adb2c",
+      "conversation_id": "latency-1",
+      "turn": 12,
+      "input_tokens": 14672,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.4585,
+      "recent_occupancy": 0.4605678233438486
+    },
+    {
+      "run_id": "5d3e9785ad8a4b62bc9c5ea6ab2dfb65",
+      "conversation_id": "latency-1",
+      "turn": 13,
+      "input_tokens": 15670,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.4896875,
+      "recent_occupancy": 0.5555993690851735
+    },
+    {
+      "run_id": "b32c11b4024a44d0b98b5462f9298617",
+      "conversation_id": "latency-1",
+      "turn": 14,
+      "input_tokens": 11850,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.3703125,
+      "recent_occupancy": 0.19006309148264985
+    },
+    {
+      "run_id": "6c3ff536f74a4e75a0b3df19a1d891c7",
+      "conversation_id": "latency-1",
+      "turn": 15,
+      "input_tokens": 13685,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.42765625,
+      "recent_occupancy": 0.28509463722397477
+    },
+    {
+      "run_id": "1235587d7c1e4a42a5e262be40c4fea5",
+      "conversation_id": "latency-1",
+      "turn": 16,
+      "input_tokens": 14672,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.4585,
+      "recent_occupancy": 0.4605678233438486
+    },
+    {
+      "run_id": "bd6d969205d1495492b11dd9eef4e2d3",
+      "conversation_id": "latency-1",
+      "turn": 17,
+      "input_tokens": 15670,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.4896875,
+      "recent_occupancy": 0.5555993690851735
+    },
+    {
+      "run_id": "4d0927f53ee8471095bff6bd5eefa1a2",
+      "conversation_id": "latency-1",
+      "turn": 18,
+      "input_tokens": 11850,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.3703125,
+      "recent_occupancy": 0.19006309148264985
+    }
+  ],
+  "provider_failures": [],
+  "wall_total_ms": 137133,
+  "wall_mean_ms": 7618.5,
+  "load_waits": [],
+  "load_sync_summaries": [],
+  "commit_sync_summaries": [],
+  "skipped_jobs": [],
+  "background_summaries": [
+    {
+      "run_id": "21bd71d2ab774868a5f0876ca0933942",
+      "duration_ms": 13854,
+      "outcome": "succeeded"
+    },
+    {
+      "run_id": "a9bb9b772a67496daac72fea4cd713a1",
+      "duration_ms": 13751,
+      "outcome": "succeeded"
+    },
+    {
+      "run_id": "85b51a034c5940a29c18d6dc2e59a06c",
+      "duration_ms": 14473,
+      "outcome": "succeeded"
+    },
+    {
+      "run_id": "85670abd072e4893958612933151d7e1",
+      "duration_ms": 14857,
+      "outcome": "succeeded"
+    },
+    {
+      "run_id": "5d3e9785ad8a4b62bc9c5ea6ab2dfb65",
+      "duration_ms": 14876,
+      "outcome": "succeeded"
+    },
+    {
+      "run_id": "bd6d969205d1495492b11dd9eef4e2d3",
+      "duration_ms": 14397,
+      "outcome": "succeeded"
+    }
+  ],
+  "background_finished_after_turn_completed": [
+    {
+      "run_id": "21bd71d2ab774868a5f0876ca0933942",
+      "duration_ms": 13854
+    },
+    {
+      "run_id": "a9bb9b772a67496daac72fea4cd713a1",
+      "duration_ms": 13751
+    },
+    {
+      "run_id": "85b51a034c5940a29c18d6dc2e59a06c",
+      "duration_ms": 14473
+    },
+    {
+      "run_id": "85670abd072e4893958612933151d7e1",
+      "duration_ms": 14857
+    },
+    {
+      "run_id": "5d3e9785ad8a4b62bc9c5ea6ab2dfb65",
+      "duration_ms": 14876
+    },
+    {
+      "run_id": "bd6d969205d1495492b11dd9eef4e2d3",
+      "duration_ms": 14397
+    }
+  ],
+  "compaction_triggers": [
+    {
+      "run_id": "21bd71d2ab774868a5f0876ca0933942",
+      "trigger": "occupancy",
+      "request_occupancy": 0.47878125,
+      "recent_occupancy": 0.7163840694006309,
+      "through_sequence": 8,
+      "background": true
+    },
+    {
+      "run_id": "a9bb9b772a67496daac72fea4cd713a1",
+      "trigger": "occupancy",
+      "request_occupancy": 0.4803125,
+      "recent_occupancy": 0.6122831230283912,
+      "through_sequence": 16,
+      "background": true
+    },
+    {
+      "run_id": "85b51a034c5940a29c18d6dc2e59a06c",
+      "trigger": "occupancy",
+      "request_occupancy": 0.48009375,
+      "recent_occupancy": 0.6156348580441641,
+      "through_sequence": 24,
+      "background": true
+    },
+    {
+      "run_id": "85670abd072e4893958612933151d7e1",
+      "trigger": "occupancy",
+      "request_occupancy": 0.49090625,
+      "recent_occupancy": 0.6506309148264984,
+      "through_sequence": 32,
+      "background": true
+    },
+    {
+      "run_id": "5d3e9785ad8a4b62bc9c5ea6ab2dfb65",
+      "trigger": "occupancy",
+      "request_occupancy": 0.49090625,
+      "recent_occupancy": 0.6506309148264984,
+      "through_sequence": 40,
+      "background": true
+    },
+    {
+      "run_id": "bd6d969205d1495492b11dd9eef4e2d3",
+      "trigger": "occupancy",
+      "request_occupancy": 0.49090625,
+      "recent_occupancy": 0.6506309148264984,
+      "through_sequence": 48,
+      "background": true
+    }
+  ],
+  "summary_failures": [],
+  "turns": [
+    {
+      "conversation": 1,
+      "turn": 1,
+      "inter_turn_gap_ms": 0,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 8278
+    },
+    {
+      "conversation": 1,
+      "turn": 2,
+      "inter_turn_gap_ms": 20000,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 8333
+    },
+    {
+      "conversation": 1,
+      "turn": 3,
+      "inter_turn_gap_ms": 20002,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7514
+    },
+    {
+      "conversation": 1,
+      "turn": 4,
+      "inter_turn_gap_ms": 20004,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 8503
+    },
+    {
+      "conversation": 1,
+      "turn": 5,
+      "inter_turn_gap_ms": 20005,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7868
+    },
+    {
+      "conversation": 1,
+      "turn": 6,
+      "inter_turn_gap_ms": 20005,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7844
+    },
+    {
+      "conversation": 1,
+      "turn": 7,
+      "inter_turn_gap_ms": 20002,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7646
+    },
+    {
+      "conversation": 1,
+      "turn": 8,
+      "inter_turn_gap_ms": 20005,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7845
+    },
+    {
+      "conversation": 1,
+      "turn": 9,
+      "inter_turn_gap_ms": 20002,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7564
+    },
+    {
+      "conversation": 1,
+      "turn": 10,
+      "inter_turn_gap_ms": 20005,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7527
+    },
+    {
+      "conversation": 1,
+      "turn": 11,
+      "inter_turn_gap_ms": 20000,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7053
+    },
+    {
+      "conversation": 1,
+      "turn": 12,
+      "inter_turn_gap_ms": 20002,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 8032
+    },
+    {
+      "conversation": 1,
+      "turn": 13,
+      "inter_turn_gap_ms": 20006,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7084
+    },
+    {
+      "conversation": 1,
+      "turn": 14,
+      "inter_turn_gap_ms": 20001,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7199
+    },
+    {
+      "conversation": 1,
+      "turn": 15,
+      "inter_turn_gap_ms": 20001,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7219
+    },
+    {
+      "conversation": 1,
+      "turn": 16,
+      "inter_turn_gap_ms": 20002,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7542
+    },
+    {
+      "conversation": 1,
+      "turn": 17,
+      "inter_turn_gap_ms": 20002,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7132
+    },
+    {
+      "conversation": 1,
+      "turn": 18,
+      "inter_turn_gap_ms": 20005,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 6950
+    }
+  ],
+  "interpretation": "run_turn wall time includes load waits/synchronous summaries. Commit queues without awaiting a model; later background trace must not inflate TurnCompleted time. Report gap0 and gap20 separately; each gap is excluded from wall time. Seeded history bypasses commit scheduling. Zero waits must be read alongside actual background summary counts. Returned is not a model task-quality score."
+}

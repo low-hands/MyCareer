@@ -1,0 +1,199 @@
+{
+  "scenario": "an_empty_conversation_span_is_not_filled_from_the_window",
+  "policy": "It never searches another conversation or substitutes nearby rows when the requested span is empty. If the requested resource has no matching handle, say it is not currently reachable or ask the user to identify it.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "389f7e82f5d34a78c54f232078b03f47da0c48c144514adfcf2a126cd35e58b6",
+  "context_shape_fingerprint": "768667c085eed0416553a45f5eb15cf71303d6970dca24dd36f0cbb8324baf29",
+  "recorded_at": "2026-10-11T07:48:49.104054+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"会话序号 100–110 之间没有消息记录。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "9f313294df8b31138d0bcbc25acc10a33133270d5d88eb799842e526b78f2561",
+      "decision_shape_fingerprint": "4d44c1f2973508830e3d7059c29fb8fbb556e49ff6970d160462235185062f94",
+      "offered_tools": [
+        "load_skill",
+        "read_conversation_span",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "search_career_episodes",
+        "propose_constraint_retirement",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 10493.0,
+      "model_request_count": 3,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "序号 100 到 110 的对话目前不存在，返回了 0 条消息。\n\n当前对话只进行到序号 10，后续的消息还没有产生。如果你是想查看更早的历史记录，可以告诉我具体的序号范围，或者描述你想找的内容（比如关于某个公司、岗位或简历的讨论），我可以帮你搜索相关的历史消息。",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        },
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": true,
+          "raw_output": {
+            "content": "会话序号 100–110 之间没有消息记录，当前对话只进行到第 10 条。\n\n你之前提到\"美团这份只是窗口里的对照\"，但我这边看不到具体的 JD 内容。能否把那份美团算法工程师的职位描述发给我，或者告诉我你想了解哪方面的分析？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-11T07:48:37.659962+00:00",
+      "elapsed_ms": 10496.5,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"会话序号 100–110 之间没有消息记录。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9f313294df8b31138d0bcbc25acc10a33133270d5d88eb799842e526b78f2561",
+          "decision_shape_fingerprint": "4d44c1f2973508830e3d7059c29fb8fbb556e49ff6970d160462235185062f94",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_career_episodes",
+            "propose_constraint_retirement",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 10493.0,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "序号 100 到 110 的对话目前不存在，返回了 0 条消息。\n\n当前对话只进行到序号 10，后续的消息还没有产生。如果你是想查看更早的历史记录，可以告诉我具体的序号范围，或者描述你想找的内容（比如关于某个公司、岗位或简历的讨论），我可以帮你搜索相关的历史消息。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "会话序号 100–110 之间没有消息记录，当前对话只进行到第 10 条。\n\n你之前提到\"美团这份只是窗口里的对照\"，但我这边看不到具体的 JD 内容。能否把那份美团算法工程师的职位描述发给我，或者告诉我你想了解哪方面的分析？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:48:47.749006+00:00",
+      "elapsed_ms": 13622.6,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"会话序号 100–110 之间没有消息记录。当前可见的对话只到序号 8（摘要覆盖范围），最近的原始消息从序号 9 开始。\\n\\n如果你想查看之前关于美团 JD 或其他岗位的讨论，我可以读取更早的压缩历史。请告诉我你想了解的具体内容，或者提供相关的关键词（比如“美团”、“算法工程师”等）。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9f313294df8b31138d0bcbc25acc10a33133270d5d88eb799842e526b78f2561",
+          "decision_shape_fingerprint": "4d44c1f2973508830e3d7059c29fb8fbb556e49ff6970d160462235185062f94",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_career_episodes",
+            "propose_constraint_retirement",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 13619.5,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "会话序号 100–110 之间没有消息记录。\n\n根据系统提示，当前对话的摘要覆盖了序号 1–8，最近的消息从序号 9 开始。序号 100–110 超出了当前对话的范围，因此返回为空。\n\n你是想查看之前某次对话中关于美团 JD 的内容吗？如果是的话，可能需要通过其他方式查找，或者你可以直接告诉我你想了解什么。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "会话序号 100–110 之间没有消息记录。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:48:49.104054+00:00",
+      "elapsed_ms": 13102.8,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"会话序号 100–110 范围内没有消息（返回 0/0 条）。目前对话只进行到第 10 条左右。如果你指的是更早或更晚的某段内容，请告诉我具体的序号范围或关键词，我再帮你查找。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9f313294df8b31138d0bcbc25acc10a33133270d5d88eb799842e526b78f2561",
+          "decision_shape_fingerprint": "4d44c1f2973508830e3d7059c29fb8fbb556e49ff6970d160462235185062f94",
+          "offered_tools": [
+            "load_skill",
+            "read_conversation_span",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "search_career_episodes",
+            "propose_constraint_retirement",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 13098.9,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "序号 100 到 110 之间没有对话记录，返回了 0 条消息。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "会话序号 100–110 是空的，目前对话只进行到第 10 条消息。\n\n如果你是想看之前提到的美团 JD 相关内容，我可以读取更早的对话片段。请问你想查看哪一段历史消息？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

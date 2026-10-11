@@ -1,0 +1,150 @@
+{
+  "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
+  "policy": "A tool observation carrying a reference names the report that call produced. When the report you need is not the active one, read it back by that index; omitting the selector would silently return whichever report is active.",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "dbb7a7acc8f43350e1a0a9c46b86d615c1898cd54c547c5a445a3701e8655135",
+  "context_shape_fingerprint": "2458e58fe0cd5d9272f77fae97c511a0bbecad0798cdc39a60a3cbe0e2728698",
+  "recorded_at": "2026-10-11T07:45:31.289439+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "get_job_research",
+        "arguments": {
+          "reference": "report_662e28"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "36e74c2e37dce4f663149dd87ee8f7d272f4a0a86e1b10d0295bf8098348929a",
+      "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "research_job",
+        "get_job_research",
+        "search_career_episodes",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 1277.3,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-11T07:45:27.902971+00:00",
+      "elapsed_ms": 1279.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_662e28"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "36e74c2e37dce4f663149dd87ee8f7d272f4a0a86e1b10d0295bf8098348929a",
+          "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1277.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:28.659739+00:00",
+      "elapsed_ms": 1266.3,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_440400"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "36e74c2e37dce4f663149dd87ee8f7d272f4a0a86e1b10d0295bf8098348929a",
+          "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1262.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:31.289439+00:00",
+      "elapsed_ms": 3385.4,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_440400"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "36e74c2e37dce4f663149dd87ee8f7d272f4a0a86e1b10d0295bf8098348929a",
+          "decision_shape_fingerprint": "0daf8ada4d7600721a9bf69e4ba3baa2c0ded5d6ccd602b33e94d439bd7cadd2",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3382.6,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I need to stop here rather than answer: the request names 示例科技, but no such report is available.\n\nWhat the record actually holds:\n- Two reports, titled **历史科技甲** (`report_662e28`) and **历史科技乙** (`report_15d28b`) — neither is 示例科技、and I can't read either one's citation under those handles.\n- My two research attempts this turn produced **示例科技** (`report_440400`, receipt only, no body) and **另一家科技** (`report_382d60`) — new runs, not the report you're referring to。\n\nSo I can't tell you 示例科技's competitors, because there is no verified report under that name with readable contents. To read it I need the correct selector:\n\n1. If you meant 历史科技甲 or 历史科技乙, tell me which one (or give me the exact report reference), and I'll read it back.\n2. If 示例科技 is a report you have elsewhere, give me its exact reference — a saved-job selection alone can't recover a missing historical report.\n\nOne clarification worth making: you said the research was \"done last week,\" but 示例科技 and 另一家科技 were only generated in this session, and 历史科技甲/乙 are the pre-existing ones. Which company did you actually want?",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

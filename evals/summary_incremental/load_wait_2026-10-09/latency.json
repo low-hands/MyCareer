@@ -1,0 +1,364 @@
+{
+  "fingerprints": {
+    "source_sha256": true,
+    "summary_prompt_sha256": true,
+    "fixture_sha256": true,
+    "final_source_matches_protocol": true
+  },
+  "attempted_turns": 24,
+  "returned_turns": 24,
+  "failed_turns": [],
+  "wall_total_ms": 772629,
+  "wall_mean_ms": 32192.875,
+  "load_waits": [
+    {
+      "run_id": "18930de65e25493eae061fe5f1c98222",
+      "conversation_id": "latency-1",
+      "turn": 4,
+      "occurred_at": "2026-10-10T06:25:07.007722+00:00",
+      "duration_ms": 14774,
+      "outcome": "succeeded",
+      "details": {
+        "phase": "load",
+        "wait_result": "completed"
+      }
+    },
+    {
+      "run_id": "6bb734c189af476ba50fd6d07eb9476a",
+      "conversation_id": "latency-2",
+      "turn": 4,
+      "occurred_at": "2026-10-10T06:27:10.356070+00:00",
+      "duration_ms": 13662,
+      "outcome": "succeeded",
+      "details": {
+        "phase": "load",
+        "wait_result": "completed"
+      }
+    },
+    {
+      "run_id": "fad206017f294a399e09942f9c18dfb8",
+      "conversation_id": "latency-3",
+      "turn": 4,
+      "occurred_at": "2026-10-10T06:28:49.589764+00:00",
+      "duration_ms": 13449,
+      "outcome": "succeeded",
+      "details": {
+        "phase": "load",
+        "wait_result": "completed"
+      }
+    },
+    {
+      "run_id": "4e52ec801b9b496483f89f9d7445de6e",
+      "conversation_id": "latency-4",
+      "turn": 4,
+      "occurred_at": "2026-10-10T06:31:33.056433+00:00",
+      "duration_ms": 15799,
+      "outcome": "succeeded",
+      "details": {
+        "phase": "load",
+        "wait_result": "completed"
+      }
+    },
+    {
+      "run_id": "7b8df9eaacc94ebc958ff11aa2d1c618",
+      "conversation_id": "latency-5",
+      "turn": 4,
+      "occurred_at": "2026-10-10T06:33:26.579600+00:00",
+      "duration_ms": 13915,
+      "outcome": "succeeded",
+      "details": {
+        "phase": "load",
+        "wait_result": "completed"
+      }
+    },
+    {
+      "run_id": "4fe6d2c5b7b94be989d8ca4f30e279b5",
+      "conversation_id": "latency-6",
+      "turn": 4,
+      "occurred_at": "2026-10-10T06:35:48.050094+00:00",
+      "duration_ms": 14034,
+      "outcome": "succeeded",
+      "details": {
+        "phase": "load",
+        "wait_result": "completed"
+      }
+    }
+  ],
+  "load_sync_summaries": [],
+  "commit_sync_summaries": [],
+  "skipped_jobs": [],
+  "background_summaries": [
+    {
+      "run_id": "d33505ff72504378aa328095d3c4ddfb",
+      "duration_ms": 14776,
+      "outcome": "succeeded"
+    },
+    {
+      "run_id": "1a80a5a40e5a48a393df97374d48e4cf",
+      "duration_ms": 13666,
+      "outcome": "succeeded"
+    },
+    {
+      "run_id": "01ce8d5f52c64386b791b3326f115255",
+      "duration_ms": 13453,
+      "outcome": "succeeded"
+    },
+    {
+      "run_id": "806d6bcd6dbd4e55b63dfd5e88321807",
+      "duration_ms": 15804,
+      "outcome": "succeeded"
+    },
+    {
+      "run_id": "1cce25bcbf4d40768ace6a94daa91215",
+      "duration_ms": 13905,
+      "outcome": "succeeded"
+    },
+    {
+      "run_id": "f1e54f6f9dfc4ed58d498faf45f72dbf",
+      "duration_ms": 14030,
+      "outcome": "succeeded"
+    }
+  ],
+  "background_finished_after_turn_completed": [
+    {
+      "run_id": "d33505ff72504378aa328095d3c4ddfb",
+      "duration_ms": 14776
+    },
+    {
+      "run_id": "1a80a5a40e5a48a393df97374d48e4cf",
+      "duration_ms": 13666
+    },
+    {
+      "run_id": "01ce8d5f52c64386b791b3326f115255",
+      "duration_ms": 13453
+    },
+    {
+      "run_id": "806d6bcd6dbd4e55b63dfd5e88321807",
+      "duration_ms": 15804
+    },
+    {
+      "run_id": "1cce25bcbf4d40768ace6a94daa91215",
+      "duration_ms": 13905
+    },
+    {
+      "run_id": "f1e54f6f9dfc4ed58d498faf45f72dbf",
+      "duration_ms": 14030
+    }
+  ],
+  "compaction_triggers": [
+    {
+      "run_id": "d33505ff72504378aa328095d3c4ddfb",
+      "trigger": "projection_overflow",
+      "occupancy": 0.49275,
+      "through_sequence": 8,
+      "background": true
+    },
+    {
+      "run_id": "1a80a5a40e5a48a393df97374d48e4cf",
+      "trigger": "projection_overflow",
+      "occupancy": 0.49525,
+      "through_sequence": 8,
+      "background": true
+    },
+    {
+      "run_id": "01ce8d5f52c64386b791b3326f115255",
+      "trigger": "projection_overflow",
+      "occupancy": 0.49365625,
+      "through_sequence": 8,
+      "background": true
+    },
+    {
+      "run_id": "806d6bcd6dbd4e55b63dfd5e88321807",
+      "trigger": "projection_overflow",
+      "occupancy": 0.4944375,
+      "through_sequence": 8,
+      "background": true
+    },
+    {
+      "run_id": "1cce25bcbf4d40768ace6a94daa91215",
+      "trigger": "projection_overflow",
+      "occupancy": 0.49459375,
+      "through_sequence": 8,
+      "background": true
+    },
+    {
+      "run_id": "f1e54f6f9dfc4ed58d498faf45f72dbf",
+      "trigger": "projection_overflow",
+      "occupancy": 0.49478125,
+      "through_sequence": 8,
+      "background": true
+    }
+  ],
+  "summary_failures": [],
+  "turns": [
+    {
+      "conversation": 1,
+      "turn": 1,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 39917
+    },
+    {
+      "conversation": 1,
+      "turn": 2,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 53076
+    },
+    {
+      "conversation": 1,
+      "turn": 3,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 13963
+    },
+    {
+      "conversation": 1,
+      "turn": 4,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 24421
+    },
+    {
+      "conversation": 2,
+      "turn": 1,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 37976
+    },
+    {
+      "conversation": 2,
+      "turn": 2,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 51236
+    },
+    {
+      "conversation": 2,
+      "turn": 3,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 10823
+    },
+    {
+      "conversation": 2,
+      "turn": 4,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 20119
+    },
+    {
+      "conversation": 3,
+      "turn": 1,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 27736
+    },
+    {
+      "conversation": 3,
+      "turn": 2,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 41249
+    },
+    {
+      "conversation": 3,
+      "turn": 3,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 10335
+    },
+    {
+      "conversation": 3,
+      "turn": 4,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 22210
+    },
+    {
+      "conversation": 4,
+      "turn": 1,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 38303
+    },
+    {
+      "conversation": 4,
+      "turn": 2,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 73477
+    },
+    {
+      "conversation": 4,
+      "turn": 3,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 27124
+    },
+    {
+      "conversation": 4,
+      "turn": 4,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 23225
+    },
+    {
+      "conversation": 5,
+      "turn": 1,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 36807
+    },
+    {
+      "conversation": 5,
+      "turn": 2,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 40760
+    },
+    {
+      "conversation": 5,
+      "turn": 3,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 14609
+    },
+    {
+      "conversation": 5,
+      "turn": 4,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 34126
+    },
+    {
+      "conversation": 6,
+      "turn": 1,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 33305
+    },
+    {
+      "conversation": 6,
+      "turn": 2,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 51005
+    },
+    {
+      "conversation": 6,
+      "turn": 3,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 22905
+    },
+    {
+      "conversation": 6,
+      "turn": 4,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 23922
+    }
+  ],
+  "interpretation": "run_turn wall time includes load waits/synchronous summaries. Commit queues without awaiting a model; later background trace must not inflate TurnCompleted time. Immediate serial next-turn loads have no user thinking time; seeded history bypasses commit scheduling. Returned is not a model task-quality score."
+}

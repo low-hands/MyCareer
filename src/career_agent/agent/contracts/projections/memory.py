@@ -23,11 +23,6 @@ from career_agent.agent.contracts.memory import (
 )
 from career_agent.agent.providers.token_budget import serialized_token_count
 from career_agent.agent.capabilities.effects import approval_policy, owner_rule_capabilities
-from career_agent.agent.capabilities.catalog import (
-    DOMAIN_TOOL_PROFILES,
-    TOOL_PROFILE_NAMES,
-    ToolProfile,
-)
 from career_agent.agent.contracts.questionnaire import PendingQuestionnaire, UserQuestion
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
@@ -277,6 +272,10 @@ def project_constraint_retirement_arguments(
         return {
             "user_id": context.profile.user_id,
             "conversation_id": context.conversation_id,
+            "_omitted_active_constraint_count": (
+                context.conversation_summary.omitted_active_constraint_count
+                if context.conversation_summary else 0
+            ),
         }
     if name == "propose_constraint_retirement":
         model_arguments = (

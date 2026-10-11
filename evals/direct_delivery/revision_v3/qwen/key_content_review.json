@@ -1,0 +1,485 @@
+{
+  "method": "separate semantic content audit, not a model-quality gate based on wording",
+  "reviews": [
+    {
+      "scenario": "single_empty_resume_receipt",
+      "sample": 1,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_resume_receipt",
+      "sample": 2,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_resume_receipt",
+      "sample": 3,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_resume_receipt",
+      "sample": 4,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_resume_receipt",
+      "sample": 5,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_resume_receipt",
+      "sample": 6,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_resume_receipt",
+      "sample": 7,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_resume_receipt",
+      "sample": 8,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_resume_receipt",
+      "sample": 9,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_resume_receipt",
+      "sample": 10,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_interview_receipt",
+      "sample": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "required_fact": "查询结果为空，没有面试安排",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_interview_receipt",
+      "sample": 2,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "required_fact": "查询结果为空，没有面试安排",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_interview_receipt",
+      "sample": 3,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "required_fact": "查询结果为空，没有面试安排",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_interview_receipt",
+      "sample": 4,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "required_fact": "查询结果为空，没有面试安排",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_interview_receipt",
+      "sample": 5,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "required_fact": "查询结果为空，没有面试安排",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_interview_receipt",
+      "sample": 6,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "required_fact": "查询结果为空，没有面试安排",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_interview_receipt",
+      "sample": 7,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "required_fact": "查询结果为空，没有面试安排",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_interview_receipt",
+      "sample": 8,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "required_fact": "查询结果为空，没有面试安排",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_interview_receipt",
+      "sample": 9,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "required_fact": "查询结果为空，没有面试安排",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_empty_interview_receipt",
+      "sample": 10,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "required_fact": "查询结果为空，没有面试安排",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_brief_body_is_delivered",
+      "sample": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "required_fact": "完整简报正文说明今天没有待办",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_brief_body_is_delivered",
+      "sample": 2,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "required_fact": "完整简报正文说明今天没有待办",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_brief_body_is_delivered",
+      "sample": 3,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "required_fact": "完整简报正文说明今天没有待办",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_brief_body_is_delivered",
+      "sample": 4,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "required_fact": "完整简报正文说明今天没有待办",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_brief_body_is_delivered",
+      "sample": 5,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "required_fact": "完整简报正文说明今天没有待办",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_brief_body_is_delivered",
+      "sample": 6,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "required_fact": "完整简报正文说明今天没有待办",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_brief_body_is_delivered",
+      "sample": 7,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "required_fact": "完整简报正文说明今天没有待办",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_brief_body_is_delivered",
+      "sample": 8,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "required_fact": "完整简报正文说明今天没有待办",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_brief_body_is_delivered",
+      "sample": 9,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "required_fact": "完整简报正文说明今天没有待办",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "single_brief_body_is_delivered",
+      "sample": 10,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "required_fact": "完整简报正文说明今天没有待办",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "colloquial_empty_resume_receipt",
+      "sample": 1,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "colloquial_empty_resume_receipt",
+      "sample": 2,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "colloquial_empty_resume_receipt",
+      "sample": 3,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "colloquial_empty_resume_receipt",
+      "sample": 4,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "colloquial_empty_resume_receipt",
+      "sample": 5,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "colloquial_empty_resume_receipt",
+      "sample": 6,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "colloquial_empty_resume_receipt",
+      "sample": 7,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "colloquial_empty_resume_receipt",
+      "sample": 8,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "colloquial_empty_resume_receipt",
+      "sample": 9,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "colloquial_empty_resume_receipt",
+      "sample": 10,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "count_empty_resume_receipt",
+      "sample": 1,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "简历数为零",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "count_empty_resume_receipt",
+      "sample": 2,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "简历数为零",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "count_empty_resume_receipt",
+      "sample": 3,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "简历数为零",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "count_empty_resume_receipt",
+      "sample": 4,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "简历数为零",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "count_empty_resume_receipt",
+      "sample": 5,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "简历数为零",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "count_empty_resume_receipt",
+      "sample": 6,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "简历数为零",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "count_empty_resume_receipt",
+      "sample": 7,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "简历数为零",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "count_empty_resume_receipt",
+      "sample": 8,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "简历数为零",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "count_empty_resume_receipt",
+      "sample": 9,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "简历数为零",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "count_empty_resume_receipt",
+      "sample": 10,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "简历数为零",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "english_empty_resume_receipt",
+      "sample": 1,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "english_empty_resume_receipt",
+      "sample": 2,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "english_empty_resume_receipt",
+      "sample": 3,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "english_empty_resume_receipt",
+      "sample": 4,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "english_empty_resume_receipt",
+      "sample": 5,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "english_empty_resume_receipt",
+      "sample": 6,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "english_empty_resume_receipt",
+      "sample": 7,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "english_empty_resume_receipt",
+      "sample": 8,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "english_empty_resume_receipt",
+      "sample": 9,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    },
+    {
+      "scenario": "english_empty_resume_receipt",
+      "sample": 10,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "required_fact": "查询结果为空，没有找到简历",
+      "verdict": "supported",
+      "method": "agent inspected all 60 answers, grouping identical answers for display; no request or answer phrase classifier"
+    }
+  ]
+}

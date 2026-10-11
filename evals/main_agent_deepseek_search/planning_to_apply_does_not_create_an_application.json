@@ -1,0 +1,161 @@
+{
+  "scenario": "planning_to_apply_does_not_create_an_application",
+  "policy": "Use create_application only after the user explicitly reports a real external submission. Planning or preparing to apply is not enough.",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "061fe24b9f2df413770573ed2da293f2b3c332bb7413a0194297c98633ff50a1",
+  "context_shape_fingerprint": "19863eb67cb394d3676b27e179a7258cc12b11bdc829c26f953d9c95f1736fec",
+  "recorded_at": "2026-10-11T07:45:21.714942+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"你要投递的是「示例科技 — 算法工程师（上海，30-50K）」这个已收藏岗位吗？确认后请告诉我你是否已经实际提交申请——我只能在已实际提交后为你创建投递记录。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "036bdd0685a8c10bcb3e38961d7c8cc8b0f4bc27c1d0d7ba52e8082343bb93ba",
+      "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "analyze_job",
+        "propose_job_intent",
+        "create_application",
+        "get_interview_preparation",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2504.7,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "I can help you track this. To confirm, do you mean you've already submitted an application for 示例科技 算法工程师 (上海, 30-50K)?\n\nI ask because tracking requires that you've actually applied — preparing to apply isn't quite the same. If you have already submitted it, just say yes and I'll create the tracking record.",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-11T07:45:20.569508+00:00",
+      "elapsed_ms": 2508.2,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你要投递的是「示例科技 — 算法工程师（上海，30-50K）」这个已收藏岗位吗？确认后请告诉我你是否已经实际提交申请——我只能在已实际提交后为你创建投递记录。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "036bdd0685a8c10bcb3e38961d7c8cc8b0f4bc27c1d0d7ba52e8082343bb93ba",
+          "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "propose_job_intent",
+            "create_application",
+            "get_interview_preparation",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2504.7,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I can help you track this. To confirm, do you mean you've already submitted an application for 示例科技 算法工程师 (上海, 30-50K)?\n\nI ask because tracking requires that you've actually applied — preparing to apply isn't quite the same. If you have already submitted it, just say yes and I'll create the tracking record.",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:24.266109+00:00",
+      "elapsed_ms": 4132.4,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你说的“这个岗位”是指已收藏的「示例科技 · 算法工程师（上海，30-50K）」吗？请确认一下。\\n\\n另外，请注意：只有在你**实际已经提交**投递之后，我才能创建投递跟踪记录（“准备投”还不算已投递）。如果你说的是“准备投”，我可以先帮你做岗位分析、简历匹配或定制简历等准备工作——告诉我你想先做哪一步。若是已经投出去了，回复确认即可，我会用当前 JD 快照建立投递记录。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "036bdd0685a8c10bcb3e38961d7c8cc8b0f4bc27c1d0d7ba52e8082343bb93ba",
+          "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "propose_job_intent",
+            "create_application",
+            "get_interview_preparation",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4130.6,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "在帮你推进投递之前，我想先跟你说明一下\"准备投\"和\"已经投了\"的区别：**我只能在用户明确说明\"已经实际提交了申请\"之后才创建投递记录**。所以现在这一步，我暂时不能替你建投递记录。\n\n不过，有几个方向我可以现在就帮你做，你看哪个是你想要的：\n\n1. **分析这个岗位（示例科技 算法工程师）** — 我可以先读它的完整 JD，给出核心目标、S/A/B/C 分级要求、关键词、面试可能考点等，帮你判断值不值得投、怎么准备。\n2. **准备面试材料** — 如果你已经有面试安排，我可以基于该岗位生成一份准备材料（不过目前还没有关联的面试轮次）。\n3. **你其实已经投出去了** — 如果你已经提交了申请，请告诉我一句，我就按\"已投递\"帮你建立投递记录。\n\n另外，我看到\"示例科技 算法工程师\"是已收藏岗位，但当前没有绑定简历版本。如果之后要建投递记录，建议同时关联上你实际使用的那份简历。\n\n你想先做哪一步？如果只是让我分析这个岗位以帮你决定投不投，我可以直接开始。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:21.714942+00:00",
+      "elapsed_ms": 1143.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_saved_job",
+            "arguments": {
+              "selection_index": 1
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "036bdd0685a8c10bcb3e38961d7c8cc8b0f4bc27c1d0d7ba52e8082343bb93ba",
+          "decision_shape_fingerprint": "5786e417768019ee25967f251a4769f98a4f2ca3582200440bc6bcf2082904d8",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "propose_job_intent",
+            "create_application",
+            "get_interview_preparation",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1140.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

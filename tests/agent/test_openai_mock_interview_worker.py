@@ -11,7 +11,7 @@ from career_agent.agent.contracts.interview_preparation import (
     InterviewPreparationContext,
     PriorInterviewRetroContext,
 )
-from career_agent.agent.workflows.mock_interview.skill_loader import MockInterviewSkillLoader
+from career_agent.agent.workflows.mock_interview.prompt_loader import MockInterviewPromptLoader
 from career_agent.agent.providers.openai_client import (
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
@@ -142,7 +142,7 @@ def _worker(
             model="multimodal-model",
             protocol=protocol,  # type: ignore[arg-type]
         ),
-        skill_loader=MockInterviewSkillLoader(Path("skills")),
+        prompt_loader=MockInterviewPromptLoader(Path("prompts")),
         client=client,
     )
 
@@ -234,7 +234,7 @@ def _follow_up_turn(*, answer: str = "Recall rose 12% over two weeks.") -> MockI
     )
 
 
-def test_plan_loads_mixed_skill_and_sends_exact_text_sources() -> None:
+def test_plan_loads_mixed_prompt_and_sends_exact_text_sources() -> None:
     client = FakeClient(_plan_output())
     result = _worker(client).plan(
         session=_session(),
@@ -523,7 +523,7 @@ def test_a_plan_without_written_questions_is_rejected() -> None:
 def test_worker_uses_dedicated_environment_prefix() -> None:
     client = FakeClient(_plan_output())
     worker = OpenAIMockInterviewWorker.from_env(
-        skills_root=Path("skills"),
+        prompts_root=Path("prompts"),
         environ={
             "MOCK_INTERVIEW_AGENT_BASE_URL": "https://example.test/v1",
             "MOCK_INTERVIEW_AGENT_API_KEY": "secret",

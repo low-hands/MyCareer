@@ -1,0 +1,45 @@
+{
+  "note": "Additional read-only audit of original snapshots; original grading and attempts unchanged",
+  "rounds": [
+    {
+      "round": 1,
+      "missing_with_strict_numeric_boundary": []
+    },
+    {
+      "round": 2,
+      "missing_with_strict_numeric_boundary": []
+    },
+    {
+      "round": 3,
+      "missing_with_strict_numeric_boundary": []
+    },
+    {
+      "round": 4,
+      "missing_with_strict_numeric_boundary": []
+    },
+    {
+      "round": 5,
+      "missing_with_strict_numeric_boundary": []
+    },
+    {
+      "round": 6,
+      "missing_with_strict_numeric_boundary": []
+    },
+    {
+      "round": 7,
+      "missing_with_strict_numeric_boundary": []
+    },
+    {
+      "round": 8,
+      "missing_with_strict_numeric_boundary": []
+    },
+    {
+      "round": 9,
+      "missing_with_strict_numeric_boundary": []
+    },
+    {
+      "round": 10,
+      "missing_with_strict_numeric_boundary": []
+    }
+  ]
+}

@@ -1,0 +1,196 @@
+{
+  "version": 1,
+  "model": "deepseek-flash",
+  "scenario": "single_brief_body_is_delivered",
+  "suite_fingerprint": "2a75ebf7fa9c6b126b0541b4b10b1491e377049947c377d9ad1ff44be070c8ec",
+  "recorded_at": "2026-10-11T07:48:01.955728+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看今日简报": {
+            "get_daily_brief": 0.8176846936063508
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看今日简报",
+          "assistant_message": "今日简报已生成（详见随附卡片）：**今天没有待办事项。**\n\n从当前记录看，没有进行中的投递、面试或待办提醒，也没有已保存的岗位或简历版本绑定。如果你想开始做点什么，可以告诉我，例如：搜索并收藏岗位、分析某个 JD、准备面试，或记录一条投递。\n\n# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai"
+                  }
+                }
+              },
+              "schema_fingerprint": "d6347dd93dd43de2e39b8c1a062eb81923d4add744b9efc0653eee4893029ec0",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"今日简报已生成（详见随附卡片）：**今天没有待办事项。**\\n\\n从当前记录看，没有进行中的投递、面试或待办提醒，也没有已保存的岗位或简历版本绑定。如果你想开始做点什么，可以告诉我，例如：搜索并收藏岗位、分析某个 JD、准备面试，或记录一条投递。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "d6347dd93dd43de2e39b8c1a062eb81923d4add744b9efc0653eee4893029ec0",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看今日简报": {
+            "get_daily_brief": 0.817764124937609
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看今日简报",
+          "assistant_message": "今日简报已生成（并已随回复提供）：今天没有待办事项。\n\n也就是说，目前没有需要你处理的投递跟进、面试安排或简历定制缺口。如果你想补充目标岗位、查看投递记录，或让我做一次更具体的梳理，告诉我即可。\n\n# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai"
+                  }
+                }
+              },
+              "schema_fingerprint": "d6347dd93dd43de2e39b8c1a062eb81923d4add744b9efc0653eee4893029ec0",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"今日简报已生成（并已随回复提供）：今天没有待办事项。\\n\\n也就是说，目前没有需要你处理的投递跟进、面试安排或简历定制缺口。如果你想补充目标岗位、查看投递记录，或让我做一次更具体的梳理，告诉我即可。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "d6347dd93dd43de2e39b8c1a062eb81923d4add744b9efc0653eee4893029ec0",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看今日简报": {
+            "get_daily_brief": 0.8177157964109821
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看今日简报",
+          "assistant_message": "今日简报已生成，随回复一并送达：**今天没有待办事项**（当前没有待处理的投递、面试或简历定制缺口）。\n\n如需安排后续动作，可以告诉我，例如：\n- 浏览/收藏目标岗位并创建投递记录\n- 记录面试安排或做面试准备\n- 同步投递相关邮件\n\n# 今日职业简报\n\n今天没有待办事项。",
+          "executed_calls": [
+            {
+              "name": "get_daily_brief",
+              "arguments": {
+                "user_id": "eval-user",
+                "timezone": "Asia/Shanghai"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "get_daily_brief",
+                  "arguments": {
+                    "timezone": "Asia/Shanghai"
+                  }
+                }
+              },
+              "schema_fingerprint": "d6347dd93dd43de2e39b8c1a062eb81923d4add744b9efc0653eee4893029ec0",
+              "action": "tool_call",
+              "tool": "get_daily_brief"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"今日简报已生成，随回复一并送达：**今天没有待办事项**（当前没有待处理的投递、面试或简历定制缺口）。\\n\\n如需安排后续动作，可以告诉我，例如：\\n- 浏览/收藏目标岗位并创建投递记录\\n- 记录面试安排或做面试准备\\n- 同步投递相关邮件\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "d6347dd93dd43de2e39b8c1a062eb81923d4add744b9efc0653eee4893029ec0",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "daily_brief_ready"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

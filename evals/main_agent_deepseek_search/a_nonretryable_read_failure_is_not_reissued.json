@@ -1,0 +1,137 @@
+{
+  "scenario": "a_nonretryable_read_failure_is_not_reissued",
+  "policy": "After receiving an observation, choose the next action or ask a state-grounded question only when another distinct operation is genuinely required; never repeat a failed non-retryable call.",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "cce8b2e4b6e2a3fd4212530308015686aa025f39e3f3e930581496765c9b197d",
+  "context_shape_fingerprint": "9350a7c40ad7d4095b44ba3e388f0548663a66790a77ab8cb4401d09333d7a32",
+  "recorded_at": "2026-10-11T07:45:53.622579+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"抱歉，岗位库当前无法完成这次查询，因此暂时无法列出你保存过的 RAG 岗位。该查询被标记为不可重试，所以我没有再次尝试。\\n\\n这属于工具侧的失败，不是缺少你提供的信息。建议稍后再让我重试一次；如果你愿意，也可以直接告诉我岗位名称或公司，我再用其他方式帮你定位。目前这部分请求尚未完成，阻塞点是岗位库查询失败。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "6e3862bbdb5fa70311f45646eb75bd4417d12e6a691f51bf1576dd6e38b83222",
+      "decision_shape_fingerprint": "00a7eb45dc470fe6b127c07450da836206000e98f439ba05b011ed34be46758f",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "open_job_search",
+        "find_saved_jobs",
+        "list_target_roles",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2049.7,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-11T07:45:51.663920+00:00",
+      "elapsed_ms": 2052.4,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"抱歉，岗位库当前无法完成这次查询，因此暂时无法列出你保存过的 RAG 岗位。该查询被标记为不可重试，所以我没有再次尝试。\\n\\n这属于工具侧的失败，不是缺少你提供的信息。建议稍后再让我重试一次；如果你愿意，也可以直接告诉我岗位名称或公司，我再用其他方式帮你定位。目前这部分请求尚未完成，阻塞点是岗位库查询失败。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "6e3862bbdb5fa70311f45646eb75bd4417d12e6a691f51bf1576dd6e38b83222",
+          "decision_shape_fingerprint": "00a7eb45dc470fe6b127c07450da836206000e98f439ba05b011ed34be46758f",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2049.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:52.710785+00:00",
+      "elapsed_ms": 2879.8,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"很抱歉，检索你收藏岗位的操作失败了——岗位库当前无法完成这次查询（已收藏岗位查询不可重试）。因此我暂时无法列出你保存过的 RAG 相关岗位。\\n\\n可选的后续做法：\\n- 稍后再让我重新查一次（届时会是一次新的查询，而不是重复这次失败的调用）；\\n- 或者你先尝试直接在岗位库/收藏列表里查看。\\n\\n需要我在你方便的时候再试一次吗？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "6e3862bbdb5fa70311f45646eb75bd4417d12e6a691f51bf1576dd6e38b83222",
+          "decision_shape_fingerprint": "00a7eb45dc470fe6b127c07450da836206000e98f439ba05b011ed34be46758f",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2875.9,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "查询失败了：岗位库当前无法完成这次「RAG 相关已收藏岗位」的查询，且该结果不可重试（同一条件再查也是同样失败）。这不是「没有收藏」的结论——只是这次检索没有成功。\n\n可以稍后再让我重新查一次，或者换一个更宽的条件（比如不带关键词，列出最近收藏的岗位）再试。要我现在换个条件试吗？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:53.622579+00:00",
+      "elapsed_ms": 3170.3,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"没能帮您查到已收藏的 RAG 岗位：岗位库这次查询返回失败（\\\"岗位库当前无法完成这次查询\\\"），并且该查询不可重试，所以目前无法列出您保存过的 RAG 岗位。\\n\\n建议稍后再试一次，或者您也可以直接把想看的岗位 JD 发给我，我基于它继续帮您分析/匹配。需要我稍后再试的话，请告诉我。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "6e3862bbdb5fa70311f45646eb75bd4417d12e6a691f51bf1576dd6e38b83222",
+          "decision_shape_fingerprint": "00a7eb45dc470fe6b127c07450da836206000e98f439ba05b011ed34be46758f",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3166.8,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "我尝试在已收藏岗位中检索\"RAG\"相关岗位，但岗位库这次查询失败了，返回的是失败回执（不可重试，也不代表\"没有保存过\"）。\n\n当前状况：\n- 未完成的部分：列出你保存过的 RAG 岗位。\n- 阻塞原因：`find_saved_jobs` 本次调用失败，工具明确提示不要重试同一查询。\n\n说明：这次失败无法区分是\"没有匹配岗位\"还是\"岗位库暂时不可用\"，所以我现在既不能确认你保存过哪些 RAG 岗位，也不能断言你没有保存过。\n\n建议：稍后再说一次\"找我保存过的 RAG 岗位\"（换一个新的请求而不是同一查询重试），我会重新查询；如果你记得岗位的公司或标题关键词，也可以一并告诉我，便于定位。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

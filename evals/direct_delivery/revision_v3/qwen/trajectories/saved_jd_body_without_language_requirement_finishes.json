@@ -1,0 +1,118 @@
+{
+  "scenario": "saved_jd_body_without_language_requirement_finishes",
+  "policy": "A bounded observation body is approved presenter text from the read result. When the user's condition is absent from that body, finish instead of following the usual read-to-match route.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "c657a90264e6916efbe467029d9a52c7509750737699b118f2f46417fc1dc57e",
+  "context_shape_fingerprint": "b8eacbd0ce7337fadac7ae52ea8ca5ce5ffa80e63820daabc9c782cf4c58a4d1",
+  "recorded_at": "2026-10-10T00:53:14.813792+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"final\",\"message\":\"已检查该岗位的完整 JD，要求为\\\"具备分布式系统设计和生产环境异步服务经验\\\"，未明确要求 Rust。根据您的指示，匹配流程到此结束。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "10cf4f841dccf5f842c9f2e7e2027e5bfb4364d30286835e4260b7699f4dc293",
+      "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "analyze_job",
+        "create_interview",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3720.8,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T00:53:13.290833+00:00",
+      "elapsed_ms": 3724.8,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"已检查该岗位的完整 JD，要求为\\\"具备分布式系统设计和生产环境异步服务经验\\\"，未明确要求 Rust。根据您的指示，匹配流程到此结束。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "10cf4f841dccf5f842c9f2e7e2027e5bfb4364d30286835e4260b7699f4dc293",
+          "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3720.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:53:14.287013+00:00",
+      "elapsed_ms": 2171.8,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "10cf4f841dccf5f842c9f2e7e2027e5bfb4364d30286835e4260b7699f4dc293",
+          "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2167.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:53:14.813792+00:00",
+      "elapsed_ms": 2668.7,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"该岗位 JD 未明确要求 Rust，按您的指示到此为止。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "10cf4f841dccf5f842c9f2e7e2027e5bfb4364d30286835e4260b7699f4dc293",
+          "decision_shape_fingerprint": "e046e889ee32ba965fa674316e453ec2a00a94d13e9bfd7b9553741a92d2d7e3",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2664.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

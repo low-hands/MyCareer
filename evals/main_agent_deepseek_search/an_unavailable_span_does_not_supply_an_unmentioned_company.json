@@ -1,0 +1,161 @@
+{
+  "scenario": "an_unavailable_span_does_not_supply_an_unmentioned_company",
+  "policy": "A failed read supplies no missing company name. Decide from the visible history and observation without guessing.",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "800f2de109ecb5a950946cc335eaf0be934617cbabd506b94d1f6bb664d53f62",
+  "context_shape_fingerprint": "d5a03093a638d2e25feb0e65cef260effd1f74287f055887a6dcf3f836a29dab",
+  "recorded_at": "2026-10-11T07:46:09.526237+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "fetch_archived_constraints",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "902451cdedca118a31c58f651ab70eb7acc5217137ed8777b1b19ae428d0fdc8",
+      "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_target_roles",
+        "propose_job_intent",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2707.9,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "I can't tell you the full name of your target company — it isn't in any evidence I can access.\n\nHere's what the record actually shows:\n- **Career profile** (memory/current_targets.md): \"No active targets.\"\n- **Person-level intent**: Default city: Not confirmed\n- **Conversation**: No compressed history exists, and the visible turns don't contain it — you asked about a 美团 JD, and the reply noted no target company had been given.\n- **Active objects**: No saved job, application, or target role is currently in focus.\n\nSo there's no target company recorded, and no earlier message to recover one from. If you tell me the company's full name, I can record it as your job intent after showing you the proposal for confirmation.",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-11T07:46:06.558969+00:00",
+      "elapsed_ms": 2711.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "fetch_archived_constraints",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "902451cdedca118a31c58f651ab70eb7acc5217137ed8777b1b19ae428d0fdc8",
+          "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2707.9,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I can't tell you the full name of your target company — it isn't in any evidence I can access.\n\nHere's what the record actually shows:\n- **Career profile** (memory/current_targets.md): \"No active targets.\"\n- **Person-level intent**: Default city: Not confirmed\n- **Conversation**: No compressed history exists, and the visible turns don't contain it — you asked about a 美团 JD, and the reply noted no target company had been given.\n- **Active objects**: No saved job, application, or target role is currently in focus.\n\nSo there's no target company recorded, and no earlier message to recover one from. If you tell me the company's full name, I can record it as your job intent after showing you the proposal for confirmation.",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:46:08.860137+00:00",
+      "elapsed_ms": 3228.5,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"我这边没有记录到你的目标公司全名——之前窗口里出现的「美团」是参照用的 JD，不是你的目标公司，你自己也说过还没告诉我目标公司。当前职业档案里也写着「暂无有效目标方向」，所以没有可推出的公司名。请直接把目标公司的全名告诉我，我再继续帮你看这份 JD。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "902451cdedca118a31c58f651ab70eb7acc5217137ed8777b1b19ae428d0fdc8",
+          "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3226.1,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I don't have a target company on record for you. Your profile shows no active targets (\"No active targets\"), and there's no target company named anywhere in this conversation — the 美团 JD was just a comparison example I mentioned, not your stated target.\n\nI can't determine the full legal name of your target company because you haven't told me it yet. If you tell me the target company (or role) you're pursuing, I can record it as your job intent.",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:46:09.526237+00:00",
+      "elapsed_ms": 3236.2,
+      "steps": [
+        {
+          "content": "{\"action\":\"final\",\"message\":\"我这边没有你的目标公司全名。当前职业档案里目标岗位一栏是「暂无有效目标」，也没有已保存的岗位或投递记录；刚才窗口里那份美团 JD 只是对照用，你还没告诉我目标公司。这次会话也没有可读取的更早历史，我无法从别处补全。\\n\\n请直接告诉我目标公司的全名，我就能接着帮你对照 JD、调研或推进后续步骤。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "902451cdedca118a31c58f651ab70eb7acc5217137ed8777b1b19ae428d0fdc8",
+          "decision_shape_fingerprint": "e5618b57a5ef0859f7b75489cea579cee84e5398e8c9fb618e1576c4fea7d9ba",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3233.4,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "你并没有告诉过我目标公司的全名——这个信息不在当前会话里。\n\n刚才窗口里提到的「美团」只是你让我对照的那份 JD；我上一轮也说过，那只是对照，你还未告知目标公司。此外，你的职业档案（memory/current_targets.md）显示「暂无有效目标」，也没有记录任何目标公司。\n\n所以：我无法给出你目标公司的全名。如果你告诉我，我可以帮你记下并展开后续比较。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

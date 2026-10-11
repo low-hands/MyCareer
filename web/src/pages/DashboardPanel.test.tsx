@@ -12,7 +12,7 @@ vi.mock("../api/client", async (original) => ({
 }));
 const dashboard = API_CONTRACT.reads.DashboardResponse.examples[0] as unknown as Dashboard;
 const resume: ResumeView = {
-  id: "resume-1", name: "产品经理简历", target_role: "产品经理", status: "current",
+  id: "resume-1", name: "产品经理简历", target_role: "产品经理", target_role_id: "role-1", status: "current",
   latest_version_number: 2, latest_version_id: "version-2", version_count: 2,
   document_format: "pdf", byte_size: 100, updated_at: "2026-09-23T00:00:00Z",
   versions: [2, 1].map((n) => ({ id: `version-${n}`, resume_id: "resume-1", version_number: n, document_format: "pdf", byte_size: 100, created_at: "2026-09-23T00:00:00Z", change_summary: n === 1 ? "初始版本" : "新增：新项目" })),

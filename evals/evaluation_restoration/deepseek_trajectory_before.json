@@ -1,0 +1,190 @@
+[
+  {
+    "scenario": "a_missing_city_is_asked_for_not_guessed",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "research_is_not_started_as_part_of_matching",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "stated_intent_is_proposed_before_it_is_recorded",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "intent_is_not_inferred_from_a_job_the_user_liked",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "working_notes_never_choose_or_rank_a_job",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_note_derived_filter_is_confirmed_with_the_user",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_stale_note_is_reviewed_before_reuse",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_bare_confirmation_expires_after_the_adjacent_turn",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "planning_to_apply_does_not_create_an_application",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_calendar_write_is_never_executed_in_the_turn_that_prepared_it",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_stale_working_note_is_merged_not_overwritten",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "an_approved_calendar_proposal_is_executed",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "interview_completion_is_not_inferred_from_the_clock",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_stored_report_is_read_back_rather_than_recalled",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_report_that_scrolled_out_of_the_catalogue_is_not_faked",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_report_made_this_turn_is_read_back_by_its_index",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_report_older_than_the_window_is_still_read_back",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "an_unseen_result_is_delivered_rather_than_characterized",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "overdue_brief_routes_to_the_action_list",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "clear_brief_finishes_without_opening_the_action_list",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "weak_match_routes_to_resume_tailoring",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "saved_jd_body_drives_the_next_read_step",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "saved_jd_body_without_language_requirement_finishes",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_card_backed_report_is_answered_without_reproducing_it",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "cached_research_routes_to_an_explicit_new_focus",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_repeated_call_is_not_reissued_after_an_observation",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_retryable_read_failure_does_not_change_the_user_intent",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_nonretryable_read_failure_is_not_reissued",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "an_uncertain_calendar_write_is_not_reissued_or_claimed",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "an_authorization_refusal_is_explained_not_bypassed",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "an_owner_rule_that_stopped_an_action_is_not_proposed_away",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "an_invalid_selection_is_not_reconstructed",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_compacted_fact_is_paged_in_rather_than_guessed",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_returned_span_body_is_used_not_the_window_decoy",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_long_compacted_history_is_searched_in_one_page_in_call",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "an_unmentioned_company_without_compaction_is_not_invented",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "an_unavailable_span_does_not_supply_an_unmentioned_company",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_fact_still_in_the_window_is_answered_without_page_in",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "an_empty_conversation_span_is_not_filled_from_the_window",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_core_request_routes_before_job_analysis",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_resume_critique_loads_its_skill",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "five_missing_resume_facts_use_one_questionnaire",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "submitted_resume_questionnaire_continues_tailoring",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "a_questionnaire_answer_is_proposed_with_user_input_provenance",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "tool_selection_switches_from_resume_to_job_research",
+    "stale": "search prompt or schema changed; re-record it"
+  },
+  {
+    "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+    "stale": "search prompt or schema changed; re-record it"
+  }
+]

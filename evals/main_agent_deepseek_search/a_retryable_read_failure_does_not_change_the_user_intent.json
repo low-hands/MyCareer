@@ -1,0 +1,135 @@
+{
+  "scenario": "a_retryable_read_failure_does_not_change_the_user_intent",
+  "policy": "Do not switch a failed saved-job lookup into a new browser search unless the user asks for new jobs. A retryable failure may be retried or explained, but it must not silently become discovery.",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "cce8b2e4b6e2a3fd4212530308015686aa025f39e3f3e930581496765c9b197d",
+  "context_shape_fingerprint": "37f048c49dcc5a1603a30c1635d95e9939d05660fb35d4589f5e037566930600",
+  "recorded_at": "2026-10-11T07:45:50.447622+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "find_saved_jobs",
+        "arguments": {
+          "query": "RAG"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "6e3862bbdb5fa70311f45646eb75bd4417d12e6a691f51bf1576dd6e38b83222",
+      "decision_shape_fingerprint": "dc9a240befdf254131afd4d5f2cec7b40d0e94efaeb1cd3e8c4aabd8900d058d",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "open_job_search",
+        "find_saved_jobs",
+        "list_target_roles",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 962.3,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-11T07:45:49.152177+00:00",
+      "elapsed_ms": 966.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "find_saved_jobs",
+            "arguments": {
+              "query": "RAG"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "6e3862bbdb5fa70311f45646eb75bd4417d12e6a691f51bf1576dd6e38b83222",
+          "decision_shape_fingerprint": "dc9a240befdf254131afd4d5f2cec7b40d0e94efaeb1cd3e8c4aabd8900d058d",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 962.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:50.451448+00:00",
+      "elapsed_ms": 1296.8,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "find_saved_jobs",
+            "arguments": {
+              "query": "RAG"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "6e3862bbdb5fa70311f45646eb75bd4417d12e6a691f51bf1576dd6e38b83222",
+          "decision_shape_fingerprint": "dc9a240befdf254131afd4d5f2cec7b40d0e94efaeb1cd3e8c4aabd8900d058d",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1294.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:50.447622+00:00",
+      "elapsed_ms": 1255.8,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "find_saved_jobs",
+            "arguments": {
+              "query": "RAG"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "6e3862bbdb5fa70311f45646eb75bd4417d12e6a691f51bf1576dd6e38b83222",
+          "decision_shape_fingerprint": "dc9a240befdf254131afd4d5f2cec7b40d0e94efaeb1cd3e8c4aabd8900d058d",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1252.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

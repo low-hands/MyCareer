@@ -1,0 +1,16 @@
+[
+  {
+    "scenario": "inventory_three_catalogues",
+    "passed": true,
+    "errors": [],
+    "failures": []
+  },
+  {
+    "scenario": "single_empty_resume_receipt",
+    "passed": false,
+    "errors": [],
+    "failures": [
+      "turn 1: required delivery text missing"
+    ]
+  }
+]

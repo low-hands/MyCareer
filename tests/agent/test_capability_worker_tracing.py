@@ -12,9 +12,11 @@ from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.workflows.job_research.worker import (
     DeepAgentJobResearchWorker,
 )
+from career_agent.agent.workflows.resume_tailoring.finalizer import (
+    OpenAIResumeFinalizationWorker,
+)
 from career_agent.agent.workflows.resume_tailoring.worker import (
-    DeepAgentResumeFinalizationWorker,
-    DeepAgentResumeTailoringWorker,
+    OpenAIResumeTailoringWorker,
 )
 from career_agent.agent.contracts.decisions import (
     AgentDecision,
@@ -59,8 +61,8 @@ from career_agent.storage.context import CareerContextStore
         (OpenAIMockInterviewWorker, "_request_structured"),
         (OpenAIResumeTailoringReviewer, "_review"),
         (DeepAgentJobResearchWorker, "research"),
-        (DeepAgentResumeTailoringWorker, "tailor"),
-        (DeepAgentResumeFinalizationWorker, "finalize"),
+        (OpenAIResumeTailoringWorker, "tailor"),
+        (OpenAIResumeFinalizationWorker, "finalize"),
     ),
 )
 def test_every_production_capability_model_entry_is_traced(worker, method) -> None:

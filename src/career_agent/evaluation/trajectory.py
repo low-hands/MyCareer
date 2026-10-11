@@ -6,7 +6,7 @@ model:
 **Contract level** — always runs, needs no API key. Builds the exact context a
 scenario would send and checks that the decision is even *decidable* from it:
 the facts the policy turns on are present in the projection, and every expected
-tool exists in that step's profile. Runtime argument projection,
+tool is registered. Runtime argument projection,
 not prompt-shape mutation, owns task-state preconditions.
 
 **Replay level** — runs for scenarios that have a recorded model response.
@@ -14,7 +14,7 @@ Checks the decision itself against the scenario's expectations.
 
 The split matters and should not be blurred: passing at contract level says the
 question was asked properly, not that the model answered it well. Only a fresh
-recording says that. ``record`` refreshes them against the live model.
+recording says that. The search trajectory recorder refreshes live samples.
 """
 
 from __future__ import annotations
@@ -24,17 +24,17 @@ import json
 import math
 import random
 import re
-import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Mapping, Sequence
+
+from pydantic import BaseModel
 
 from career_agent.agent.runtime.decision_messages import project_decision_messages
-from career_agent.agent.capabilities.catalog import TOOL_PROFILE_NAMES
 from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.contracts.task_state import ConversationTaskState
 from career_agent.agent.contracts.decisions import AgentDecision
 from career_agent.agent.contracts.observations import (
     DecisionObservation,
@@ -43,20 +43,13 @@ from career_agent.agent.contracts.observations import (
 from career_agent.agent.providers.openai_client import (
     AgentConfigurationError,
     AgentWorkerError,
-    OpenAICompatibleAgentConfig,
 )
 from career_agent.agent.providers.main_agent import (
     OpenAICompatibleMainAgentDecisionMaker,
 )
-from career_agent.agent.capabilities.profiles import profile_schemas
+from career_agent.agent.providers.interaction_output import interaction_schemas
 
-CASSETTE_ROOT = Path(__file__).resolve().parents[3] / "evals" / "main_agent"
-# Offline replay is judged against the checked-in recording baseline. A
-# deployment can use another model; the CLI compares its configured model
-# separately and reports those cassettes as stale until that model is recorded.
-EVALUATION_BASELINE_MODEL = "gpt-5.6-sol"
-_MAX_RECORD_JOBS = 32
-_RECORD_MAKERS = threading.local()
+CASSETTE_ROOT = Path(__file__).resolve().parents[3] / "evals" / "main_agent_search"
 
 
 @dataclass(frozen=True)
@@ -90,6 +83,13 @@ class TrajectoryStep:
     every later turn, and puts a second, drifting copy next to the one the
     reader can reopen. Exact-matching prose would be brittle, so the assertion
     names only what must be absent.
+    """
+
+    forbid_message_regexes: tuple[str, ...] = ()
+    """Heuristic assertion for an answer phrased as a sentence, not a mere mention.
+
+    Keep patterns narrow: a decoy may be mentioned while explicitly rejected.
+    This cannot prove semantic correctness for every possible paraphrase.
     """
 
     forbid_final_message_contains: frozenset[str] = frozenset()
@@ -269,41 +269,22 @@ class _ReplayChat:
 def _as_response(recorded: Mapping[str, Any]) -> Any:
     """Rebuild the duck-typed shape the decision maker reads off a response."""
     call = recorded.get("tool_call")
-    if call is not None:
-        function = type(
-            "Function",
-            (),
-            {
-                "name": call["name"],
-                "arguments": json.dumps(call.get("arguments", {}), ensure_ascii=False),
-            },
-        )()
-        tool_call = type("ToolCall", (), {"function": function})()
-        message = type("Message", (), {"content": None, "tool_calls": [tool_call]})()
-    else:
-        message = type(
-            "Message", (), {"content": recorded.get("content", ""), "tool_calls": []}
-        )()
+    if call is None:
+        decision = AgentDecision.model_validate_json(recorded["content"])
+        arguments = decision.model_dump(mode="json", exclude_none=True)
+        action = arguments.pop("action")
+        if action != "questionnaire":
+            arguments.pop("questions", None)
+        call = {"name": "final_response" if action == "final" else action,
+                "arguments": arguments}
+    function = type("Function", (), {
+        "name": call["name"],
+        "arguments": json.dumps(call.get("arguments", {}), ensure_ascii=False),
+    })()
+    tool_call = type("ToolCall", (), {"function": function})()
+    message = type("Message", (), {"content": None, "tool_calls": [tool_call]})()
     choice = type("Choice", (), {"message": message})()
     return type("Response", (), {"choices": [choice]})()
-
-
-@dataclass(frozen=True)
-class StepOutcome:
-    decision: AgentDecision
-    failures: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class ScenarioOutcome:
-    scenario: str
-    policy: str
-    replayed: bool
-    failures: tuple[str, ...]
-
-    @property
-    def passed(self) -> bool:
-        return not self.failures
 
 
 @dataclass(frozen=True)
@@ -318,7 +299,7 @@ class TrajectoryCassette:
 
     @property
     def recordings(self) -> tuple[tuple[dict[str, Any], ...], ...]:
-        """Every independent recording, including legacy single-step files."""
+        """Every independent recording for this scenario."""
 
         return self.samples or (self.steps,)
 
@@ -327,21 +308,54 @@ class TrajectoryCassette:
         return len(self.recordings)
 
 
-@dataclass(frozen=True)
-class PairedBudgetCassetteReplay:
-    """Direct paired replay result for one explicit budget change."""
+def summarize_decision_retries(cassettes: Sequence[TrajectoryCassette]) -> dict[str, Any]:
+    """Summarize measured completed decisions and retry reasons."""
+    all_steps = [step for cassette in cassettes for sample in cassette.recordings for step in sample]
+    steps = [step for step in all_steps if not step.get("recording_error")]
+    covered = [step for step in steps if step.get("decision_retry_telemetry_version") == 1]
+    reason_counts: dict[str, int] = {}
+    terminal_counts: dict[str, int] = {}
+    for step in covered:
+        for event in step.get("decision_retry_events", ()):
+            counts = reason_counts if event["retried"] else terminal_counts
+            reason = event["reason"]
+            counts[reason] = counts.get(reason, 0) + 1
 
-    baseline_budgets: tuple[int, int, int]
-    candidate_budgets: tuple[int, int, int]
-    pair_count: int
-    baseline_pass_count: int
-    candidate_pass_count: int
-    regressed_pair_count: int
-    improved_pair_count: int
+    def is_interaction(step: dict[str, Any]) -> bool:
+        if "content" not in step:
+            return False
+        try:
+            return json.loads(step["content"]).get("action") in {"ask_user", "questionnaire", "final"}
+        except (ValueError, AttributeError):
+            return False
 
-    @property
-    def candidate_noninferior(self) -> bool:
-        return self.regressed_pair_count == 0
+    interactions = [step for step in covered if is_interaction(step)]
+    forced_interactions = [
+        step for step in interactions
+        if any(event.get("reason") == "text_rejected" and event.get("retried")
+               and event.get("forced_interaction", True)
+               for event in step.get("decision_retry_events", ()))
+    ]
+    def with_retries(items: Sequence[dict[str, Any]]) -> int:
+        return sum(
+            any(event["retried"] for event in step.get("decision_retry_events", ()))
+            for step in items
+        )
+    return {
+        "completed_decisions": len(steps),
+        "terminal_failed_recordings": sum(bool(step.get("recording_error")) for step in all_steps),
+        "covered_decisions": len(covered),
+        "unknown_decisions": len(steps) - len(covered),
+        "decisions_with_retries": with_retries(covered),
+        "interaction_decisions": sum(is_interaction(step) for step in steps),
+        "covered_interaction_decisions": len(interactions),
+        "interaction_decisions_with_retries": with_retries(interactions),
+        "forced_interaction_decisions_after_text_rejected": len(forced_interactions),
+        "interaction_retry_rate": with_retries(interactions) / len(interactions) if interactions else None,
+        "retry_reason_counts": reason_counts,
+        "terminal_rejection_reason_counts": terminal_counts,
+        "note": "Counts cover completed decisions in fresh cassettes only; terminal failed recordings are reported separately.",
+    }
 
 
 def cassette_path(name: str, *, root: Path | None = None) -> Path:
@@ -350,9 +364,17 @@ def cassette_path(name: str, *, root: Path | None = None) -> Path:
 
 def prompt_fingerprint(tool_specs: tuple[dict[str, Any], ...]) -> str:
     """Hash the exact system prompt and schemas sent for one decision."""
-    prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt()
+    from career_agent.agent.capabilities.selection_strategy import SearchStrategy
+    from career_agent.agent.providers.main_agent import _normalize_tool_specs
+    prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt(
+        SearchStrategy().tool_policy()
+    )
     encoded = json.dumps(
-        {"system_prompt": prompt, "tool_specs": tool_specs},
+        {
+            "system_prompt": prompt,
+            "tool_specs": _normalize_tool_specs(tool_specs) + interaction_schemas(continuation=True),
+            "tool_selection_mode": "search",
+        },
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
@@ -370,7 +392,7 @@ def context_shape_fingerprint(scenario: TrajectoryScenario) -> str:
     context = scenario.context
     step_shapes = []
     for index, step in enumerate(scenario.steps):
-        context = _advance(context, step)
+        context = advance_trajectory_context(context, step)
         projection = project_decision_messages(context, clock=_FINGERPRINT_CLOCK)
         messages = projection.messages(
             system_prompt="[policy]", spotlight_nonce="0" * 32
@@ -425,7 +447,7 @@ def load_cassette(
     path = cassette_path(name, root=root)
     if not path.exists():
         return None
-    payload = json.loads(path.read_text())
+    payload = json.loads(path.read_text(encoding="utf-8"))
     raw_samples = payload.get("samples")
     samples = (
         tuple(
@@ -445,52 +467,6 @@ def load_cassette(
     )
 
 
-def cassette_staleness(
-    cassette: TrajectoryCassette,
-    *,
-    scenario: TrajectoryScenario,
-    tool_specs: tuple[dict[str, Any], ...],
-    expected_model: str | None,
-) -> str | None:
-    """Explain why a recording cannot represent the current model and prompt."""
-    current = trajectory_prompt_fingerprint(scenario, tool_specs)
-    if cassette.prompt_fingerprint is None:
-        return "cassette has no prompt_fingerprint; re-record it"
-    if cassette.prompt_fingerprint != current:
-        return (
-            "cassette prompt_fingerprint does not match the current stable "
-            "prompt/tool universe; re-record it"
-        )
-    current_shape = context_shape_fingerprint(scenario)
-    if cassette.context_shape_fingerprint is None:
-        return "cassette has no context_shape_fingerprint; re-record it"
-    if cassette.context_shape_fingerprint != current_shape:
-        return (
-            "cassette context_shape_fingerprint does not match the current "
-            "model_context projection; re-record it"
-        )
-    if not expected_model:
-        return "current MAIN_AGENT_MODEL is unavailable; configure it before replay"
-    if cassette.model is None:
-        return "cassette has no model; re-record it"
-    if cassette.model != expected_model:
-        return (
-            f"cassette model {cassette.model!r} does not match current model "
-            f"{expected_model!r}; re-record it"
-        )
-    if scenario.has_quality_assertions and (
-        cassette.sample_count != scenario.recording_samples
-    ):
-        return (
-            f"cassette has {cassette.sample_count} sample(s), but quality scenario "
-            f"requires exactly {scenario.recording_samples}; re-record it"
-        )
-    if cassette.sample_count < scenario.recording_samples:
-        return (
-            f"cassette has {cassette.sample_count} sample(s), but the scenario "
-            f"requires {scenario.recording_samples}; re-record it"
-        )
-    return None
 
 
 def check_contract(
@@ -498,9 +474,7 @@ def check_contract(
 ) -> tuple[str, ...]:
     """Whether the scenario asks a question the model could answer.
 
-    Runs without a model and catches two invalid test shapes: the context no
-    longer carries the fact the policy turns on, or a step expects a tool that
-    is not offered under its active profile.
+    Runs without a model and catches missing decision facts or unknown tools.
     """
     failures = []
     projection = scenario.context.model_context()
@@ -517,18 +491,15 @@ def check_contract(
                 f"{scenario.name}[{index}]: expect_user_input and expect_action "
                 "cannot both be set"
             )
-        context = _advance(context, step)
-        offered = {
-            spec["function"]["name"]
-            for spec in profile_schemas(context.task.tool_profile, tool_specs)
-        }
+        context = advance_trajectory_context(context, step)
+        registered = {spec["function"]["name"] for spec in tool_specs}
         expected = step.expect_tools | (
             {step.expect_tool} if step.expect_tool is not None else set()
         )
-        for name in sorted(expected - offered):
+        for name in sorted(expected - registered):
             failures.append(
                 f"{scenario.name}[{index}]: expected tool "
-                f"'{name}' is absent from the {context.task.tool_profile} profile"
+                f"'{name}' is not registered"
             )
     return tuple(failures)
 
@@ -658,6 +629,9 @@ def check_step(step: TrajectoryStep, decision: AgentDecision, *, scenario: str, 
             failures.append(
                 f"{label}: reply restated runtime-owned delivery {fragment!r}"
             )
+    for pattern in step.forbid_message_regexes:
+        if re.search(pattern, decision.message or ""):
+            failures.append(f"{label}: reply asserted forbidden answer matching {pattern!r}")
     if decision.action == "final":
         for fragment in sorted(step.forbid_final_message_contains):
             if fragment in (decision.message or ""):
@@ -703,19 +677,18 @@ def trajectory_prompt_fingerprint(
     scenario: TrajectoryScenario,
     tool_specs: tuple[dict[str, Any], ...],
 ) -> str:
-    """Hash the active profile and stable prompt/schema prefix at each step."""
+    """Hash the selected schemas and stable prompt at each step."""
     step_fingerprints = []
     context = scenario.context
+    from career_agent.evaluation.capability_semantic_fixture import evaluation_strategy
+    strategy = evaluation_strategy()
     for index, step in enumerate(scenario.steps):
-        context = _advance(context, step)
-        profile = context.task.tool_profile
-        step_fingerprints.append(
-            {
-                "step": index,
-                "profile": profile,
-                "fingerprint": prompt_fingerprint(profile_schemas(profile, tool_specs)),
-            }
-        )
+        context = advance_trajectory_context(context, step)
+        selection = strategy.select(context, tool_specs)
+        step_fingerprints.append({
+            "step": index,
+            "fingerprint": prompt_fingerprint(selection.schemas),
+        })
     encoded = json.dumps(
         step_fingerprints,
         ensure_ascii=False,
@@ -725,212 +698,12 @@ def trajectory_prompt_fingerprint(
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
-def replay(
-    scenario: TrajectoryScenario,
-    *,
-    tool_specs: tuple[dict[str, Any], ...],
-    responses: Sequence[Mapping[str, Any]],
-    config: OpenAICompatibleAgentConfig | None = None,
-) -> tuple[str, ...]:
-    """Run a scenario against its recording through the real decision maker.
-
-    Each step receives its profile's schemas. Runtime tests independently cover
-    argument projection, authorization and side effects.
-    """
-    client = ReplayClient(responses)
-    maker = OpenAICompatibleMainAgentDecisionMaker(
-        config
-        or OpenAICompatibleAgentConfig(
-            endpoint="https://replay.invalid/v1/chat/completions",
-            api_key="replay",
-            model="replay",
-        ),
-        client=client,
-    )
-    failures: list[str] = []
-    context = scenario.context
-    schemas_by_profile = {
-        profile: profile_schemas(profile, tool_specs) for profile in TOOL_PROFILE_NAMES
-    }
-    for index, step in enumerate(scenario.steps):
-        context = _advance(context, step)
-        schemas = schemas_by_profile[context.task.tool_profile]
-        offered_names = {spec["function"]["name"] for spec in schemas}
-        decision = maker.decide(context, schemas)
-        called = (
-            decision.tool_call.name if decision.tool_call is not None else None
-        )
-        if called is not None and called not in offered_names:
-            failures.append(
-                f"{scenario.name}[{index}]: cassette returned unavailable "
-                f"tool '{called}'"
-            )
-        failures.extend(check_step(step, decision, scenario=scenario.name, index=index))
-    return tuple(failures)
 
 
-def replay_cassette(
-    scenario: TrajectoryScenario,
-    *,
-    tool_specs: tuple[dict[str, Any], ...],
-    cassette: TrajectoryCassette,
-) -> tuple[tuple[str, ...], ...]:
-    """Replay every independent sample without hiding intermittent failures."""
-
-    return tuple(
-        replay(scenario, tool_specs=tool_specs, responses=responses)
-        for responses in cassette.recordings
-    )
 
 
-def replay_quality(
-    scenario: TrajectoryScenario,
-    *,
-    tool_specs: tuple[dict[str, Any], ...],
-    cassette: TrajectoryCassette,
-) -> tuple[tuple[str, ...], ...]:
-    """Grade the rate-gated properties, one entry per sample.
-
-    Separate pass over the same recordings rather than a second return value
-    from ``replay_cassette``: the two tiers are read by different gates, and a
-    caller that only cares about invariants should not have to know this exists.
-    """
-    if not scenario.has_quality_assertions:
-        return ()
-    schemas_by_profile = {
-        profile: profile_schemas(profile, tool_specs) for profile in TOOL_PROFILE_NAMES
-    }
-    graded: list[tuple[str, ...]] = []
-    for responses in cassette.recordings:
-        client = ReplayClient(responses)
-        maker = OpenAICompatibleMainAgentDecisionMaker(
-            OpenAICompatibleAgentConfig(
-                endpoint="https://replay.invalid/v1/chat/completions",
-                api_key="replay",
-                model="replay",
-            ),
-            client=client,
-        )
-        failures: list[str] = []
-        context = scenario.context
-        for index, step in enumerate(scenario.steps):
-            context = _advance(context, step)
-            decision = maker.decide(context, schemas_by_profile[context.task.tool_profile])
-            failures.extend(
-                check_step_quality(
-                    step, decision, scenario=scenario.name, index=index
-                )
-            )
-        graded.append(tuple(failures))
-    return tuple(graded)
 
 
-def replay_budget_cassette_pair(
-    *,
-    baseline_scenario: TrajectoryScenario,
-    baseline_cassette: TrajectoryCassette,
-    candidate_scenario: TrajectoryScenario,
-    candidate_cassette: TrajectoryCassette,
-    tool_specs: tuple[dict[str, Any], ...],
-    expected_model: str | None,
-) -> PairedBudgetCassetteReplay:
-    """Validate a budget change from matched cassette samples, never telemetry.
-
-    The scenarios must differ only in ``career_profile_budgets``. Each sample
-    index is one pair, so a candidate regression remains visible instead of
-    being averaged into unrelated production traffic.
-    """
-
-    if baseline_scenario.known_gap or candidate_scenario.known_gap:
-        raise ValueError("budget pairs cannot use known-gap scenarios")
-    if (
-        baseline_scenario.name != candidate_scenario.name
-        or baseline_scenario.policy != candidate_scenario.policy
-        or baseline_scenario.steps != candidate_scenario.steps
-    ):
-        raise ValueError("budget pair scenarios must share policy and steps")
-    baseline_budgets = baseline_scenario.context.career_profile_budgets
-    candidate_budgets = candidate_scenario.context.career_profile_budgets
-    if baseline_budgets == candidate_budgets:
-        raise ValueError("budget pair must compare two different configurations")
-    normalized_baseline = baseline_scenario.context.model_copy(
-        update={"career_profile_budgets": candidate_budgets}
-    )
-    if normalized_baseline != candidate_scenario.context:
-        raise ValueError("budget pair scenarios may differ only in budgets")
-    for label, scenario, cassette in (
-        ("baseline", baseline_scenario, baseline_cassette),
-        ("candidate", candidate_scenario, candidate_cassette),
-    ):
-        stale = cassette_staleness(
-            cassette,
-            scenario=scenario,
-            tool_specs=tool_specs,
-            expected_model=expected_model,
-        )
-        if stale is not None:
-            raise ValueError(f"{label} budget cassette is stale: {stale}")
-    if baseline_cassette.sample_count != candidate_cassette.sample_count:
-        raise ValueError("budget cassette arms must have the same sample count")
-
-    def passes(
-        scenario: TrajectoryScenario,
-        cassette: TrajectoryCassette,
-    ) -> tuple[bool, ...]:
-        invariant_failures = replay_cassette(
-            scenario,
-            tool_specs=tool_specs,
-            cassette=cassette,
-        )
-        quality_failures = replay_quality(
-            scenario,
-            tool_specs=tool_specs,
-            cassette=cassette,
-        )
-        if not quality_failures:
-            quality_failures = tuple(() for _ in invariant_failures)
-        return tuple(
-            not invariant and not quality
-            for invariant, quality in zip(
-                invariant_failures,
-                quality_failures,
-                strict=True,
-            )
-        )
-
-    baseline_passes = passes(baseline_scenario, baseline_cassette)
-    candidate_passes = passes(candidate_scenario, candidate_cassette)
-    return PairedBudgetCassetteReplay(
-        baseline_budgets=(
-            baseline_budgets.records_input_units,
-            baseline_budgets.current_targets_input_units,
-            baseline_budgets.hard_constraints_input_units,
-        ),
-        candidate_budgets=(
-            candidate_budgets.records_input_units,
-            candidate_budgets.current_targets_input_units,
-            candidate_budgets.hard_constraints_input_units,
-        ),
-        pair_count=len(baseline_passes),
-        baseline_pass_count=sum(baseline_passes),
-        candidate_pass_count=sum(candidate_passes),
-        regressed_pair_count=sum(
-            baseline and not candidate
-            for baseline, candidate in zip(
-                baseline_passes,
-                candidate_passes,
-                strict=True,
-            )
-        ),
-        improved_pair_count=sum(
-            candidate and not baseline
-            for baseline, candidate in zip(
-                baseline_passes,
-                candidate_passes,
-                strict=True,
-            )
-        ),
-    )
 
 
 def quality_shortfall(
@@ -992,7 +765,7 @@ def known_gap_reproduction(
     return "intermittent"
 
 
-def _advance(context: MainAgentContext, step: TrajectoryStep) -> MainAgentContext:
+def advance_trajectory_context(context: MainAgentContext, step: TrajectoryStep) -> MainAgentContext:
     """Apply what the runtime would have carried into this step."""
     update: dict[str, Any] = {}
     if step.user_message is not None:
@@ -1003,24 +776,73 @@ def _advance(context: MainAgentContext, step: TrajectoryStep) -> MainAgentContex
             step.observation,
         )
     if step.task_update:
-        update["task"] = context.task.model_copy(update=dict(step.task_update))
+        patch: dict[str, Any] = {}
+        for name, value in step.task_update.items():
+            if name == "domain_context" and isinstance(value, Mapping):
+                _reject_unknown_nested_fields(
+                    value, type(context.task.domain_context), name,
+                )
+            part = ConversationTaskState.model_validate({name: value})
+            if not part.model_fields_set:
+                raise ValueError(f"unknown trajectory task_update field: {name}")
+            normalized = part.model_dump(mode="python", exclude_unset=True)
+            for tagged_field in ("pending_interaction", "workflow"):
+                if tagged_field in normalized:
+                    # exclude_unset omits a discriminator when the model used
+                    # its default kind; a tagged union needs the complete value.
+                    normalized[tagged_field] = part.model_dump(mode="python")[
+                        tagged_field
+                    ]
+            _merge_trajectory_patch(
+                patch, normalized,
+            )
+        merged = context.task.model_dump(mode="python")
+        _merge_trajectory_patch(merged, patch)
+        for tagged_field in ("pending_interaction", "workflow"):
+            if tagged_field in patch:
+                merged[tagged_field] = patch[tagged_field]
+        update["task"] = ConversationTaskState.model_validate(merged)
     return context.model_copy(update=update) if update else context
 
 
-def _decision_maker(
-    config: OpenAICompatibleAgentConfig,
-) -> OpenAICompatibleMainAgentDecisionMaker:
-    maker = getattr(_RECORD_MAKERS, "maker", None)
-    cached_config = getattr(_RECORD_MAKERS, "config", None)
-    if (
-        maker is None
-        or cached_config is not config
-        or type(maker) is not OpenAICompatibleMainAgentDecisionMaker
-    ):
-        maker = OpenAICompatibleMainAgentDecisionMaker(config)
-        _RECORD_MAKERS.maker = maker
-        _RECORD_MAKERS.config = config
-    return maker
+def _merge_trajectory_patch(target: dict[str, Any], patch: Mapping[str, Any]) -> None:
+    for name, value in patch.items():
+        if isinstance(value, Mapping) and isinstance(target.get(name), dict):
+            _merge_trajectory_patch(target[name], value)
+        else:
+            target[name] = value
+
+
+def _reject_unknown_nested_fields(
+    raw: Mapping[str, Any], model: type[BaseModel], path: str,
+) -> None:
+    for name, value in raw.items():
+        field = model.model_fields.get(name)
+        if field is None:
+            raise ValueError(f"unknown trajectory task_update field: {path}.{name}")
+        nested_model = field.annotation
+        if (
+            isinstance(value, Mapping)
+            and isinstance(nested_model, type)
+            and issubclass(nested_model, BaseModel)
+        ):
+            _reject_unknown_nested_fields(value, nested_model, f"{path}.{name}")
+
+
+def trajectory_tool_specs() -> tuple[dict[str, Any], ...]:
+    """Registered model tool schemas for offline trajectory evaluation."""
+    import inspect
+
+    from career_agent.agent.capabilities.registry import MainAgentToolRegistry
+
+    parameters = tuple(
+        name
+        for name in inspect.signature(MainAgentToolRegistry.__init__).parameters
+        if name != "self"
+    )
+    return tuple(MainAgentToolRegistry(**{name: object() for name in parameters}).schemas())
+
+
 
 
 def _recording_can_retry(error: AgentWorkerError) -> bool:
@@ -1055,308 +877,3 @@ def _retry_wait(delay: float, attempt: int, *, jitter: bool) -> float:
     if jitter:
         wait *= 0.5 + random.random()
     return wait
-
-
-def _requested_sample_count(
-    scenario: TrajectoryScenario, sample_count: int | None
-) -> int:
-    requested_samples = (
-        scenario.recording_samples if sample_count is None else sample_count
-    )
-    if not 1 <= requested_samples <= 5:
-        raise ValueError("trajectory sample count must be between 1 and 5")
-    if scenario.has_quality_assertions and (
-        requested_samples != scenario.recording_samples
-    ):
-        raise ValueError(
-            "quality scenarios must be recorded with exactly their declared "
-            "sample count"
-        )
-    return requested_samples
-
-
-def _record_one_sample(
-    scenario: TrajectoryScenario,
-    *,
-    tool_specs: tuple[dict[str, Any], ...],
-    config: OpenAICompatibleAgentConfig,
-    max_attempts: int,
-    retry_delay_seconds: float,
-    sleeper: Callable[[float], None],
-    jitter: bool,
-) -> dict[str, Any]:
-    maker = _decision_maker(config)
-    steps = []
-    context = scenario.context
-    schemas_by_profile = {
-        profile: profile_schemas(profile, tool_specs) for profile in TOOL_PROFILE_NAMES
-    }
-    for step in scenario.steps:
-        context = _advance(context, step)
-        decision = None
-        for attempt in range(1, max_attempts + 1):
-            try:
-                decision = maker.decide(context, schemas_by_profile[context.task.tool_profile])
-                break
-            except AgentWorkerError as error:
-                if not _recording_can_retry(error) or attempt == max_attempts:
-                    raise
-                sleeper(_retry_wait(retry_delay_seconds, attempt, jitter=jitter))
-        if decision is None:
-            raise RuntimeError("trajectory record produced no decision")
-        steps.append(
-            {
-                "tool_call": {
-                    "name": decision.tool_call.name,
-                    "arguments": decision.tool_call.arguments,
-                }
-            }
-            if decision.tool_call is not None
-            else {"content": decision.model_dump_json(exclude_none=True)}
-        )
-    return {
-        "recorded_at": datetime.now(timezone.utc).isoformat(),
-        "steps": steps,
-    }
-
-
-def _write_cassette(
-    scenario: TrajectoryScenario,
-    samples: Sequence[Mapping[str, Any]],
-    *,
-    tool_specs: tuple[dict[str, Any], ...],
-    config: OpenAICompatibleAgentConfig,
-    root: Path | None,
-) -> Path:
-    path = cassette_path(scenario.name, root=root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            {
-                "scenario": scenario.name,
-                "policy": scenario.policy,
-                "model": config.model,
-                "prompt_fingerprint": trajectory_prompt_fingerprint(
-                    scenario, tool_specs
-                ),
-                "context_shape_fingerprint": context_shape_fingerprint(scenario),
-                "recorded_at": samples[-1]["recorded_at"],
-                # Keep the first sample under the legacy key so external readers
-                # do not break while the evaluator consumes every sample below.
-                "steps": samples[0]["steps"],
-                "sample_count": len(samples),
-                "samples": list(samples),
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-        + "\n"
-    )
-    return path
-
-
-def scenarios_to_record(
-    scenarios: Sequence[TrajectoryScenario],
-    *,
-    tool_specs: tuple[dict[str, Any], ...],
-    expected_model: str,
-    root: Path | None = None,
-    force: bool = False,
-) -> tuple[TrajectoryScenario, ...]:
-    """Scenarios whose cassettes are missing, stale, or forced to recut."""
-
-    selected = []
-    for scenario in scenarios:
-        if check_contract(scenario, tool_specs=tool_specs):
-            continue
-        cassette = load_cassette(scenario.name, root=root)
-        if force or cassette is None:
-            selected.append(scenario)
-            continue
-        if cassette_staleness(
-            cassette, scenario=scenario, tool_specs=tool_specs,
-            expected_model=expected_model,
-        ) is not None:
-            selected.append(scenario)
-    return tuple(selected)
-
-
-def record(
-    scenario: TrajectoryScenario,
-    *,
-    tool_specs: tuple[dict[str, Any], ...],
-    config: OpenAICompatibleAgentConfig,
-    root: Path | None = None,
-    sample_count: int | None = None,
-    max_attempts: int = 3,
-    retry_delay_seconds: float = 1.0,
-    sleeper: Callable[[float], None] = time.sleep,
-    max_workers: int = 1,
-    jitter: bool | None = None,
-) -> Path:
-    """Ask the live model and write the answers down.
-
-    Recording is the only thing that evaluates the model. Everything replay does
-    afterwards evaluates this project against a decision the model already made,
-    which is why a stale cassette is worth re-cutting whenever the prompt, the
-    projection, or the model changes.
-
-    Independent samples may run concurrently. Steps inside one sample stay
-    sequential, because later hops depend on earlier observations.
-    """
-    requested_samples = _requested_sample_count(scenario, sample_count)
-    if not 1 <= max_attempts <= 5:
-        raise ValueError("trajectory record attempts must be between 1 and 5")
-    if retry_delay_seconds < 0:
-        raise ValueError("trajectory retry delay cannot be negative")
-    if not 1 <= max_workers <= _MAX_RECORD_JOBS:
-        raise ValueError(
-            f"trajectory record jobs must be between 1 and {_MAX_RECORD_JOBS}"
-        )
-    use_jitter = max_workers > 1 if jitter is None else jitter
-    workers = min(max_workers, requested_samples)
-
-    def capture_sample() -> dict[str, Any]:
-        return _record_one_sample(
-            scenario,
-            tool_specs=tool_specs,
-            config=config,
-            max_attempts=max_attempts,
-            retry_delay_seconds=retry_delay_seconds,
-            sleeper=sleeper,
-            jitter=use_jitter,
-        )
-
-    if workers == 1:
-        samples = [capture_sample() for _ in range(requested_samples)]
-    else:
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = [
-                pool.submit(capture_sample) for _ in range(requested_samples)
-            ]
-            samples = [future.result() for future in futures]
-    return _write_cassette(
-        scenario,
-        samples,
-        tool_specs=tool_specs,
-        config=config,
-        root=root,
-    )
-
-
-def record_catalogue(
-    scenarios: Sequence[TrajectoryScenario],
-    *,
-    tool_specs: tuple[dict[str, Any], ...],
-    config: OpenAICompatibleAgentConfig,
-    root: Path | None = None,
-    sample_count: int | None = None,
-    max_attempts: int = 3,
-    retry_delay_seconds: float = 1.0,
-    sleeper: Callable[[float], None] = time.sleep,
-    jobs: int = 8,
-    force: bool = False,
-) -> tuple[Path, ...]:
-    """Recut every selected cassette that is missing or stale.
-
-    Work is one sample, not one scenario: a three-sample case can share the
-    pool with other scenarios. A scenario is written only after every sample
-    succeeds, so a mid-cut failure cannot leave a half cassette. Completed
-    neighbours are still written, so a long recut is not all-or-nothing.
-    """
-    if not 1 <= jobs <= _MAX_RECORD_JOBS:
-        raise ValueError(
-            f"trajectory record jobs must be between 1 and {_MAX_RECORD_JOBS}"
-        )
-    if not 1 <= max_attempts <= 5:
-        raise ValueError("trajectory record attempts must be between 1 and 5")
-    if retry_delay_seconds < 0:
-        raise ValueError("trajectory retry delay cannot be negative")
-
-    to_record = scenarios_to_record(
-        scenarios, tool_specs=tool_specs, expected_model=config.model,
-        root=root, force=force
-    )
-    if not to_record:
-        return ()
-
-    counts = {
-        scenario.name: _requested_sample_count(scenario, sample_count)
-        for scenario in to_record
-    }
-    by_name = {scenario.name: scenario for scenario in to_record}
-    work = [
-        (scenario, index)
-        for scenario in to_record
-        for index in range(counts[scenario.name])
-    ]
-    collected: dict[str, dict[int, dict[str, Any]]] = {
-        scenario.name: {} for scenario in to_record
-    }
-    failed: set[str] = set()
-    first_error: Exception | None = None
-    written: dict[str, Path] = {}
-    jitter = jobs > 1
-    workers = min(jobs, len(work))
-
-    def capture(scenario: TrajectoryScenario) -> dict[str, Any]:
-        return _record_one_sample(
-            scenario,
-            tool_specs=tool_specs,
-            config=config,
-            max_attempts=max_attempts,
-            retry_delay_seconds=retry_delay_seconds,
-            sleeper=sleeper,
-            jitter=jitter,
-        )
-
-    def accept(scenario: TrajectoryScenario, index: int, sample: dict[str, Any]) -> None:
-        if scenario.name in failed:
-            return
-        collected[scenario.name][index] = sample
-        if len(collected[scenario.name]) != counts[scenario.name]:
-            return
-        samples = [
-            collected[scenario.name][sample_index]
-            for sample_index in range(counts[scenario.name])
-        ]
-        written[scenario.name] = _write_cassette(
-            by_name[scenario.name],
-            samples,
-            tool_specs=tool_specs,
-            config=config,
-            root=root,
-        )
-
-    if workers == 1:
-        for scenario, index in work:
-            if scenario.name in failed:
-                continue
-            try:
-                sample = capture(scenario)
-            except Exception as error:
-                failed.add(scenario.name)
-                if first_error is None:
-                    first_error = error
-                continue
-            accept(scenario, index, sample)
-    else:
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = {
-                pool.submit(capture, scenario): (scenario, index)
-                for scenario, index in work
-            }
-            for future in as_completed(futures):
-                scenario, index = futures[future]
-                try:
-                    sample = future.result()
-                except Exception as error:
-                    failed.add(scenario.name)
-                    if first_error is None:
-                        first_error = error
-                    continue
-                accept(scenario, index, sample)
-
-    if first_error is not None:
-        raise first_error
-    return tuple(written[scenario.name] for scenario in to_record if scenario.name in written)

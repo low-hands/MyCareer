@@ -1,0 +1,466 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "single_empty_interview_receipt",
+  "suite_fingerprint": "43dc152f7b3e255546cbad0181e63bb7307ed89cf6cb921dd997363f8f8c0fe3",
+  "recorded_at": "2026-10-10T00:28:51.632310+00:00",
+  "k": 10,
+  "samples": [
+    {
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "19849361169da1d4c3457f367ab01d96299df61cb687dc4aeb17698dacda305c",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "19849361169da1d4c3457f367ab01d96299df61cb687dc4aeb17698dacda305c",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "19849361169da1d4c3457f367ab01d96299df61cb687dc4aeb17698dacda305c",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "目前没有查询到任何面试安排。如果您有即将进行的面试，可以告诉我相关信息（如公司、岗位、时间等），我可以帮您记录或准备面试材料。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "19849361169da1d4c3457f367ab01d96299df61cb687dc4aeb17698dacda305c",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有查询到任何面试安排。如果您有即将进行的面试，可以告诉我相关信息（如公司、岗位、时间等），我可以帮您记录或准备面试材料。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "19849361169da1d4c3457f367ab01d96299df61cb687dc4aeb17698dacda305c",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "19849361169da1d4c3457f367ab01d96299df61cb687dc4aeb17698dacda305c",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "19849361169da1d4c3457f367ab01d96299df61cb687dc4aeb17698dacda305c",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "目前没有找到任何面试安排。如果您有即将进行的面试需要记录，请告诉我公司名称和岗位，我可以帮您创建面试记录。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "19849361169da1d4c3457f367ab01d96299df61cb687dc4aeb17698dacda305c",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"目前没有找到任何面试安排。如果您有即将进行的面试需要记录，请告诉我公司名称和岗位，我可以帮您创建面试记录。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "19849361169da1d4c3457f367ab01d96299df61cb687dc4aeb17698dacda305c",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "19849361169da1d4c3457f367ab01d96299df61cb687dc4aeb17698dacda305c",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "19849361169da1d4c3457f367ab01d96299df61cb687dc4aeb17698dacda305c",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "请查看我的面试安排。",
+          "assistant_message": "没有找到面试安排。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "deliver_direct": true
+                  }
+                }
+              },
+              "schema_fingerprint": "19849361169da1d4c3457f367ab01d96299df61cb687dc4aeb17698dacda305c",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 1
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

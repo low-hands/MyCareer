@@ -141,8 +141,11 @@ def run_trajectory(
     manager = ContextManager(
         store,
         summary_worker=metered,
-        recent_message_limit=recent,
+        recent_message_limit=2048,
         summary_batch_size=batch,
+        # Explicit small token quotas make this synthetic fidelity probe exercise
+        # compaction; row count is metadata, never a production trigger.
+        max_recent_context_tokens=recent * 16 - 6,
     )
     manager.configure_request_token_estimator(
         lambda context: (16000, 32000),
@@ -241,7 +244,7 @@ def run_trajectory(
             and reachable
             and contiguous
             and duplicates == duplicate_summary == 0
-            and (count <= 2 if (recent, batch) == (16, 8) else count == 5)
+            and (count <= 2 if (recent, batch) == (16, 8) else count == 6)
         ),
     )
 

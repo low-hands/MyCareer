@@ -69,8 +69,8 @@ DECLARED_VERSIONS = {
     "action_center": 2,
     "action_executions": 3,
     "turn_receipts": 2,
-    "applications": 2,
-    "interviews": 2,
+    "applications": 4,
+    "interviews": 3,
     "calendar": 3,
     "email_tracking": 1,
     "oauth_flows": 2,
@@ -79,14 +79,14 @@ DECLARED_VERSIONS = {
     "resume_artifacts": 1,
     "resume_job_matches": 2,
     "interview_preparations": 1,
-    "agent_context": 17,
+    "agent_context": 18,
     "api_keys": 3,
     "capability_confirmations": 2,
     "job_postings": 3,
     "job_captures": 2,
     "job_research": 2,
     "run_events": 2,
-    "career_episodes": 8,
+    "career_episodes": 9,
 }
 
 
@@ -101,7 +101,7 @@ def test_no_component_declares_a_version_this_table_does_not_know_about() -> Non
     declared: dict[str, int] = {}
     for source in sources:
         for component, version in re.findall(
-            r"apply_schema\(\s*connection,\s*\"([a-z_]+)\",\s*(\d+)", source.read_text()
+            r"apply_schema\(\s*connection,\s*\"([a-z_]+)\",\s*(\d+)", source.read_text(encoding="utf-8")
         ):
             declared[component] = int(version)
 
@@ -279,7 +279,7 @@ def test_no_store_writes_the_file_wide_version_the_registry_replaced() -> None:
     offenders = [
         source.name
         for source in Path("src/career_agent/storage").glob("*.py")
-        if re.search(r"PRAGMA\s+user_version\s*=", source.read_text())
+        if re.search(r"PRAGMA\s+user_version\s*=", source.read_text(encoding="utf-8"))
     ]
     assert offenders == []
 

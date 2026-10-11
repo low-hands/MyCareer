@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Literal
 
 from career_agent.agent.runtime.state import MainAgentState
+from career_agent.agent.presentation.receipt_completion import completes_tool_delivery
 
 
 class GraphRoutingPolicy:
@@ -65,5 +66,7 @@ class GraphRoutingPolicy:
             result.disposition != "failed"
             and result.payload.get("turn_complete") is True
         ):
+            return "present"
+        if completes_tool_delivery(state):
             return "present"
         return "decide"

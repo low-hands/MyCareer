@@ -1,0 +1,698 @@
+{
+ "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+ "model": "qwen3.7-text-embedding",
+ "scores": {
+  "上个月 Shopee 那份调研里，他们的主要竞争对手是谁？": {},
+  "上次那份调研里提到的竞品是谁来着": {},
+  "上次那条经历写错了，应该是我负责增长实验；给我看看改法。": {},
+  "今天最该处理什么？": {
+   "get_daily_brief": 0.58048
+  },
+  "今天有什么要紧的事？": {
+   "get_daily_brief": 0.63123
+  },
+  "以下是用户一次提交的当前任务问卷答案。仅用于当前绑定任务；跳过或选择“无”不构成永久职业事实；泛泛的技能回答不能扩写成项目、年限或成果。请继续原任务。\n[{\"question\":\"前端经验\",\"answer\":{\"selected\":[],\"free_text\":\"使用 React 开发过内部管理页面\"}},{\"question\":\"使用过的向量数据库\",\"answer\":{\"selected\":": {},
+  "以后只看上海的机会，先给我确认一下再记住。": {},
+  "先分析这个岗位，再和我当前的简历比较匹配程度。": {
+   "analyze_job": 0.761358,
+   "compare_saved_jobs": 0.55566,
+   "correct_job_requirement_tier": 0.632011,
+   "draft_resume_tailoring": 0.561164,
+   "get_resume_job_match": 0.661713,
+   "match_resume_to_job": 0.771121,
+   "research_job": 0.570693
+  },
+  "先比较岗位与简历，再按结果定制简历。": {
+   "draft_resume_tailoring": 0.765219,
+   "finalize_resume_tailoring": 0.709355,
+   "get_resume_job_match": 0.646715,
+   "get_resume_tailoring_draft": 0.647709,
+   "match_resume_to_job": 0.669429,
+   "review_resume_tailoring": 0.676943,
+   "revise_resume_tailoring": 0.715984
+  },
+  "先看下这个收藏岗位，没问题就给它建一条投递记录。": {
+   "compare_saved_jobs": 0.706248,
+   "confirm_job_intent": 0.601854,
+   "create_application": 0.731944,
+   "create_interview": 0.592148,
+   "find_saved_jobs": 0.62982,
+   "get_saved_job": 0.634609,
+   "list_applications": 0.689818,
+   "list_target_roles": 0.608233,
+   "open_job_search": 0.578531,
+   "propose_job_intent": 0.58923
+  },
+  "先看看我之前定的限制，再把今天的待办列出来。": {
+   "get_daily_brief": 0.570389,
+   "list_action_items": 0.585243
+  },
+  "先确认这场面试是哪轮，时间改到下午三点，再看看日历里是不是已经有它了。": {
+   "complete_interview": 0.694283,
+   "create_interview": 0.696518,
+   "get_interview": 0.693245,
+   "list_calendar_links": 0.624895,
+   "list_interviews": 0.692154,
+   "prepare_interview_calendar_sync": 0.715704,
+   "record_interview_retro": 0.619321,
+   "update_interview": 0.779206
+  },
+  "先让我看看这轮面试会怎么加进日历。": {
+   "complete_interview": 0.721566,
+   "create_interview": 0.770037,
+   "get_calendar_proposal": 0.593563,
+   "get_interview": 0.73619,
+   "list_calendar_accounts": 0.664376,
+   "list_calendar_links": 0.762263,
+   "list_interviews": 0.774055,
+   "prepare_interview_calendar_sync": 0.794909,
+   "record_interview_retro": 0.641804,
+   "update_interview": 0.755155
+  },
+  "再查一下我保存的算法岗位": {
+   "compare_saved_jobs": 0.605391,
+   "confirm_job_intent": 0.571503,
+   "find_saved_jobs": 0.6504,
+   "get_saved_job": 0.605546,
+   "list_applications": 0.604842,
+   "open_job_search": 0.560589,
+   "retry_job_research": 0.556107,
+   "search_career_episodes": 0.560447
+  },
+  "刚才做的那份公司分析给我打开。": {
+   "analyze_job": 0.555083
+  },
+  "刚才列出的增长项目那条经历，具体记了什么？": {},
+  "刚才列表里第一份是什么版本？": {},
+  "刚才同步到的招聘邮件有哪些？": {
+   "compare_saved_jobs": 0.569551,
+   "get_resume_job_match": 0.561134,
+   "list_applications": 0.565272,
+   "sync_application_emails": 0.684792
+  },
+  "刚才提到的待办都列给我看看。": {
+   "complete_action_item": 0.598161,
+   "dismiss_action_item": 0.576045,
+   "list_action_items": 0.690412,
+   "snooze_action_item": 0.577001
+  },
+  "刚才的匹配结论再给我看一眼。": {
+   "get_resume_job_match": 0.652539,
+   "match_resume_to_job": 0.619517
+  },
+  "刚才的简报如果有逾期，就打开行动清单让我选择先处理哪一项；如果没有逾期就直接结束。": {
+   "dismiss_action_item": 0.60171,
+   "get_daily_brief": 0.623413,
+   "list_action_items": 0.649514,
+   "snooze_action_item": 0.61757
+  },
+  "刚才给我看的上海求职地点，确认保存。": {
+   "compare_saved_jobs": 0.62357,
+   "confirm_career_fact": 0.574637,
+   "confirm_job_intent": 0.641818,
+   "find_saved_jobs": 0.654187,
+   "get_saved_job": 0.620563,
+   "list_applications": 0.578425,
+   "list_target_roles": 0.576109,
+   "open_job_search": 0.577504,
+   "propose_job_intent": 0.55612,
+   "search_career_episodes": 0.558906
+  },
+  "刚才给我看的那条经历没问题，存上吧。": {
+   "confirm_career_fact": 0.620852,
+   "confirm_memory_amendment": 0.586001,
+   "get_career_memory_detail": 0.577946,
+   "search_career_history": 0.578712,
+   "search_career_memory": 0.558234
+  },
+  "刚才这个日历预览没问题，执行吧。": {
+   "execute_calendar_proposal": 0.703612,
+   "get_calendar_proposal": 0.674806,
+   "list_calendar_accounts": 0.602078,
+   "list_calendar_links": 0.623479,
+   "prepare_interview_calendar_sync": 0.75474
+  },
+  "刚才那份简历先别改，我想缓缓。": {
+   "draft_resume_tailoring": 0.610192,
+   "finalize_resume_tailoring": 0.618374,
+   "get_resume_tailoring_draft": 0.653472,
+   "review_resume_tailoring": 0.604337,
+   "revise_resume_tailoring": 0.658515
+  },
+  "刚才那份面试准备材料给我看看。": {
+   "get_interview_preparation": 0.754358,
+   "prepare_interview": 0.774896,
+   "start_mock_interview": 0.567986
+  },
+  "刚才那家公司资料没查完，再试一次；然后把这个职位加入我的投递清单。": {
+   "compare_saved_jobs": 0.65687,
+   "confirm_job_intent": 0.600712,
+   "create_application": 0.640644,
+   "create_interview": 0.58996,
+   "find_saved_jobs": 0.598859,
+   "list_applications": 0.718461,
+   "list_target_roles": 0.583448,
+   "propose_job_intent": 0.585927,
+   "retry_job_research": 0.630909,
+   "search_career_episodes": 0.603408
+  },
+  "刚才那条英语要求算加分项，不是必须项。": {},
+  "刚改好的简历导出一份，然后帮我准备明天那场面试。": {
+   "draft_resume_tailoring": 0.617518,
+   "finalize_resume_tailoring": 0.588732,
+   "get_interview_preparation": 0.703473,
+   "get_resume_tailoring_draft": 0.617753,
+   "prepare_interview": 0.712465,
+   "prepare_interview_calendar_sync": 0.58134,
+   "record_interview_retro": 0.605936,
+   "review_resume_tailoring": 0.574373,
+   "revise_resume_tailoring": 0.609132,
+   "update_interview": 0.587168
+  },
+  "刚生成的那版草稿打开看看。": {
+   "draft_resume_tailoring": 0.566146,
+   "get_resume_tailoring_draft": 0.590301
+  },
+  "只给我今天的职业简报，不要再打开行动清单": {
+   "get_daily_brief": 0.811175,
+   "list_action_items": 0.563067
+  },
+  "可以": {},
+  "同事说我当年可能用过 Tableau，我自己不确定。先帮我查以前写过的经历，别记成我的技能。": {
+   "search_career_history": 0.566316,
+   "search_career_memory": 0.576579
+  },
+  "如果刚才完整 JD 明确要求 Rust，就继续匹配我的简历；如果没有明确要求就到这里。": {
+   "analyze_job": 0.564031,
+   "match_resume_to_job": 0.56607
+  },
+  "如果刚才的整体匹配度是 weak，就直接生成一版针对性简历优化草稿；不是 weak 就到这里。": {
+   "draft_resume_tailoring": 0.751794,
+   "finalize_resume_tailoring": 0.644121,
+   "get_resume_job_match": 0.643686,
+   "get_resume_tailoring_draft": 0.663236,
+   "match_resume_to_job": 0.707529,
+   "review_resume_tailoring": 0.64897,
+   "revise_resume_tailoring": 0.655304
+  },
+  "如果这次只是复用了缓存报告，就以竞争对手为新重点再研究一次；如果是刚完成的新报告就直接结束。": {},
+  "对，就这样。": {},
+  "帮我找岗位": {
+   "analyze_job": 0.583579,
+   "compare_saved_jobs": 0.563511,
+   "find_saved_jobs": 0.650925,
+   "get_job_research": 0.565303,
+   "get_saved_job": 0.608726,
+   "list_target_roles": 0.606892,
+   "open_job_search": 0.680936,
+   "propose_job_intent": 0.552215,
+   "research_job": 0.606403,
+   "retry_job_research": 0.560892
+  },
+  "帮我找岗位，但别猜我想搜什么方向。": {
+   "find_saved_jobs": 0.576453,
+   "list_target_roles": 0.636831,
+   "open_job_search": 0.621641,
+   "propose_job_intent": 0.571726,
+   "research_job": 0.597069
+  },
+  "帮我找找工作吧": {
+   "find_saved_jobs": 0.640062,
+   "get_saved_job": 0.55956,
+   "list_target_roles": 0.558968,
+   "open_job_search": 0.681794,
+   "research_job": 0.552331
+  },
+  "帮我点评一下这份简历，看看哪里写得不好、应该怎么改。": {
+   "get_resume_tailoring_draft": 0.579503,
+   "review_resume_tailoring": 0.601399,
+   "revise_resume_tailoring": 0.613661
+  },
+  "我一开始指定的目标公司全名叫什么？": {},
+  "我上周收藏的那个温哥华远程数据分析岗找不到了，帮我翻出来。": {},
+  "我之前存的产品经理岗位还有哪些？": {},
+  "我之前说过的目标公司叫什么？": {},
+  "我之前说过的远程经历和那次面试的记录找一下，再拆拆这个岗位要求。": {
+   "analyze_job": 0.600145,
+   "record_interview_retro": 0.586568,
+   "search_career_episodes": 0.593344
+  },
+  "我准备投这个岗位了": {
+   "analyze_job": 0.562869,
+   "confirm_job_intent": 0.552027,
+   "create_application": 0.575408,
+   "get_interview_preparation": 0.561094,
+   "prepare_interview": 0.602227,
+   "propose_job_intent": 0.580666
+  },
+  "我刚刚自己投完 Bluebird 的岗位，投递记录里那条改成已投递吧。": {
+   "create_application": 0.647023,
+   "get_application": 0.557203,
+   "list_applications": 0.645898,
+   "propose_job_intent": 0.55743,
+   "update_application_status": 0.647229
+  },
+  "我刚在官网投了示例科技的算法工程师，帮我记一下。": {
+   "create_application": 0.570229,
+   "list_applications": 0.559132
+  },
+  "我后来改过那段数据分析经历，原先怎么写的？": {
+   "revise_resume_tailoring": 0.551962,
+   "search_career_history": 0.552904
+  },
+  "我存的 Northstar 产品经理岗到底要求几年经验？帮我看一下。": {},
+  "我很早前说的那家目标公司叫什么？": {},
+  "我收藏的 A 公司增长岗和 B 公司运营岗，哪个更贴我做过的用户留存？先横着比一比。": {},
+  "我最近投了哪些公司？": {},
+  "我有哪几版简历？": {
+   "draft_resume_tailoring": 0.625125,
+   "export_resume_artifact": 0.567266,
+   "finalize_resume_tailoring": 0.647383,
+   "get_resume_job_match": 0.560479,
+   "get_resume_metadata": 0.662332,
+   "get_resume_tailoring_draft": 0.629345,
+   "list_resumes": 0.717408,
+   "match_resume_to_job": 0.611688,
+   "review_resume_tailoring": 0.567106,
+   "revise_resume_tailoring": 0.6078
+  },
+  "我现在只看上海的岗位，记一下。": {},
+  "我现在有哪些求职方向？这两个收藏岗位也比一下，再看简历跟更合适的那个匹不匹配。": {
+   "compare_saved_jobs": 0.709041,
+   "find_saved_jobs": 0.633913,
+   "get_saved_job": 0.615933,
+   "list_target_roles": 0.605631
+  },
+  "我现在都有哪些简历版本？先给我列个名字就行。": {
+   "draft_resume_tailoring": 0.617493,
+   "export_resume_artifact": 0.588382,
+   "finalize_resume_tailoring": 0.631475,
+   "get_resume_metadata": 0.669201,
+   "get_resume_tailoring_draft": 0.623862,
+   "list_resumes": 0.743092,
+   "match_resume_to_job": 0.581137,
+   "revise_resume_tailoring": 0.581865
+  },
+  "我能用哪个日历记这场面试？": {
+   "complete_interview": 0.614482,
+   "create_interview": 0.6889,
+   "get_calendar_proposal": 0.621014,
+   "list_calendar_accounts": 0.722082,
+   "list_calendar_links": 0.776206,
+   "list_interviews": 0.65655,
+   "prepare_interview_calendar_sync": 0.78434,
+   "record_interview_retro": 0.630813,
+   "search_career_episodes": 0.629475,
+   "update_interview": 0.660815
+  },
+  "我那场面试怎么样了": {
+   "complete_interview": 0.606138,
+   "get_interview": 0.588218,
+   "get_interview_preparation": 0.556756,
+   "get_mock_interview_result": 0.63548,
+   "record_interview_retro": 0.599383,
+   "search_career_episodes": 0.554306,
+   "update_interview": 0.564093
+  },
+  "我那段经历是做增长分析的，帮我记下来。": {},
+  "打开第 2 个岗位的完整 JD": {
+   "analyze_job": 0.594622,
+   "get_saved_job": 0.557539,
+   "open_job_search": 0.579851
+  },
+  "找出我存的那条甲公司岗位，拆一下要求，再看刚才的简历匹不匹配，合适的话改一版。": {
+   "analyze_job": 0.68571,
+   "correct_job_requirement_tier": 0.627308,
+   "draft_resume_tailoring": 0.60431,
+   "finalize_resume_tailoring": 0.562566,
+   "get_resume_job_match": 0.607467,
+   "get_resume_tailoring_draft": 0.568387,
+   "match_resume_to_job": 0.656023,
+   "review_resume_tailoring": 0.563239,
+   "revise_resume_tailoring": 0.598623
+  },
+  "找出我投甲公司的记录，看看它对应的邮件，把那封面试邀请对上。": {
+   "create_interview": 0.561281,
+   "list_applications": 0.580427,
+   "search_career_episodes": 0.591079
+  },
+  "找我保存过的 RAG 岗位": {
+   "compare_saved_jobs": 0.559473,
+   "find_saved_jobs": 0.656231,
+   "get_saved_job": 0.610435,
+   "open_job_search": 0.555316
+  },
+  "把刚才那场面试复盘记下来，我提到的项目成绩也留一条。": {
+   "complete_interview": 0.555659,
+   "get_mock_interview_result": 0.56751,
+   "prepare_interview": 0.552811,
+   "record_interview_retro": 0.755356,
+   "search_career_episodes": 0.626672,
+   "update_interview": 0.559781
+  },
+  "把刚才问卷里我说的 AI 编程工具使用情况，作为我在示例科技的工作经历事实提案；先让我确认，不要直接写入。": {
+   "confirm_career_fact": 0.572201,
+   "propose_career_fact": 0.570912
+  },
+  "把序号 100 到 110 的对话读回来。": {},
+  "把当前选中的岗位建立投递记录。": {
+   "compare_saved_jobs": 0.633043,
+   "confirm_job_intent": 0.592246,
+   "create_application": 0.820085,
+   "create_interview": 0.647319,
+   "get_application": 0.581744,
+   "get_saved_job": 0.566431,
+   "list_applications": 0.749529,
+   "list_target_roles": 0.607866,
+   "propose_job_intent": 0.567106,
+   "update_application_status": 0.645123
+  },
+  "把这场面试同步到我的日历": {
+   "complete_interview": 0.655014,
+   "create_interview": 0.70887,
+   "execute_calendar_proposal": 0.624686,
+   "get_interview": 0.641525,
+   "list_calendar_accounts": 0.673174,
+   "list_calendar_links": 0.775449,
+   "list_interviews": 0.668664,
+   "prepare_interview_calendar_sync": 0.820379,
+   "search_career_episodes": 0.598189,
+   "update_interview": 0.697118
+  },
+  "把这条也补进工作笔记：面试后记得发感谢邮件。": {
+   "record_interview_retro": 0.550596
+  },
+  "按你记得的我的偏好，这两个岗位直接推荐一个。": {
+   "compare_saved_jobs": 0.597322
+  },
+  "按这个岗位把基础简历改一版，检查一遍再给我一个文件。": {
+   "draft_resume_tailoring": 0.625281,
+   "finalize_resume_tailoring": 0.649607,
+   "get_resume_job_match": 0.568094,
+   "get_resume_tailoring_draft": 0.648962,
+   "list_resumes": 0.565541,
+   "match_resume_to_job": 0.585923,
+   "review_resume_tailoring": 0.666004,
+   "revise_resume_tailoring": 0.673593
+  },
+  "接下来有哪些面试？": {
+   "complete_interview": 0.662511,
+   "create_interview": 0.695611,
+   "get_interview": 0.689109,
+   "list_calendar_links": 0.584148,
+   "list_interviews": 0.698614,
+   "prepare_interview": 0.607777,
+   "prepare_interview_calendar_sync": 0.631179,
+   "record_interview_retro": 0.616701,
+   "search_career_episodes": 0.60444,
+   "update_interview": 0.66181
+  },
+  "改好的简历先检查，没问题就定稿，然后把这个职位原文给我看看。": {
+   "draft_resume_tailoring": 0.641783,
+   "finalize_resume_tailoring": 0.709723,
+   "get_resume_job_match": 0.596334,
+   "get_resume_tailoring_draft": 0.652979,
+   "match_resume_to_job": 0.599188,
+   "review_resume_tailoring": 0.69686,
+   "revise_resume_tailoring": 0.680055
+  },
+  "明天面这个岗位，我想重点练他们写的‘跨团队协调’，从我的经历里找例子帮我准备。": {},
+  "照着匹配差距改一版简历吧。": {
+   "draft_resume_tailoring": 0.703874,
+   "finalize_resume_tailoring": 0.649099,
+   "get_resume_job_match": 0.653724,
+   "get_resume_tailoring_draft": 0.655268,
+   "list_resumes": 0.566472,
+   "match_resume_to_job": 0.733787,
+   "review_resume_tailoring": 0.651294,
+   "revise_resume_tailoring": 0.714558
+  },
+  "现在来一场模拟面试吧。": {
+   "get_interview_preparation": 0.554117,
+   "get_mock_interview_result": 0.708602,
+   "prepare_interview": 0.607669,
+   "prepare_interview_calendar_sync": 0.559173,
+   "restart_mock_interview": 0.704485,
+   "start_mock_interview": 0.859532
+  },
+  "现在研究一下当前岗位公司的主要竞争对手。": {
+   "research_job": 0.555473
+  },
+  "用我那版数据简历看看能不能打这个商业分析岗，主要缺哪块。": {
+   "analyze_job": 0.620827,
+   "match_resume_to_job": 0.615096
+  },
+  "看一下当前投递相关的邮件事件。": {
+   "get_application": 0.677918,
+   "list_applications": 0.570386,
+   "list_email_events": 0.830698,
+   "resolve_email_event": 0.729866,
+   "sync_application_emails": 0.666765,
+   "update_application_status": 0.640355
+  },
+  "看看我保存的岗位": {
+   "compare_saved_jobs": 0.719493,
+   "confirm_career_fact": 0.576363,
+   "confirm_job_intent": 0.618978,
+   "find_saved_jobs": 0.827977,
+   "get_saved_job": 0.759137,
+   "list_applications": 0.643023,
+   "list_target_roles": 0.641175,
+   "open_job_search": 0.593891,
+   "search_career_episodes": 0.566997,
+   "search_career_memory": 0.561673
+  },
+  "看看我的简历和这个岗位match不match": {
+   "analyze_job": 0.618507,
+   "compare_saved_jobs": 0.55541,
+   "draft_resume_tailoring": 0.632793,
+   "get_resume_job_match": 0.774242,
+   "match_resume_to_job": 0.826363,
+   "review_resume_tailoring": 0.598241,
+   "revise_resume_tailoring": 0.561401
+  },
+  "看看这轮面试是几点，先别动日历。": {
+   "complete_interview": 0.666367,
+   "create_interview": 0.694676,
+   "get_interview": 0.731199,
+   "list_calendar_links": 0.651907,
+   "list_interviews": 0.721149,
+   "prepare_interview": 0.560466,
+   "prepare_interview_calendar_sync": 0.718812,
+   "record_interview_retro": 0.632721,
+   "start_mock_interview": 0.574553,
+   "update_interview": 0.714868
+  },
+  "确认执行刚才的日历变更": {
+   "execute_calendar_proposal": 0.75611,
+   "get_calendar_proposal": 0.572098,
+   "prepare_interview_calendar_sync": 0.625203
+  },
+  "确认，执行吧": {},
+  "示例科技那份调研里，他们的主要竞争对手是谁？": {},
+  "简历先看到这里，接着准备当前这轮面试。": {
+   "complete_interview": 0.592772,
+   "create_interview": 0.589896,
+   "get_interview": 0.66179,
+   "get_interview_preparation": 0.653874,
+   "get_resume_tailoring_draft": 0.572822,
+   "list_interviews": 0.613613,
+   "prepare_interview": 0.660256,
+   "prepare_interview_calendar_sync": 0.572528,
+   "record_interview_retro": 0.629089,
+   "update_interview": 0.624365
+  },
+  "给当前这轮面试准备日历同步预览。": {
+   "complete_interview": 0.635891,
+   "create_interview": 0.68255,
+   "get_interview": 0.692688,
+   "list_calendar_accounts": 0.658798,
+   "list_calendar_links": 0.72935,
+   "list_interviews": 0.721341,
+   "prepare_interview": 0.642778,
+   "prepare_interview_calendar_sync": 0.872005,
+   "record_interview_retro": 0.6289,
+   "update_interview": 0.689459
+  },
+  "给这条投递登记明天的面试，准备一下，再让我预览要加到日历的内容。": {
+   "create_interview": 0.651361,
+   "get_calendar_proposal": 0.600254,
+   "get_interview": 0.623692,
+   "get_interview_preparation": 0.637091,
+   "list_calendar_links": 0.677093,
+   "list_interviews": 0.635886,
+   "prepare_interview": 0.66483,
+   "prepare_interview_calendar_sync": 0.779206,
+   "search_career_episodes": 0.580435,
+   "update_interview": 0.620268
+  },
+  "请先收集五项独立的简历定制信息，暂时不要调用工具或写优化稿：1 前端经验；2 使用过的向量数据库；3 Dify 经验；4 AI 编程工具；5 开源项目或博客。每项都需要我分别回答，允许跳过或明确回答没有。请一次性生成结构化五题问卷。": {},
+  "请对当前选中的示例科技岗位做独立 JD 分析，不要做简历匹配。": {
+   "analyze_job": 0.759515,
+   "correct_job_requirement_tier": 0.599773
+  },
+  "请把我的求职意向记下来：我想找上海的算法岗，期望薪资 40K 以上": {},
+  "调研完了吗？一句话说说结论就行。": {},
+  "这个岗位我准备投了，先放在心里。": {
+   "compare_saved_jobs": 0.574865,
+   "confirm_job_intent": 0.619523,
+   "create_application": 0.583006,
+   "list_applications": 0.564288,
+   "prepare_interview": 0.550867,
+   "propose_job_intent": 0.604089
+  },
+  "这个岗位看着还不错": {
+   "analyze_job": 0.56224
+  },
+  "这个收藏的职位具体要求是什么？": {
+   "analyze_job": 0.561509,
+   "compare_saved_jobs": 0.608421,
+   "find_saved_jobs": 0.619857,
+   "get_saved_job": 0.642153
+  },
+  "这个日历预览没问题，确认加进去。": {
+   "execute_calendar_proposal": 0.632886,
+   "get_calendar_proposal": 0.666565,
+   "list_calendar_accounts": 0.609158,
+   "list_calendar_links": 0.639267,
+   "prepare_interview_calendar_sync": 0.744938
+  },
+  "这个职位我再想想，暂时别帮我投。": {
+   "create_application": 0.552809,
+   "propose_job_intent": 0.560832
+  },
+  "这份 JD 的硬要求帮我拆一下。": {
+   "analyze_job": 0.695321,
+   "correct_job_requirement_tier": 0.622076
+  },
+  "这份简历投这个岗位合适吗？": {
+   "analyze_job": 0.592214,
+   "draft_resume_tailoring": 0.605135,
+   "get_resume_job_match": 0.676596,
+   "match_resume_to_job": 0.709921
+  },
+  "这句改得对，确认。": {
+   "confirm_memory_amendment": 0.55408
+  },
+  "这场面试怎么安排的？不用加到日历。": {
+   "complete_interview": 0.629674,
+   "create_interview": 0.693638,
+   "get_interview": 0.64992,
+   "list_calendar_accounts": 0.587467,
+   "list_calendar_links": 0.68821,
+   "list_interviews": 0.676534,
+   "prepare_interview_calendar_sync": 0.741264,
+   "record_interview_retro": 0.590076,
+   "start_mock_interview": 0.591062,
+   "update_interview": 0.682525
+  },
+  "这场面试时间已经和对方定好了，帮我排进日历。": {
+   "complete_interview": 0.611245,
+   "create_interview": 0.69368,
+   "execute_calendar_proposal": 0.629881,
+   "get_calendar_proposal": 0.588287,
+   "get_interview": 0.60957,
+   "list_calendar_accounts": 0.675373,
+   "list_calendar_links": 0.757302,
+   "list_interviews": 0.655821,
+   "prepare_interview_calendar_sync": 0.779715,
+   "update_interview": 0.651278
+  },
+  "这家公司最近在做什么，帮我查查。": {},
+  "这条投递上次模拟面试的反馈还有吗？": {
+   "get_mock_interview_result": 0.73633,
+   "record_interview_retro": 0.58305,
+   "restart_mock_interview": 0.62191,
+   "search_career_episodes": 0.558932,
+   "start_mock_interview": 0.664047
+  },
+  "这条投递现在到哪一步了？": {
+   "get_application": 0.631655,
+   "update_application_status": 0.663286
+  },
+  "这条申请我看看；那封招聘邮件也帮我对上。": {
+   "create_application": 0.5648,
+   "list_applications": 0.597037,
+   "search_career_episodes": 0.569969,
+   "sync_application_emails": 0.59959
+  },
+  "这条申请状态改成面试中，再给它登记一轮面试。": {
+   "complete_interview": 0.687891,
+   "create_interview": 0.701326,
+   "get_interview": 0.692581,
+   "list_interviews": 0.665527,
+   "prepare_interview_calendar_sync": 0.597401,
+   "propose_job_intent": 0.578922,
+   "record_interview_retro": 0.616312,
+   "search_career_episodes": 0.576335,
+   "update_application_status": 0.606202,
+   "update_interview": 0.750281
+  },
+  "这条经历原文找出来，再照着岗位改简历。": {
+   "draft_resume_tailoring": 0.591957,
+   "finalize_resume_tailoring": 0.560233,
+   "get_career_memory_detail": 0.569579,
+   "get_resume_tailoring_draft": 0.58482,
+   "resolve_claim_source": 0.574896,
+   "review_resume_tailoring": 0.550978,
+   "revise_resume_tailoring": 0.624083,
+   "search_career_history": 0.600161
+  },
+  "这轮面试先生成日历预览，我看完再决定要不要加。": {
+   "complete_interview": 0.671051,
+   "create_interview": 0.723808,
+   "get_calendar_proposal": 0.641065,
+   "get_interview": 0.723039,
+   "list_calendar_accounts": 0.655492,
+   "list_calendar_links": 0.743415,
+   "list_interviews": 0.75597,
+   "prepare_interview_calendar_sync": 0.836328,
+   "record_interview_retro": 0.62191,
+   "update_interview": 0.699624
+  },
+  "这轮面试帮我准备一下。": {
+   "complete_interview": 0.624989,
+   "create_interview": 0.646491,
+   "get_interview": 0.686334,
+   "get_interview_preparation": 0.697082,
+   "list_interviews": 0.674591,
+   "prepare_interview": 0.748568,
+   "prepare_interview_calendar_sync": 0.587343,
+   "record_interview_retro": 0.683171,
+   "start_mock_interview": 0.631782,
+   "update_interview": 0.65369
+  },
+  "这轮面试是几点、谁来面？": {
+   "complete_interview": 0.596792,
+   "create_interview": 0.670583,
+   "get_interview": 0.698804,
+   "list_interviews": 0.663972,
+   "prepare_interview_calendar_sync": 0.574481,
+   "record_interview_retro": 0.599627,
+   "update_interview": 0.672542
+  },
+  "那份调研里说这家公司的主要竞争对手是谁？": {},
+  "那封招聘邮件只说‘我们会考虑安排下一轮’，还没给时间。先看看它具体怎么写的，投递状态别动。": {
+   "create_interview": 0.560061
+  },
+  "那段经历先让我看看你准备怎么改。": {
+   "propose_memory_amendment": 0.55065,
+   "revise_resume_tailoring": 0.573419
+  },
+  "邮箱刚来一封说下周二约面试的信，先跟我的投递对上，再把面试记下来。": {
+   "complete_interview": 0.573365,
+   "create_interview": 0.641878,
+   "get_interview": 0.573872,
+   "list_interviews": 0.565264,
+   "prepare_interview": 0.599192,
+   "prepare_interview_calendar_sync": 0.595208,
+   "record_interview_retro": 0.575797,
+   "search_career_episodes": 0.557735,
+   "update_interview": 0.619998
+  },
+  "邮箱里有没有新的投递回复？同步一下。": {
+   "list_email_events": 0.563604,
+   "sync_application_emails": 0.675817
+  }
+ }
+}

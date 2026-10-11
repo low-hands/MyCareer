@@ -11,6 +11,9 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+/.pytest-tmp*/
+/.pytest-*.log
+/pytest-cache-files-*/
 *.egg-info/
 /papers/pdf/*.pdf
 /.cursor/
@@ -37,3 +40,7 @@ src/career_agent/agent/_static/tiktoken_cache/*
 
 # Live smoke artifacts (README points --work-root here); reports contain no content
 /output/
+
+# git archive snapshot used as the experiment baseline; reproducible from history
+/evals/direct_delivery/generalization_v4/baseline_18158e1/
+/AGENTS.md

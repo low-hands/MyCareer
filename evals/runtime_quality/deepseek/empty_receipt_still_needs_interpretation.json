@@ -1,0 +1,223 @@
+{
+  "version": 1,
+  "model": "deepseek-flash",
+  "scenario": "empty_receipt_still_needs_interpretation",
+  "suite_fingerprint": "2a75ebf7fa9c6b126b0541b4b10b1491e377049947c377d9ad1ff44be070c8ec",
+  "recorded_at": "2026-10-11T07:48:01.956081+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的面试安排，并说明没有安排时我下一步应该怎么准备。": {
+            "list_interviews": 0.7116326587856933,
+            "get_interview": 0.6920102389504582,
+            "prepare_interview": 0.6812952037485361,
+            "get_interview_preparation": 0.679437616041584,
+            "create_interview": 0.6702706577366404,
+            "prepare_interview_calendar_sync": 0.657984564733229,
+            "update_interview": 0.649578505351278,
+            "complete_interview": 0.6440016702532052,
+            "list_calendar_links": 0.5950268745995622,
+            "record_interview_retro": 0.5845849091779203
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的面试安排，并说明没有安排时我下一步应该怎么准备。",
+          "assistant_message": "我查了你的面试记录：**目前没有任何面试安排**（包括已确定、待定、已完成或已取消的轮次都没有）。\n\n既然没有在册的面试，下一步的准备建议如下——不过要先说明：你还没有告诉我目标公司或岗位，所以下面只能给通用的准备建议，针对具体 JD 和简历的建议暂时无法提供。\n\n**1. 先明确目标（最关键的一步）**\n- 确定你要投的方向和目标公司清单，否则准备没有靶子。可以先把 2–3 个目标岗位收藏起来。\n\n**2. 材料准备**\n- 简历：准备一份主版本，之后按岗位调整。\n- 自我介绍：1 分钟版和 3 分钟版各一版，突出与目标岗位最相关的经历。\n- 项目/经历故事：按 STAR（情境-任务-行动-结果）整理 3–5 个可复用的案例，覆盖\"最难的\"\"最有成就感的\"\"失败并复盘的\"等常见问法。\n\n**3. 常见问题与表达**\n- 行为面：团队冲突、跨部门协作、deadline 压力、主动改进流程等。\n- 专业面：复习目标岗位的核心技能与常见考点。\n- 反问环节：准备 3 个关于团队、业务、成长路径的问题。\n\n**4. 硬性准备**\n- 确认设备/网络/场地（线上）或路线与到场时间（线下）。\n- 准备一份可随时发送的简历文件和作品集链接。\n\n**5. 拿到面试后**\n- 收到具体面试（公司、岗位、时间、形式）后告诉我，我可以帮你：生成针对该岗位的面试准备材料、同步到日历、以及安排模拟面试练习。\n\n需要我现在帮你做哪一步？例如开始找并收藏目标岗位，或者你先告诉我在准备哪家公司的哪个岗位，我可以给你更具体的准备方案。",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"我查了你的面试记录：**目前没有任何面试安排**（包括已确定、待定、已完成或已取消的轮次都没有）。\\n\\n既然没有在册的面试，下一步的准备建议如下——不过要先说明：你还没有告诉我目标公司或岗位，所以下面只能给通用的准备建议，针对具体 JD 和简历的建议暂时无法提供。\\n\\n**1. 先明确目标（最关键的一步）**\\n- 确定你要投的方向和目标公司清单，否则准备没有靶子。可以先把 2–3 个目标岗位收藏起来。\\n\\n**2. 材料准备**\\n- 简历：准备一份主版本，之后按岗位调整。\\n- 自我介绍：1 分钟版和 3 分钟版各一版，突出与目标岗位最相关的经历。\\n- 项目/经历故事：按 STAR（情境-任务-行动-结果）整理 3–5 个可复用的案例，覆盖\\\"最难的\\\"\\\"最有成就感的\\\"\\\"失败并复盘的\\\"等常见问法。\\n\\n**3. 常见问题与表达**\\n- 行为面：团队冲突、跨部门协作、deadline 压力、主动改进流程等。\\n- 专业面：复习目标岗位的核心技能与常见考点。\\n- 反问环节：准备 3 个关于团队、业务、成长路径的问题。\\n\\n**4. 硬性准备**\\n- 确认设备/网络/场地（线上）或路线与到场时间（线下）。\\n- 准备一份可随时发送的简历文件和作品集链接。\\n\\n**5. 拿到面试后**\\n- 收到具体面试（公司、岗位、时间、形式）后告诉我，我可以帮你：生成针对该岗位的面试准备材料、同步到日历、以及安排模拟面试练习。\\n\\n需要我现在帮你做哪一步？例如开始找并收藏目标岗位，或者你先告诉我在准备哪家公司的哪个岗位，我可以给你更具体的准备方案。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的面试安排，并说明没有安排时我下一步应该怎么准备。": {
+            "list_interviews": 0.7117071851653982,
+            "get_interview": 0.6920965681669077,
+            "prepare_interview": 0.6813138675255239,
+            "get_interview_preparation": 0.6794706931756251,
+            "create_interview": 0.6702845585447462,
+            "prepare_interview_calendar_sync": 0.6580231088219465,
+            "update_interview": 0.6496853028975962,
+            "complete_interview": 0.6440395560392952,
+            "list_calendar_links": 0.5950063927156952,
+            "record_interview_retro": 0.5846918862533824
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的面试安排，并说明没有安排时我下一步应该怎么准备。",
+          "assistant_message": "我查了你的面试安排：目前**没有任何面试记录**（没有已安排、待定、已完成或已取消的面试轮次）。同时你的职业档案里当前也没有已记录的目标岗位或投递记录，所以现在没有可关联的面试对象。\n\n既然还没有安排，下一步建议这样准备：\n\n**1. 先把「面试从哪来」准备好**\n- 明确 1–2 个目标岗位方向（职位名称、行业、城市），这样后续的岗位分析、简历匹配才有依据。\n- 准备一份主简历作为底稿；有了具体 JD 之后再针对性地定制。\n\n**2. 随时可做的通用准备（不依赖具体 JD）**\n- 自我介绍：60–90 秒版本，讲清「我是谁 + 做过什么 + 为什么匹配」。\n- 项目复盘：挑 3 个代表项目，按 STAR（情境—任务—行动—结果）梳理，结果尽量量化。\n- 常见问题：为什么离职/为什么这家公司、优缺点、职业规划、期望薪资。\n- 技术/业务深挖：针对目标岗位方向的核心技能，准备由浅入深的追问链路。\n- 反问清单：团队结构、业务指标、考核方式、成长路径。\n\n**3. 拿到面试后立即做的事**\n- 把公司、岗位、时间、形式（线上/线下）、时长告诉我，我可以为你生成一份**针对该场面试的准备材料**，并可选地把面试加到日历、关联到对应投递记录。\n- 收到具体 JD 后，可以再做岗位要求分析、简历匹配和定制简历。\n\n需要我现在帮你做哪一步？比如：告诉我你正在看的目标岗位方向，我帮你先梳理准备重点；或者你已经有面试安排了，直接告诉我公司、岗位和时间，我来登记并生成准备方案。\n\n（补充说明：由于目前没有具体 JD 和简历版本，以上是通用准备建议；JD 相关和简历相关的针对性建议需要你提供对应材料后才能给出。）",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"我查了你的面试安排：目前**没有任何面试记录**（没有已安排、待定、已完成或已取消的面试轮次）。同时你的职业档案里当前也没有已记录的目标岗位或投递记录，所以现在没有可关联的面试对象。\\n\\n既然还没有安排，下一步建议这样准备：\\n\\n**1. 先把「面试从哪来」准备好**\\n- 明确 1–2 个目标岗位方向（职位名称、行业、城市），这样后续的岗位分析、简历匹配才有依据。\\n- 准备一份主简历作为底稿；有了具体 JD 之后再针对性地定制。\\n\\n**2. 随时可做的通用准备（不依赖具体 JD）**\\n- 自我介绍：60–90 秒版本，讲清「我是谁 + 做过什么 + 为什么匹配」。\\n- 项目复盘：挑 3 个代表项目，按 STAR（情境—任务—行动—结果）梳理，结果尽量量化。\\n- 常见问题：为什么离职/为什么这家公司、优缺点、职业规划、期望薪资。\\n- 技术/业务深挖：针对目标岗位方向的核心技能，准备由浅入深的追问链路。\\n- 反问清单：团队结构、业务指标、考核方式、成长路径。\\n\\n**3. 拿到面试后立即做的事**\\n- 把公司、岗位、时间、形式（线上/线下）、时长告诉我，我可以为你生成一份**针对该场面试的准备材料**，并可选地把面试加到日历、关联到对应投递记录。\\n- 收到具体 JD 后，可以再做岗位要求分析、简历匹配和定制简历。\\n\\n需要我现在帮你做哪一步？比如：告诉我你正在看的目标岗位方向，我帮你先梳理准备重点；或者你已经有面试安排了，直接告诉我公司、岗位和时间，我来登记并生成准备方案。\\n\\n（补充说明：由于目前没有具体 JD 和简历版本，以上是通用准备建议；JD 相关和简历相关的针对性建议需要你提供对应材料后才能给出。）\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "查看我的面试安排，并说明没有安排时我下一步应该怎么准备。": {
+            "list_interviews": 0.7117071851653982,
+            "get_interview": 0.6920965681669077,
+            "prepare_interview": 0.6813138675255239,
+            "get_interview_preparation": 0.6794706931756251,
+            "create_interview": 0.6702845585447462,
+            "prepare_interview_calendar_sync": 0.6580231088219465,
+            "update_interview": 0.6496853028975962,
+            "complete_interview": 0.6440395560392952,
+            "list_calendar_links": 0.5950063927156952,
+            "record_interview_retro": 0.5846918862533824
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "查看我的面试安排，并说明没有安排时我下一步应该怎么准备。",
+          "assistant_message": "我查了你的面试记录：目前没有任何面试安排（已安排、已完成等都没有）。\n\n所以现在没有可跟踪的面试轮次，也不存在需要提前同步的日历事件。既然没有具体面试，下一步的准备建议是先把\"面试之前的准备动作\"补齐，而不是做针对某场面试的模拟或日历同步：\n\n1. 先确定目标岗位。可以收藏 1-2 个你想投/在谈的岗位，或直接在招聘网站搜一下（Boss 的搜索页需要你明确要求我才打开）。\n2. 有了岗位 JD 后，我可以帮你做岗位要求分析、简历与岗位的匹配度，并据此生成定制简历草稿。\n3. 同时你可以先准备好通用材料：一份最新简历、一段 1 分钟自我介绍、3-5 个能体现成果的项目案例（用数字说明结果），以及常见行为面试题的素材。\n4. 等真的收到面试邀约时，再把公司、岗位、时间、时区、形式告诉我，我可以帮你建面试轮次、生成准备材料，并做日历同步。\n\n需要我先帮你打开招聘搜索页，或者你直接把岗位/JD 发给我开始分析吗？",
+          "executed_calls": [
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"我查了你的面试记录：目前没有任何面试安排（已安排、已完成等都没有）。\\n\\n所以现在没有可跟踪的面试轮次，也不存在需要提前同步的日历事件。既然没有具体面试，下一步的准备建议是先把\\\"面试之前的准备动作\\\"补齐，而不是做针对某场面试的模拟或日历同步：\\n\\n1. 先确定目标岗位。可以收藏 1-2 个你想投/在谈的岗位，或直接在招聘网站搜一下（Boss 的搜索页需要你明确要求我才打开）。\\n2. 有了岗位 JD 后，我可以帮你做岗位要求分析、简历与岗位的匹配度，并据此生成定制简历草稿。\\n3. 同时你可以先准备好通用材料：一份最新简历、一段 1 分钟自我介绍、3-5 个能体现成果的项目案例（用数字说明结果），以及常见行为面试题的素材。\\n4. 等真的收到面试邀约时，再把公司、岗位、时间、时区、形式告诉我，我可以帮你建面试轮次、生成准备材料，并做日历同步。\\n\\n需要我先帮你打开招聘搜索页，或者你直接把岗位/JD 发给我开始分析吗？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "5a50bec0546e722a0fe92bd94bfcdf3a58b52b56d46a74d1aaefa600ee95bc58",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

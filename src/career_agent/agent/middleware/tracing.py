@@ -27,7 +27,6 @@ class MiddlewareTracing:
             details={
                 "tool_name": name,
                 "refusal_kind": kind,
-                "tool_profile": state["context"].task.tool_profile,
                 "capped": capped,
             },
             recoverable=not capped,

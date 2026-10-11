@@ -1,0 +1,263 @@
+{
+  "fingerprints": {
+    "source_sha256": true,
+    "summary_prompt_sha256": true,
+    "fixture_sha256": true,
+    "final_source_matches_protocol": true,
+    "reading_gap_matches_protocol": true,
+    "decision_model_matches_protocol": true,
+    "summary_config_matches_protocol": true
+  },
+  "pressure_peaks": {
+    "request_occupancy": 0.61890625,
+    "recent_occupancy": 0.8976735015772871
+  },
+  "attempted_turns": 5,
+  "returned_turns": 5,
+  "planned_turns": 18,
+  "interrupted_turns": [
+    {
+      "conversation": 1,
+      "turn": 5,
+      "inter_turn_gap_ms": 0,
+      "status": "returned",
+      "interrupted": true,
+      "wall_ms": 9254
+    }
+  ],
+  "capture_stopped_early": true,
+  "failed_turns": [],
+  "inter_turn_delay_seconds": 0.0,
+  "reading_gap_total_ms": 0,
+  "scheduled_jobs": [
+    {
+      "run_id": "d1eb425d81354776a1db46e575127476",
+      "conversation_id": "latency-1",
+      "turn": 1,
+      "occurred_at": "2026-10-10T20:18:08.874604+00:00",
+      "duration_ms": null,
+      "outcome": "started",
+      "details": {
+        "background": true,
+        "phase": "commit",
+        "trigger": "occupancy",
+        "request_occupancy": 0.49065625,
+        "recent_occupancy": 0.7651813880126183
+      }
+    },
+    {
+      "run_id": "816ed8f202db4b568a015c9739ea170e",
+      "conversation_id": "latency-1",
+      "turn": 3,
+      "occurred_at": "2026-10-10T20:18:46.450639+00:00",
+      "duration_ms": null,
+      "outcome": "started",
+      "details": {
+        "background": true,
+        "phase": "commit",
+        "trigger": "occupancy",
+        "request_occupancy": 0.52140625,
+        "recent_occupancy": 0.7213130914826499
+      }
+    },
+    {
+      "run_id": "9073e35a17734d7b9873394e07474c45",
+      "conversation_id": "latency-1",
+      "turn": 5,
+      "occurred_at": "2026-10-10T20:19:03.485037+00:00",
+      "duration_ms": null,
+      "outcome": "started",
+      "details": {
+        "background": true,
+        "phase": "commit",
+        "trigger": "occupancy",
+        "request_occupancy": 0.57825,
+        "recent_occupancy": 0.8976735015772871
+      }
+    }
+  ],
+  "load_request_estimates": [
+    {
+      "run_id": "d1eb425d81354776a1db46e575127476",
+      "conversation_id": "latency-1",
+      "turn": 1,
+      "input_tokens": 15617,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.48803125,
+      "recent_occupancy": 0.6415615141955836
+    },
+    {
+      "run_id": "eb19b05e52184f3db48fe31a58bd0f6c",
+      "conversation_id": "latency-1",
+      "turn": 2,
+      "input_tokens": 15310,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.4784375,
+      "recent_occupancy": 0.47407334384858046
+    },
+    {
+      "run_id": "816ed8f202db4b568a015c9739ea170e",
+      "conversation_id": "latency-1",
+      "turn": 3,
+      "input_tokens": 16601,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.51878125,
+      "recent_occupancy": 0.5976932176656151
+    },
+    {
+      "run_id": "cce6b84ca75a4ecda393f5c201e7913a",
+      "conversation_id": "latency-1",
+      "turn": 4,
+      "input_tokens": 17892,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.559125,
+      "recent_occupancy": 0.7213130914826499
+    },
+    {
+      "run_id": "9073e35a17734d7b9873394e07474c45",
+      "conversation_id": "latency-1",
+      "turn": 5,
+      "input_tokens": 18405,
+      "max_input_tokens": 32000,
+      "request_occupancy": 0.57515625,
+      "recent_occupancy": 0.6929219242902208
+    }
+  ],
+  "provider_failures": [],
+  "wall_total_ms": 63925,
+  "wall_mean_ms": 12785.0,
+  "load_waits": [
+    {
+      "run_id": "eb19b05e52184f3db48fe31a58bd0f6c",
+      "conversation_id": "latency-1",
+      "turn": 2,
+      "occurred_at": "2026-10-10T20:18:29.077269+00:00",
+      "duration_ms": 19494,
+      "outcome": "succeeded",
+      "details": {
+        "phase": "load",
+        "wait_result": "completed",
+        "request_occupancy": 0.528375,
+        "recent_occupancy": 0.7651813880126183
+      }
+    },
+    {
+      "run_id": "9073e35a17734d7b9873394e07474c45",
+      "conversation_id": "latency-1",
+      "turn": 5,
+      "occurred_at": "2026-10-10T20:19:03.441366+00:00",
+      "duration_ms": 8389,
+      "outcome": "succeeded",
+      "details": {
+        "phase": "load",
+        "wait_result": "completed",
+        "request_occupancy": 0.61890625,
+        "recent_occupancy": 0.8448343848580442
+      }
+    }
+  ],
+  "load_sync_summaries": [],
+  "commit_sync_summaries": [],
+  "skipped_jobs": [],
+  "background_summaries": [
+    {
+      "run_id": "d1eb425d81354776a1db46e575127476",
+      "duration_ms": 20190,
+      "outcome": "succeeded"
+    },
+    {
+      "run_id": "816ed8f202db4b568a015c9739ea170e",
+      "duration_ms": 16973,
+      "outcome": "succeeded"
+    },
+    {
+      "run_id": "9073e35a17734d7b9873394e07474c45",
+      "duration_ms": 7502,
+      "outcome": "succeeded"
+    }
+  ],
+  "background_finished_after_turn_completed": [
+    {
+      "run_id": "d1eb425d81354776a1db46e575127476",
+      "duration_ms": 20190
+    },
+    {
+      "run_id": "816ed8f202db4b568a015c9739ea170e",
+      "duration_ms": 16973
+    },
+    {
+      "run_id": "9073e35a17734d7b9873394e07474c45",
+      "duration_ms": 7502
+    }
+  ],
+  "compaction_triggers": [
+    {
+      "run_id": "d1eb425d81354776a1db46e575127476",
+      "trigger": "occupancy",
+      "request_occupancy": 0.49065625,
+      "recent_occupancy": 0.7651813880126183,
+      "through_sequence": 8,
+      "background": true
+    },
+    {
+      "run_id": "816ed8f202db4b568a015c9739ea170e",
+      "trigger": "occupancy",
+      "request_occupancy": 0.52140625,
+      "recent_occupancy": 0.7213130914826499,
+      "through_sequence": 16,
+      "background": true
+    },
+    {
+      "run_id": "9073e35a17734d7b9873394e07474c45",
+      "trigger": "occupancy",
+      "request_occupancy": 0.57825,
+      "recent_occupancy": 0.8976735015772871,
+      "through_sequence": 24,
+      "background": true
+    }
+  ],
+  "summary_failures": [],
+  "turns": [
+    {
+      "conversation": 1,
+      "turn": 1,
+      "inter_turn_gap_ms": 0,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 9317
+    },
+    {
+      "conversation": 1,
+      "turn": 2,
+      "inter_turn_gap_ms": 0,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 28803
+    },
+    {
+      "conversation": 1,
+      "turn": 3,
+      "inter_turn_gap_ms": 0,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 8774
+    },
+    {
+      "conversation": 1,
+      "turn": 4,
+      "inter_turn_gap_ms": 0,
+      "status": "returned",
+      "interrupted": false,
+      "wall_ms": 7777
+    },
+    {
+      "conversation": 1,
+      "turn": 5,
+      "inter_turn_gap_ms": 0,
+      "status": "returned",
+      "interrupted": true,
+      "wall_ms": 9254
+    }
+  ],
+  "interpretation": "run_turn wall time includes load waits/synchronous summaries. Commit queues without awaiting a model; later background trace must not inflate TurnCompleted time. Report gap0 and gap20 separately; each gap is excluded from wall time. Seeded history bypasses commit scheduling. Zero waits must be read alongside actual background summary counts. Returned is not a model task-quality score."
+}

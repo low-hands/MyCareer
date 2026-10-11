@@ -1,0 +1,216 @@
+{
+  "measurement": "preregistered_new_utterance_holdout_and_contemporary_baseline_regression",
+  "holdout_passed": 121,
+  "holdout_total": 140,
+  "holdout_single_query_direct": 50,
+  "holdout_single_query_total": 80,
+  "premature_direct_endings": 4,
+  "runtime_errors": {},
+  "regression_comparisons": [
+    {
+      "scenario": "research_is_not_started_as_part_of_matching",
+      "baseline": {
+        "passed": 20,
+        "total": 30,
+        "success_rate": 0.6666666666666666,
+        "wilson_95": [
+          0.4878005164454384,
+          0.8076950191632386
+        ],
+        "terminal_errors": {},
+        "provider_error_samples": 0,
+        "success_rate_excluding_provider_errors": 0.6666666666666666
+      },
+      "current": {
+        "passed": 23,
+        "total": 30,
+        "success_rate": 0.7666666666666667,
+        "wilson_95": [
+          0.5907167384187784,
+          0.8820761185551049
+        ],
+        "terminal_errors": {},
+        "provider_error_samples": 0,
+        "success_rate_excluding_provider_errors": 0.7666666666666667
+      },
+      "difference": 0.10000000000000009,
+      "fisher_two_sided_p": 0.567489732503049
+    },
+    {
+      "scenario": "saved_jd_body_without_language_requirement_finishes",
+      "baseline": {
+        "passed": 27,
+        "total": 30,
+        "success_rate": 0.9,
+        "wilson_95": [
+          0.7437891742081593,
+          0.9654001112526658
+        ],
+        "terminal_errors": {},
+        "provider_error_samples": 0,
+        "success_rate_excluding_provider_errors": 0.9
+      },
+      "current": {
+        "passed": 27,
+        "total": 30,
+        "success_rate": 0.9,
+        "wilson_95": [
+          0.7437891742081593,
+          0.9654001112526658
+        ],
+        "terminal_errors": {},
+        "provider_error_samples": 0,
+        "success_rate_excluding_provider_errors": 0.9
+      },
+      "difference": 0.0,
+      "fisher_two_sided_p": 1.0
+    },
+    {
+      "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+      "baseline": {
+        "passed": 24,
+        "total": 30,
+        "success_rate": 0.8,
+        "wilson_95": [
+          0.6269430358685175,
+          0.9049489282271013
+        ],
+        "terminal_errors": {},
+        "provider_error_samples": 0,
+        "success_rate_excluding_provider_errors": 0.8
+      },
+      "current": {
+        "passed": 23,
+        "total": 30,
+        "success_rate": 0.7666666666666667,
+        "wilson_95": [
+          0.5907167384187784,
+          0.8820761185551049
+        ],
+        "terminal_errors": {},
+        "provider_error_samples": 0,
+        "success_rate_excluding_provider_errors": 0.7666666666666667
+      },
+      "difference": -0.033333333333333326,
+      "fisher_two_sided_p": 0.9999999999999999
+    }
+  ],
+  "holdout_results": [
+    {
+      "scenario": "resume_list",
+      "passed": 10,
+      "total": 10,
+      "direct_receipt_endings": 0,
+      "premature_direct_endings": 0,
+      "missing_requested_summaries": 0
+    },
+    {
+      "scenario": "resume_inventory",
+      "passed": 10,
+      "total": 10,
+      "direct_receipt_endings": 0,
+      "premature_direct_endings": 0,
+      "missing_requested_summaries": 0
+    },
+    {
+      "scenario": "interview_inventory",
+      "passed": 10,
+      "total": 10,
+      "direct_receipt_endings": 10,
+      "premature_direct_endings": 0,
+      "missing_requested_summaries": 0
+    },
+    {
+      "scenario": "interview_schedule",
+      "passed": 10,
+      "total": 10,
+      "direct_receipt_endings": 10,
+      "premature_direct_endings": 0,
+      "missing_requested_summaries": 0
+    },
+    {
+      "scenario": "brief_today",
+      "passed": 10,
+      "total": 10,
+      "direct_receipt_endings": 10,
+      "premature_direct_endings": 0,
+      "missing_requested_summaries": 0
+    },
+    {
+      "scenario": "brief_retrieve",
+      "passed": 10,
+      "total": 10,
+      "direct_receipt_endings": 10,
+      "premature_direct_endings": 0,
+      "missing_requested_summaries": 0
+    },
+    {
+      "scenario": "resume_english",
+      "passed": 10,
+      "total": 10,
+      "direct_receipt_endings": 0,
+      "premature_direct_endings": 0,
+      "missing_requested_summaries": 0
+    },
+    {
+      "scenario": "interview_english",
+      "passed": 10,
+      "total": 10,
+      "direct_receipt_endings": 10,
+      "premature_direct_endings": 0,
+      "missing_requested_summaries": 0
+    },
+    {
+      "scenario": "three_sources",
+      "passed": 8,
+      "total": 10,
+      "direct_receipt_endings": 0,
+      "premature_direct_endings": 0,
+      "missing_requested_summaries": 0
+    },
+    {
+      "scenario": "two_sources",
+      "passed": 10,
+      "total": 10,
+      "direct_receipt_endings": 0,
+      "premature_direct_endings": 0,
+      "missing_requested_summaries": 0
+    },
+    {
+      "scenario": "brief_advice",
+      "passed": 6,
+      "total": 10,
+      "direct_receipt_endings": 4,
+      "premature_direct_endings": 4,
+      "missing_requested_summaries": 4
+    },
+    {
+      "scenario": "interview_advice",
+      "passed": 5,
+      "total": 10,
+      "direct_receipt_endings": 0,
+      "premature_direct_endings": 0,
+      "missing_requested_summaries": 5
+    },
+    {
+      "scenario": "resume_then_interview",
+      "passed": 10,
+      "total": 10,
+      "direct_receipt_endings": 1,
+      "premature_direct_endings": 0,
+      "missing_requested_summaries": 0
+    },
+    {
+      "scenario": "continue_multiple",
+      "passed": 2,
+      "total": 10,
+      "direct_receipt_endings": 0,
+      "premature_direct_endings": 0,
+      "missing_requested_summaries": 0
+    }
+  ],
+  "interpretation_limit": "These are short synthetic workspaces with complete empty read receipts. Language generalization within this fixture does not establish real-use frequency, latency savings or arbitrary multi-step safety. Baseline comparison is observational, not a proof of equivalence or isolation of the schema versus prompt effect.",
+  "holdout_corrected_task_score": 123,
+  "grading_correction_count": 2,
+  "grading_audit": "grading_audit.json"
+}

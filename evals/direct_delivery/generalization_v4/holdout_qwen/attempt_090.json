@@ -1,0 +1,199 @@
+{
+  "scenario": "three_sources",
+  "sample": {
+    "semantic_recording": {
+      "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+      "queries": {
+        "简历、投递和面试分别查一遍，最后给我一份总览。": {
+          "record_interview_retro": 0.6676678320152111,
+          "search_career_episodes": 0.6660918821014591,
+          "get_interview": 0.6438501850211664,
+          "list_interviews": 0.6352981245142968,
+          "get_interview_preparation": 0.6289395392765941,
+          "get_resume_job_match": 0.6283762821534729,
+          "list_applications": 0.6278844720393345,
+          "create_interview": 0.6238187517257286,
+          "list_resumes": 0.6192523708493333,
+          "prepare_interview": 0.6134479239623096
+        }
+      }
+    },
+    "passed": false,
+    "failures": [
+      "turn 1: required work incomplete: ['list_applications', 'list_interviews']"
+    ],
+    "turns": [
+      {
+        "message": "简历、投递和面试分别查一遍，最后给我一份总览。",
+        "assistant_message": "已完成简历、投递和面试的查询，总览如下：\n\n- **简历**：当前没有已记录的简历。\n- **投递记录**：当前没有跟踪中的投递申请。\n- **面试安排**：当前没有已安排的面试轮次。\n\n如果您需要开始求职流程，建议先准备一份简历并设定目标岗位方向。",
+        "executed_calls": [
+          {
+            "name": "list_applications",
+            "arguments": {
+              "user_id": "eval-user",
+              "statuses": [],
+              "limit": 20
+            }
+          },
+          {
+            "name": "search_capabilities",
+            "arguments": {
+              "current_task": {
+                "workflow": null,
+                "loaded_capabilities": [
+                  "list_applications"
+                ],
+                "pending_interaction": null,
+                "domain_context": {
+                  "application": {
+                    "active_id": null,
+                    "active_status": null,
+                    "candidates": [],
+                    "email_event_candidates": [],
+                    "email_sync_phase": null
+                  },
+                  "interview": {
+                    "active_round_id": null,
+                    "candidates": [],
+                    "active_preparation_id": null,
+                    "active_calendar_proposal_id": null,
+                    "calendar_proposal_expires_at": null,
+                    "calendar_account_candidates": []
+                  },
+                  "action_center": {
+                    "active_id": null,
+                    "candidates": []
+                  },
+                  "job": {
+                    "active_posting_id": null,
+                    "active_jd_snapshot_id": null,
+                    "active_saved_job": null,
+                    "saved_job_candidates": [],
+                    "target_role_candidates": [],
+                    "active_analysis_id": null,
+                    "active_analysis_jd_snapshot_id": null,
+                    "analysis_status": null,
+                    "active_research_run_id": null,
+                    "active_research_report_id": null,
+                    "research_status": null
+                  },
+                  "resume": {
+                    "active_job_match_id": null,
+                    "job_match_status": null,
+                    "active_tailoring_draft_id": null,
+                    "tailoring_status": null,
+                    "active_version_id": null,
+                    "active_artifact_id": null,
+                    "candidates": [],
+                    "version_candidates": []
+                  }
+                }
+              },
+              "names": [
+                "list_resumes",
+                "list_interviews"
+              ],
+              "limit": 5
+            }
+          },
+          {
+            "name": "list_resumes",
+            "arguments": {
+              "user_id": "eval-user",
+              "target_role_id": null,
+              "query": null
+            }
+          },
+          {
+            "name": "list_interviews",
+            "arguments": {
+              "user_id": "eval-user",
+              "application_id": null,
+              "statuses": [],
+              "limit": 20
+            }
+          }
+        ],
+        "decisions": [
+          {
+            "response": {
+              "tool_call": {
+                "name": "list_applications",
+                "arguments": {
+                  "deliver_direct": false
+                }
+              }
+            },
+            "schema_fingerprint": "609485352b4c2c966ef79196328494ba97881379ea4bb5d528eaa13748843307",
+            "action": "tool_call",
+            "tool": "list_applications"
+          },
+          {
+            "response": {
+              "tool_call": {
+                "name": "search_capabilities",
+                "arguments": {
+                  "names": [
+                    "list_resumes",
+                    "list_interviews"
+                  ]
+                }
+              }
+            },
+            "schema_fingerprint": "609485352b4c2c966ef79196328494ba97881379ea4bb5d528eaa13748843307",
+            "action": "tool_call",
+            "tool": "search_capabilities"
+          },
+          {
+            "response": {
+              "tool_call": {
+                "name": "list_resumes",
+                "arguments": {}
+              }
+            },
+            "schema_fingerprint": "6381670f80e50f305b08c515fca1cfe88c1fe69ce84080668f71d098c494c670",
+            "action": "tool_call",
+            "tool": "list_resumes"
+          },
+          {
+            "response": {
+              "tool_call": {
+                "name": "list_interviews",
+                "arguments": {}
+              }
+            },
+            "schema_fingerprint": "6381670f80e50f305b08c515fca1cfe88c1fe69ce84080668f71d098c494c670",
+            "action": "tool_call",
+            "tool": "list_interviews"
+          },
+          {
+            "response": {
+              "content": "{\"action\":\"final\",\"message\":\"已完成简历、投递和面试的查询，总览如下：\\n\\n- **简历**：当前没有已记录的简历。\\n- **投递记录**：当前没有跟踪中的投递申请。\\n- **面试安排**：当前没有已安排的面试轮次。\\n\\n如果您需要开始求职流程，建议先准备一份简历并设定目标岗位方向。\",\"questions\":[]}"
+            },
+            "schema_fingerprint": "6381670f80e50f305b08c515fca1cfe88c1fe69ce84080668f71d098c494c670",
+            "action": "final",
+            "tool": null
+          }
+        ],
+        "error": null,
+        "missing_calls": [
+          "list_applications",
+          "list_interviews"
+        ],
+        "requires_model_summary": true,
+        "model_summary_delivered": true,
+        "decision_count": 5,
+        "direct_delivery": false,
+        "result_states": [
+          "no_applications_found",
+          "capabilities_found",
+          "no_resumes_found",
+          "no_interviews_found"
+        ]
+      }
+    ],
+    "premature_stop_count": 1,
+    "unsafe_attempt_count": 0,
+    "injection_marker_echo_count": 0
+  }
+}

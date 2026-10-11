@@ -10,6 +10,7 @@ from uuid import uuid4
 
 from career_agent.domain.interviews import (
     InterviewDetails,
+    InterviewCompletionRevertedDetails,
     InterviewRetroQuestion,
     InterviewRetroReport,
     InterviewRound,
@@ -29,9 +30,9 @@ class SQLiteInterviewStore:
             apply_schema(
                 connection,
                 "interviews",
-                2,
+                3,
                 self._migrate,
-                upgrades={2: self._upgrade_v2},
+                upgrades={2: self._upgrade_v2, 3: self._upgrade_v3},
             )
         os.chmod(self.path, 0o600)
 
@@ -271,6 +272,36 @@ class SQLiteInterviewStore:
             )
         return updated
 
+    def restore_completion(self, *, round_: InterviewRound) -> InterviewRound:
+        now = datetime.now(timezone.utc)
+        updated = round_.model_copy(update={
+            "status": "scheduled", "completed_at": None, "updated_at": now,
+        })
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            changed = connection.execute(
+                """UPDATE interview_rounds SET status = 'scheduled', completed_at = NULL, updated_at = ?
+                   WHERE id = ? AND user_id = ? AND status = 'completed' AND updated_at = ?
+                     AND NOT EXISTS (SELECT 1 FROM interview_retro_reports
+                                     WHERE interview_round_id = ? AND user_id = ?)""",
+                (now.isoformat(), round_.id, round_.user_id, round_.updated_at.isoformat(),
+                 round_.id, round_.user_id),
+            ).rowcount
+            if not changed:
+                raise ValueError("only completed interviews without a retro can be restored")
+            self._insert_event(connection, self._new_event(
+                round_=updated, source="user_reported", event_type="completion_reverted",
+                email_event_id=None, source_thread_id=None,
+                details=InterviewCompletionRevertedDetails(
+                    employer_label=updated.employer_label,
+                    scheduled_start=updated.scheduled_start, scheduled_end=updated.scheduled_end,
+                    timezone=updated.timezone, interview_format=updated.interview_format,
+                    location=updated.location, meeting_url=updated.meeting_url,
+                    contact_summary=updated.contact_summary,
+                ), occurred_at=now,
+            ))
+        return updated
+
     def list(
         self,
         *,
@@ -392,6 +423,13 @@ class SQLiteInterviewStore:
             created_at=timestamp,
         )
         with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            current = connection.execute(
+                "SELECT status FROM interview_rounds WHERE id = ? AND user_id = ?",
+                (round_.id, round_.user_id),
+            ).fetchone()
+            if current is None or current[0] != "completed":
+                raise ValueError("a retro requires a currently completed interview")
             connection.execute(
                 """
                 INSERT OR IGNORE INTO interview_retro_reports(
@@ -644,6 +682,26 @@ class SQLiteInterviewStore:
                 "DELETE FROM interview_rounds WHERE user_id = ?", (user_id,)
             ).rowcount
 
+    def delete(self, *, user_id: str, interview_round_id: str) -> bool:
+        """Remove one mistaken round and its local event/retro history."""
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if connection.execute(
+                "SELECT 1 FROM interview_rounds WHERE id = ? AND user_id = ?",
+                (interview_round_id, user_id),
+            ).fetchone() is None:
+                return False
+            for table in ("interview_retro_reports", "interview_round_events"):
+                connection.execute(
+                    f"DELETE FROM {table} WHERE interview_round_id = ? AND user_id = ?",
+                    (interview_round_id, user_id),
+                )
+            connection.execute(
+                "DELETE FROM interview_rounds WHERE id = ? AND user_id = ?",
+                (interview_round_id, user_id),
+            )
+        return True
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)
         connection.execute("PRAGMA foreign_keys=ON")
@@ -659,6 +717,23 @@ class SQLiteInterviewStore:
             round_.created_at.isoformat(), round_.updated_at.isoformat(),
             cls._iso(round_.completed_at),
         )
+
+    @staticmethod
+    def _upgrade_v3(connection: sqlite3.Connection) -> None:
+        # The sole v2 producer of "corrected" was restore_completion; repair
+        # both labels without reclassifying real details_updated events.
+        rows = connection.execute(
+            "SELECT id, details_json FROM interview_round_events WHERE event_type = 'corrected'"
+        ).fetchall()
+        for event_id, raw in rows:
+            details = json.loads(raw)
+            if details.get("change_type") != "details_updated":
+                continue
+            details.update(change_type="completion_reverted", previous_status="completed", new_status="scheduled")
+            connection.execute(
+                "UPDATE interview_round_events SET event_type = 'completion_reverted', details_json = ? WHERE id = ?",
+                (json.dumps(details, ensure_ascii=False), event_id),
+            )
 
     @staticmethod
     def _new_event(

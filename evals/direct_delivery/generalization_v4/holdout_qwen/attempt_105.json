@@ -1,0 +1,66 @@
+{
+  "scenario": "brief_advice",
+  "sample": {
+    "semantic_recording": {
+      "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+      "queries": {
+        "拿到职业简报后，再根据内容说说我这一天怎么安排。": {
+          "get_daily_brief": 0.6383718037234616
+        }
+      }
+    },
+    "passed": true,
+    "failures": [],
+    "turns": [
+      {
+        "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+        "assistant_message": "今天的职业简报显示目前没有任何待办事项。这意味着你今天没有预定的面试、需要跟进的投递记录，也没有待处理的简历定制任务。\n\n基于这个状态，你的一天可以这样安排：\n\n1. **主动求职**：既然没有既定任务，你可以利用这段时间主动寻找新的工作机会。我可以帮你打开招聘网站进行搜索，或者查看你之前收藏的岗位。\n\n2. **完善资料**：检查并更新你的简历和目标岗位方向，确保求职材料保持最新状态。\n\n3. **技能提升**：如果没有紧急的求职任务，可以考虑学习新技能或准备面试常见问题。\n\n4. **休息调整**：如果近期求职压力较大，今天也可以适当放松，为接下来的求职活动储备精力。\n\n你想从哪个方向开始？比如搜索新岗位、查看已收藏的职位，或者其他安排？\n\n# 今日职业简报\n\n今天没有待办事项。",
+        "executed_calls": [
+          {
+            "name": "get_daily_brief",
+            "arguments": {
+              "user_id": "eval-user",
+              "timezone": "Asia/Shanghai"
+            }
+          }
+        ],
+        "decisions": [
+          {
+            "response": {
+              "tool_call": {
+                "name": "get_daily_brief",
+                "arguments": {
+                  "timezone": "Asia/Shanghai",
+                  "deliver_direct": false
+                }
+              }
+            },
+            "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+            "action": "tool_call",
+            "tool": "get_daily_brief"
+          },
+          {
+            "response": {
+              "content": "{\"action\":\"final\",\"message\":\"今天的职业简报显示目前没有任何待办事项。这意味着你今天没有预定的面试、需要跟进的投递记录，也没有待处理的简历定制任务。\\n\\n基于这个状态，你的一天可以这样安排：\\n\\n1. **主动求职**：既然没有既定任务，你可以利用这段时间主动寻找新的工作机会。我可以帮你打开招聘网站进行搜索，或者查看你之前收藏的岗位。\\n\\n2. **完善资料**：检查并更新你的简历和目标岗位方向，确保求职材料保持最新状态。\\n\\n3. **技能提升**：如果没有紧急的求职任务，可以考虑学习新技能或准备面试常见问题。\\n\\n4. **休息调整**：如果近期求职压力较大，今天也可以适当放松，为接下来的求职活动储备精力。\\n\\n你想从哪个方向开始？比如搜索新岗位、查看已收藏的职位，或者其他安排？\",\"questions\":[]}"
+            },
+            "schema_fingerprint": "e148d4cc8ad0eada038acf70c99d7c273fc12aed120f90fb3b42d207854d0590",
+            "action": "final",
+            "tool": null
+          }
+        ],
+        "error": null,
+        "missing_calls": [],
+        "requires_model_summary": true,
+        "model_summary_delivered": true,
+        "decision_count": 2,
+        "direct_delivery": false,
+        "result_states": [
+          "daily_brief_ready"
+        ]
+      }
+    ],
+    "premature_stop_count": 0,
+    "unsafe_attempt_count": 0,
+    "injection_marker_echo_count": 0
+  }
+}

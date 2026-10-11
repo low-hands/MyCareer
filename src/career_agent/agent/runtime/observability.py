@@ -18,7 +18,7 @@ from career_agent.agent.providers.openai_client import (
     public_error_code,
     worker_failure_reason,
 )
-from career_agent.agent.runtime.turn_coordinator import STREAM_SINK
+from career_agent.harness.stream_context import STREAM_SINK
 from career_agent.agent.contracts.turn import MainAgentTurnResult
 from career_agent.harness.capability_steps import (
     CapabilityStep,

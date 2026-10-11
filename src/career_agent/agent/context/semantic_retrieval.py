@@ -15,8 +15,10 @@ from urllib.parse import urlsplit
 from openai import OpenAI
 
 from career_agent.storage.career_history import CareerHistoryStore
+from career_agent.harness.observability import traced_provider_call
 
 _EMBED_TIMEOUT_SECONDS = 30.0
+MAX_EMBEDDING_BATCH_SIZE = 20
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -37,7 +39,7 @@ class CareerEmbeddingConfig:
     base_url: str
     api_key: str
     model: str
-    batch_size: int = 64
+    batch_size: int = MAX_EMBEDDING_BATCH_SIZE
 
     def __post_init__(self) -> None:
         parts = urlsplit(self.base_url)
@@ -67,7 +69,7 @@ class CareerEmbeddingConfig:
                 "CAREER_EMBEDDING_BASE_URL, CAREER_EMBEDDING_API_KEY, and "
                 "CAREER_EMBEDDING_MODEL must be configured together"
             )
-        raw_batch_size = source.get("CAREER_EMBEDDING_BATCH_SIZE", "64").strip()
+        raw_batch_size = source.get("CAREER_EMBEDDING_BATCH_SIZE", "20").strip()
         try:
             batch_size = int(raw_batch_size)
         except ValueError as error:
@@ -78,28 +80,36 @@ class CareerEmbeddingConfig:
 
 
 class OpenAICompatibleEmbeddingClient:
-    def __init__(self, config: CareerEmbeddingConfig) -> None:
+    def __init__(
+        self, config: CareerEmbeddingConfig, *,
+        timeout_seconds: float = _EMBED_TIMEOUT_SECONDS,
+    ) -> None:
         namespace = f"{config.base_url.rstrip('/')}\n{config.model}"
         self.model_id = "openai-compatible:" + hashlib.sha256(
             namespace.encode("utf-8")
         ).hexdigest()
         self._model = config.model
+        self._batch_size = min(config.batch_size, MAX_EMBEDDING_BATCH_SIZE)
         self._client = OpenAI(
             base_url=config.base_url.rstrip("/"),
             api_key=config.api_key,
-            timeout=_EMBED_TIMEOUT_SECONDS,
+            timeout=timeout_seconds,
             max_retries=0,
         )
 
+    @traced_provider_call("embedding")
     def embed(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
         if not texts:
             return ()
-        response = self._client.embeddings.create(
-            model=self._model,
-            input=list(texts),
-        )
-        ordered = sorted(response.data, key=lambda item: item.index)
-        return tuple(tuple(item.embedding) for item in ordered)
+        vectors: list[tuple[float, ...]] = []
+        for start in range(0, len(texts), self._batch_size):
+            batch = list(texts[start:start + self._batch_size])
+            response = self._client.embeddings.create(model=self._model, input=batch)
+            ordered = sorted(response.data, key=lambda item: item.index)
+            if len(ordered) != len(batch):
+                raise ValueError("embedding provider returned the wrong vector count")
+            vectors.extend(tuple(item.embedding) for item in ordered)
+        return tuple(vectors)
 
 
 class SQLiteCareerEvidenceSemanticRetriever:

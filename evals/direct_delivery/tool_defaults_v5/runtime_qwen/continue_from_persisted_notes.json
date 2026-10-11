@@ -1,0 +1,781 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "continue_from_persisted_notes",
+  "suite_fingerprint": "e33a184238d752a7b681bcba955d981c8bd07caa8a40e8a198e3aa5709f3ac33",
+  "recorded_at": "2026-10-10T01:41:32.831304+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "把这句话写入工作笔记：下一步先查面试安排，再查投递记录。现在只记笔记。": {
+            "create_interview": 0.6717025137402746,
+            "record_interview_retro": 0.6530227228139407,
+            "list_applications": 0.6450208005255271,
+            "search_career_episodes": 0.639529153721998,
+            "update_interview": 0.6262326409700985,
+            "create_application": 0.6052995648084839,
+            "list_interviews": 0.6028682488510733,
+            "complete_interview": 0.5997581874560436,
+            "get_interview": 0.5847471504722271,
+            "update_working_notes": 0.5746209605441294
+          },
+          "接着做工作笔记里说的下一步。": {
+            "update_working_notes": 0.6303496634061782
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "把这句话写入工作笔记：下一步先查面试安排，再查投递记录。现在只记笔记。",
+          "assistant_message": "工作笔记已更新。",
+          "executed_calls": [
+            {
+              "name": "update_working_notes",
+              "arguments": {
+                "user_id": "eval-user",
+                "markdown": "下一步先查面试安排，再查投递记录。",
+                "expected_revision": "empty"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "update_working_notes",
+                  "arguments": {
+                    "expected_revision": "empty",
+                    "markdown": "下一步先查面试安排，再查投递记录。"
+                  }
+                }
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "tool_call",
+              "tool": "update_working_notes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"工作笔记已更新。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "working_notes_updated"
+          ]
+        },
+        {
+          "message": "接着做工作笔记里说的下一步。",
+          "assistant_message": "已按工作笔记执行：\n- 面试安排：当前没有记录。\n- 投递记录：当前没有记录。\n\n如果你希望开始跟踪求职进展，可以告诉我目标岗位或公司，我可以帮你创建投递记录或面试安排。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [
+                    "update_working_notes"
+                  ],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_interviews",
+                  "list_applications"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_interviews",
+                      "list_applications"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "b2c5fb292cfd47852b9ec142f64c55dbb9ce035d9903ea6163ee5ea315e07166",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已按工作笔记执行：\\n- 面试安排：当前没有记录。\\n- 投递记录：当前没有记录。\\n\\n如果你希望开始跟踪求职进展，可以告诉我目标岗位或公司，我可以帮你创建投递记录或面试安排。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 4,
+          "direct_delivery": false,
+          "result_states": [
+            "capabilities_found",
+            "no_interviews_found",
+            "no_applications_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "把这句话写入工作笔记：下一步先查面试安排，再查投递记录。现在只记笔记。": {
+            "create_interview": 0.6718166430806884,
+            "record_interview_retro": 0.653143719481507,
+            "list_applications": 0.6450629426077717,
+            "search_career_episodes": 0.6396735948426121,
+            "update_interview": 0.6263348810412126,
+            "create_application": 0.6053333653699587,
+            "list_interviews": 0.6029638793527796,
+            "complete_interview": 0.5998574912477623,
+            "get_interview": 0.5848014266092879,
+            "update_working_notes": 0.5747814164647441
+          },
+          "接着做工作笔记里说的下一步。": {
+            "update_working_notes": 0.6304579668921095
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "把这句话写入工作笔记：下一步先查面试安排，再查投递记录。现在只记笔记。",
+          "assistant_message": "已将“下一步先查面试安排，再查投递记录。”写入工作笔记。",
+          "executed_calls": [
+            {
+              "name": "update_working_notes",
+              "arguments": {
+                "user_id": "eval-user",
+                "markdown": "下一步先查面试安排，再查投递记录。",
+                "expected_revision": "empty"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "update_working_notes",
+                  "arguments": {
+                    "expected_revision": "empty",
+                    "markdown": "下一步先查面试安排，再查投递记录。"
+                  }
+                }
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "tool_call",
+              "tool": "update_working_notes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已将“下一步先查面试安排，再查投递记录。”写入工作笔记。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "working_notes_updated"
+          ]
+        },
+        {
+          "message": "接着做工作笔记里说的下一步。",
+          "assistant_message": "已按工作笔记执行：先查面试安排，再查投递记录。目前系统中没有面试安排，也没有投递记录。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [
+                    "update_working_notes"
+                  ],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_interviews"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [
+                    "update_working_notes",
+                    "list_interviews"
+                  ],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_applications"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_interviews"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "b2c5fb292cfd47852b9ec142f64c55dbb9ce035d9903ea6163ee5ea315e07166",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "e751080023b9de03bb486565759c0c6afc940ce11b67937cc40fbd1bdccf20cc",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_applications"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "e751080023b9de03bb486565759c0c6afc940ce11b67937cc40fbd1bdccf20cc",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已按工作笔记执行：先查面试安排，再查投递记录。目前系统中没有面试安排，也没有投递记录。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 5,
+          "direct_delivery": false,
+          "result_states": [
+            "capabilities_found",
+            "no_interviews_found",
+            "capabilities_found",
+            "no_applications_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "把这句话写入工作笔记：下一步先查面试安排，再查投递记录。现在只记笔记。": {
+            "create_interview": 0.6718166430806884,
+            "record_interview_retro": 0.653143719481507,
+            "list_applications": 0.6450629426077717,
+            "search_career_episodes": 0.6396735948426121,
+            "update_interview": 0.6263348810412126,
+            "create_application": 0.6053333653699587,
+            "list_interviews": 0.6029638793527796,
+            "complete_interview": 0.5998574912477623,
+            "get_interview": 0.5848014266092879,
+            "update_working_notes": 0.5747814164647441
+          },
+          "接着做工作笔记里说的下一步。": {
+            "update_working_notes": 0.6303496634061782
+          }
+        }
+      },
+      "passed": false,
+      "failures": [
+        "expected durable working-note update is missing"
+      ],
+      "turns": [
+        {
+          "message": "把这句话写入工作笔记：下一步先查面试安排，再查投递记录。现在只记笔记。",
+          "assistant_message": "工作笔记已更新。",
+          "executed_calls": [
+            {
+              "name": "update_working_notes",
+              "arguments": {
+                "user_id": "eval-user",
+                "markdown": "下一步先查面试安排，再查投递记录。",
+                "expected_revision": "empty"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "update_working_notes",
+                  "arguments": {
+                    "expected_revision": "empty",
+                    "markdown": "下一步先查面试安排，再查投递记录。"
+                  }
+                }
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "tool_call",
+              "tool": "update_working_notes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"工作笔记已更新。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "working_notes_updated"
+          ]
+        },
+        {
+          "message": "接着做工作笔记里说的下一步。",
+          "assistant_message": "工作笔记已更新（19 字符）。",
+          "executed_calls": [
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [
+                    "update_working_notes"
+                  ],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_interviews",
+                  "list_applications"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            },
+            {
+              "name": "update_working_notes",
+              "arguments": {
+                "user_id": "eval-user",
+                "markdown": "已查面试安排和投递记录，当前均无数据。",
+                "expected_revision": "a4e519b453e4"
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_interviews",
+                      "list_applications"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "b2c5fb292cfd47852b9ec142f64c55dbb9ce035d9903ea6163ee5ea315e07166",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "update_working_notes",
+                  "arguments": {
+                    "expected_revision": "a4e519b453e4",
+                    "markdown": "已查面试安排和投递记录，当前均无数据。"
+                  }
+                }
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "tool_call",
+              "tool": "update_working_notes"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "9d99c0a26beeeb7745db3ac43a7161c09b97454fa246dfba2724d3ce7fae3b7e",
+              "action": "tool_call",
+              "tool": "list_applications"
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 6,
+          "direct_delivery": true,
+          "result_states": [
+            "capabilities_found",
+            "no_interviews_found",
+            "no_applications_found",
+            "working_notes_updated"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

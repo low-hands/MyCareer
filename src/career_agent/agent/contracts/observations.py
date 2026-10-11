@@ -23,11 +23,6 @@ from career_agent.agent.contracts.memory import (
 )
 from career_agent.agent.providers.token_budget import serialized_token_count
 from career_agent.agent.capabilities.effects import approval_policy, owner_rule_capabilities
-from career_agent.agent.capabilities.catalog import (
-    DOMAIN_TOOL_PROFILES,
-    TOOL_PROFILE_NAMES,
-    ToolProfile,
-)
 from career_agent.agent.contracts.questionnaire import PendingQuestionnaire, UserQuestion
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
@@ -150,6 +145,10 @@ class ToolResult(ContractModel):
 
     This object is deliberately excluded from ``MainAgentContext`` so adding a
     field to a tool handler can never silently expand the decision prompt.
+
+    Tools and workers only return this result; they never write to the
+    conversation or the UI stream. The Main Agent runtime owns delivery and
+    decides what the user sees.
     """
 
     tool_name: str
@@ -184,6 +183,8 @@ class ToolResult(ContractModel):
     next_action: str | None = Field(default=None, max_length=NEXT_ACTION_LIMIT)
     """Advice for the next step, in prose. See ``DecisionObservation``."""
     payload: dict[str, Any] = Field(default_factory=dict)
+    # Runtime-owned provenance; never supplied by the model-facing tool schema.
+    explicit_sequence_span: bool = Field(default=False, exclude=True)
     body_source: DeliveredBodySource | None = Field(default=None, exclude=True)
     body_dependencies: tuple[BodyDependency, ...] = Field(default=(), exclude=True)
     resource_ref: ConversationResourceReference | None = None
@@ -266,7 +267,9 @@ DECISION_OBSERVATION_BODY_LIMIT = 6_000
 # budget; the declared worst shape then measures 18_367. Measured reality is
 # far below either figure — a real turn's whole context was 1_340 chars
 # against 11_979 of tool schemas.
-MAX_DECISION_OBSERVATION_CHARS = 18_400
+# The evidence envelope adds 864 characters to the eleven-result worst shape.
+# Keep the bound explicit and measured, without expanding receipt/body limits.
+MAX_DECISION_OBSERVATION_CHARS = 19_300
 
 
 class DecisionObservation(ContractModel):
@@ -274,6 +277,8 @@ class DecisionObservation(ContractModel):
 
     tool_name: str = Field(pattern=r"^[a-z0-9_]+$", max_length=80)
     state: str = Field(pattern=r"^[a-z0-9_]+$", max_length=80)
+    disposition: Literal["completed", "interaction_required", "failed"] | None = None
+    execution_outcome: Literal["committed", "not_committed", "unknown"] | None = None
     message: str = Field(
         min_length=1,
         max_length=DECISION_OBSERVATION_RECEIPT_LIMIT,
@@ -377,6 +382,17 @@ def append_decision_observation(
     )
 
 
+class EvidenceEnvelope(ContractModel):
+    """Runtime-authored limits of the evidence currently visible to the model.
+
+    A body is an excerpt, not proof of a complete report. A receipt is not its
+    contents. Readback requires a resolvable handle, never a success message.
+    """
+
+    body_status: Literal["excerpt", "receipt_only"]
+    readback_status: Literal["available", "unavailable"]
+
+
 def decision_observation_projection(
     observations: tuple[DecisionObservation, ...],
     reference_handles: Mapping[str, str] | None = None,
@@ -400,6 +416,10 @@ def decision_observation_projection(
     projected = []
     for observation in observations:
         line = observation.model_dump(mode="json", exclude_none=True)
+        # Selection needs these receipts, but the model-facing observation
+        # already explains the outcome through state and message.
+        line.pop("disposition", None)
+        line.pop("execution_outcome", None)
         reference = observation.resource_ref
         if reference is not None and reference_handles is not None:
             handle = reference_handles.get(reference.resource_id)
@@ -434,6 +454,13 @@ def decision_observation_projection(
                 )
             if resources:
                 line.setdefault("facts", {})["resource_refs"] = resources
+        line["evidence"] = EvidenceEnvelope(
+            body_status="excerpt" if observation.body else "receipt_only",
+            readback_status=(
+                "available" if "reference" in line or line.get("facts", {}).get("resource_refs")
+                else "unavailable"
+            ),
+        ).model_dump(mode="json")
         projected.append(line)
     return tuple(projected)
 
@@ -528,4 +555,3 @@ def _with_truncation_notice(
         kept.pop()
         dropped += 1
     return ""
-

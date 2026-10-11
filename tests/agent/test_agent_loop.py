@@ -84,6 +84,7 @@ def test_agent_loop_owns_common_initial_state_and_model_result_conversion() -> N
         "fingerprints": (),
         "retryable_fingerprints": (),
         "retry_counts": {},
+        "offered_tool_names": (),
     }
     assert graph.config == {
         "configurable": {

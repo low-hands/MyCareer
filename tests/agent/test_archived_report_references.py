@@ -18,10 +18,6 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from career_agent.agent.context.deployment import (
-    DEFAULT_RECENT_MESSAGE_LIMIT,
-    DEFAULT_SUMMARY_BATCH_SIZE,
-)
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.contracts.memory import (
     ConversationSummaryContent,
@@ -57,9 +53,9 @@ def _manager(tmp_path) -> tuple[ContextManager, CareerContextStore]:
         ContextManager(
             store,
             summary_worker=_Worker(),
-            recent_message_limit=2,
+            recent_message_limit=2048,
             summary_batch_size=2,
-            max_recent_context_chars=16,
+            max_recent_context_tokens=16,
         ),
         store,
     )
@@ -100,10 +96,10 @@ def test_a_report_stays_nameable_after_its_turn_is_summarised(tmp_path) -> None:
     )
 
 
-def test_default_budget_compacts_before_a_short_report_turn_leaves_projection(
+def test_default_token_budget_keeps_a_short_report_turn_in_projection(
     tmp_path,
 ) -> None:
-    """The count cap cannot hide originals that have no watermark yet."""
+    """Short history stays complete below token pressure despite its row count."""
 
     store = CareerContextStore(tmp_path / "context.sqlite3")
     manager = ContextManager(store, summary_worker=_Worker())
@@ -117,19 +113,11 @@ def test_default_budget_compacts_before_a_short_report_turn_leaves_projection(
         user_message="第一轮那份报告怎么说",
     )
 
-    assert context.through_sequence >= 2
-    # Raw window bound: recent + batch - 1 (23 with the 093 defaults 16/8).
-    assert len(context.recent_messages) <= (
-        DEFAULT_RECENT_MESSAGE_LIMIT + DEFAULT_SUMMARY_BATCH_SIZE - 1
-    )
-    assert all(
-        ref.resource_id != "report-1"
-        for message in context.recent_messages
-        for ref in message.resource_refs
-    )
-    assert [ref.resource_id for ref in context.referenced_resources()] == [
-        "report-1"
-    ]
+    assert context.through_sequence == 0
+    assert len(context.recent_messages) == 40
+    assert context.recent_from_sequence == 1
+    assert context.archived_resources == ()
+    assert [ref.resource_id for ref in context.referenced_resources()] == ["report-1"]
 
 
 def test_the_catalogue_uses_resource_metadata_not_delivery_prose(tmp_path) -> None:
@@ -137,9 +125,9 @@ def test_the_catalogue_uses_resource_metadata_not_delivery_prose(tmp_path) -> No
     manager = ContextManager(
         store,
         summary_worker=_Worker(),
-        recent_message_limit=2,
+        recent_message_limit=2048,
         summary_batch_size=2,
-        max_recent_context_chars=16,
+        max_recent_context_tokens=16,
     )
     context = manager.load_for_turn(
         user_id="u1", conversation_id="c1", user_message="帮我调研这家公司"
@@ -240,9 +228,9 @@ def test_the_catalogue_is_bounded_however_many_reports_a_conversation_holds(
     manager = ContextManager(
         store,
         summary_worker=_Worker(),
-        recent_message_limit=2,
+        recent_message_limit=2048,
         summary_batch_size=2,
-        max_recent_context_chars=16,
+        max_recent_context_tokens=16,
     )
     for index in range(1, 21):
         _turn(manager, index=index, ref=_research_ref(f"report-{index}"))

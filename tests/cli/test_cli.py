@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from datetime import datetime, timezone
 from io import StringIO
+from types import SimpleNamespace
 
 import pytest
 
@@ -24,8 +28,9 @@ from career_agent.agent.runtime.main_agent_runtime import (
 from career_agent.agent.capabilities.registry import MainAgentToolRegistry
 from career_agent.agent.providers.openai_client import AgentWorkerError
 from career_agent.domain.resume import ResumeArtifactDelivery, ResumeArtifactReference
-from career_agent.cli import EXIT_WORKFLOW_ERROR, _trajectory_tool_specs, build_parser, main
+from career_agent.cli import EXIT_WORKFLOW_ERROR, build_parser, main
 from career_agent.evaluation import trajectory
+from career_agent.evaluation.trajectory import trajectory_tool_specs
 from career_agent.evaluation.main_agent_scenarios import SCENARIOS
 from career_agent.evaluation.rederivation import tool_call_fingerprint
 from career_agent.harness.observability import conversation_trace_key
@@ -111,11 +116,17 @@ def test_actions_reconcile_lists_pending_without_replaying(tmp_path) -> None:
 
 
 def test_trajectory_cli_reports_quality_as_an_independent_axis(monkeypatch) -> None:
-    # Pinned to the repository's evaluation baseline, not the deployment's
-    # MAIN_AGENT_MODEL: this test replays committed cassettes, so it must give
-    # the same verdict in a clean clone, in CI and in a worktree without .env.
-    # The CLI's own deployment-model check has its own test below.
-    monkeypatch.setenv("MAIN_AGENT_MODEL", trajectory.EVALUATION_BASELINE_MODEL)
+    from career_agent.evaluation import search_trajectory
+    scenario = next(item for item in SCENARIOS if item.name == "a_report_that_scrolled_out_of_the_catalogue_is_not_faked")
+    cassette = trajectory.TrajectoryCassette(
+        steps=(), samples=((),) * 5, prompt_fingerprint=None,
+        context_shape_fingerprint=None, model="offline",
+    )
+    monkeypatch.setattr(trajectory, "load_cassette", lambda name, *, root: cassette)
+    monkeypatch.setattr(search_trajectory, "check_search_contract", lambda *a, **k: ())
+    monkeypatch.setattr(search_trajectory, "search_cassette_staleness", lambda *a, **k: None)
+    monkeypatch.setattr(search_trajectory, "replay_search_sample", lambda *a, quality=False, **k: ("failed",))
+    monkeypatch.setenv("MAIN_AGENT_MODEL", "offline")
     output = StringIO()
 
     code = main(
@@ -131,14 +142,15 @@ def test_trajectory_cli_reports_quality_as_an_independent_axis(monkeypatch) -> N
     payload = json.loads(output.getvalue())
     result = payload["results"][0]
 
-    assert code == 0
-    assert payload["behaviour_failed"] == 0
-    assert payload["quality_failed"] == 0
-    assert result["quality_status"] == "passed"
+    assert code == 2
+    assert payload["behaviour_failed"] == 1
+    assert payload["quality_failed"] == 1
+    assert result["behaviour"] == "failed"
+    assert result["quality_status"] == "failed"
     assert result["quality_sample_count"] == 5
     assert result["quality_min_pass_rate"] == 0.6
     assert result["quality_min_detectable_regression"] == 0.4
-    assert result["quality_samples_passed"] >= 3
+    assert result["quality_samples_passed"] == 0
     assert result["quality_pass_rate"] == (
         result["quality_samples_passed"] / result["quality_sample_count"]
     )
@@ -199,7 +211,7 @@ def test_rederivation_eval_scans_production_turns(tmp_path) -> None:
     manager = ContextManager(
         CareerContextStore(tmp_path / "context.sqlite3"),
         summary_worker=SummaryWorker(),
-        recent_message_limit=2,
+        max_recent_context_tokens=20,
         summary_batch_size=2,
     )
     runtime = MainAgentRuntime(
@@ -423,6 +435,7 @@ def test_memory_exposure_eval_reads_keyed_tombstones(tmp_path) -> None:
 def test_trajectory_cli_maps_sample_failures_to_exit_status(
     monkeypatch, passed_samples, expected_code
 ) -> None:
+    from career_agent.evaluation import search_trajectory
     scenario = next(
         item for item in SCENARIOS
         if item.name == "an_empty_conversation_span_is_not_filled_from_the_window"
@@ -450,17 +463,25 @@ def test_trajectory_cli_maps_sample_failures_to_exit_status(
         steps=samples[0],
         samples=samples,
         prompt_fingerprint=trajectory.trajectory_prompt_fingerprint(
-            scenario, _trajectory_tool_specs()
+            scenario, trajectory_tool_specs()
         ),
         context_shape_fingerprint=trajectory.context_shape_fingerprint(scenario),
         model="offline",
     )
 
-    def load_cassette(name):
+    def load_cassette(name, *, root=None):
         assert name == scenario.name
+        assert root == trajectory.Path(__file__).resolve().parents[2] / "evals" / "main_agent_search"
         return cassette
 
     monkeypatch.setattr(trajectory, "load_cassette", load_cassette)
+    monkeypatch.setattr(search_trajectory, "check_search_contract", lambda *a, **k: ())
+    monkeypatch.setattr(search_trajectory, "search_cassette_staleness", lambda *a, **k: None)
+    monkeypatch.setattr(
+        search_trajectory, "replay_search_sample",
+        lambda scenario, *, responses, **kwargs: ()
+        if "该范围没有记录" in responses[0]["content"] else ("forbidden fact",),
+    )
     monkeypatch.setenv("MAIN_AGENT_MODEL", "offline")
     output = StringIO()
 
@@ -491,12 +512,12 @@ def test_trajectory_cli_marks_another_deployment_model_stale(monkeypatch) -> Non
     cassette = trajectory.TrajectoryCassette(
         steps=({"content": '{"action":"ask_user","message":"请补充城市。"}'},),
         prompt_fingerprint=trajectory.trajectory_prompt_fingerprint(
-            scenario, _trajectory_tool_specs()
+            scenario, trajectory_tool_specs()
         ),
         context_shape_fingerprint=trajectory.context_shape_fingerprint(scenario),
         model="recording-model",
     )
-    monkeypatch.setattr(trajectory, "load_cassette", lambda name: cassette)
+    monkeypatch.setattr(trajectory, "load_cassette", lambda name, *, root=None: cassette)
     monkeypatch.setenv("MAIN_AGENT_MODEL", "deployment-model")
     output = StringIO()
     code = main(
@@ -507,8 +528,38 @@ def test_trajectory_cli_marks_another_deployment_model_stale(monkeypatch) -> Non
     result = json.loads(output.getvalue())["results"][0]
     assert code == 2
     assert result["behaviour"] == "stale"
-    assert "recording-model" in result["failures"][0]
-    assert "deployment-model" in result["failures"][0]
+    assert "model differs from current model" in result["failures"][0]
+
+
+
+
+
+
+def test_search_replay_context_change_counts_as_stale_not_behaviour_failure(
+    monkeypatch,
+) -> None:
+    from career_agent.evaluation import search_trajectory
+    from career_agent.evaluation.search_scenarios import SEARCH_SCENARIOS
+
+    scenario = SEARCH_SCENARIOS[0]
+    cassette = SimpleNamespace(recordings=((), (), ()), sample_count=3)
+    monkeypatch.setattr(trajectory, "load_cassette", lambda name, *, root: cassette)
+    monkeypatch.setattr(search_trajectory, "check_search_contract", lambda *a, **k: ())
+    monkeypatch.setattr(search_trajectory, "search_cassette_staleness", lambda *a, **k: None)
+    monkeypatch.setattr(
+        search_trajectory, "replay_search_sample",
+        lambda *a, **k: ("case[1]: model context changed during replay",),
+    )
+    output = StringIO()
+    main(
+        ["eval", "trajectories", "--scenario", scenario.name],
+        stdout=output, stderr=StringIO(),
+    )
+    report = json.loads(output.getvalue())
+    assert report["stale"] == 1
+    assert report["behaviour_failed"] == 0
+    assert report["results"][0]["behaviour"] == "stale"
+    assert report["results"][0]["samples_passed"] == 0
 
 
 @pytest.mark.parametrize(
@@ -1064,6 +1115,7 @@ def test_chat_passes_no_interaction_argument_on_an_ordinary_turn() -> None:
 
 def test_a_failed_recording_still_reports_the_run(monkeypatch) -> None:
     """One scenario the model cannot answer must not hide the whole report."""
+    from career_agent.evaluation import search_trajectory
     scenario = SCENARIOS[0]
 
     def record_catalogue(*args, **kwargs):
@@ -1071,8 +1123,8 @@ def test_a_failed_recording_still_reports_the_run(monkeypatch) -> None:
             "MAIN_AGENT_INVALID_RESPONSE", "Main Agent model returned an invalid decision."
         )
 
-    monkeypatch.setattr(trajectory, "record_catalogue", record_catalogue)
-    monkeypatch.setattr(trajectory, "load_cassette", lambda name: None)
+    monkeypatch.setattr(search_trajectory, "record_search_catalogue", record_catalogue)
+    monkeypatch.setattr(trajectory, "load_cassette", lambda name, *, root=None: None)
     monkeypatch.setenv("MAIN_AGENT_BASE_URL", "https://offline.invalid/v1")
     monkeypatch.setenv("MAIN_AGENT_API_KEY", "offline")
     monkeypatch.setenv("MAIN_AGENT_MODEL", "offline")
@@ -1088,3 +1140,31 @@ def test_a_failed_recording_still_reports_the_run(monkeypatch) -> None:
     assert code != 0
     assert payload["recording_error"].startswith("MAIN_AGENT_INVALID_RESPONSE")
     assert payload["results"][0]["behaviour"] == "unrecorded"
+
+
+def test_cli_output_is_utf8_under_a_non_utf8_locale() -> None:
+    # PYTHONIOENCODING=gbk reproduces a Chinese Windows console on any OS.
+    script = "\n".join((
+        "import sys",
+        "import career_agent.cli as cli",
+        "def dispatch(args, **kwargs):",
+        "    kwargs['stdout'].write('{\"message\":\"对方会话保留的关键片段\"}')",
+        "    kwargs['stderr'].write('中文错误')",
+        "    return 0",
+        "cli._dispatch = dispatch",
+        "sys.exit(cli.main(['eval', 'trajectories']))",
+    ))
+    env = {
+        key: value for key, value in os.environ.items()
+        if key not in {"PYTHONUTF8", "PYTHONIOENCODING"}
+    }
+    env.update(PYTHONIOENCODING="gbk", PYTHONUTF8="0")
+    completed = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, env=env, check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout.decode("utf-8")) == {
+        "message": "对方会话保留的关键片段",
+    }
+    assert completed.stderr.decode("utf-8") == "中文错误"

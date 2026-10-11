@@ -1,0 +1,326 @@
+{
+  "version": 3,
+  "frozen_before_tuning": "2026-10-08",
+  "baseline_revision": "6f801b5",
+  "policy": "Direct search_catalog queries, separate from user-message scenarios. Dev may be repeated; holdout is scored once only after rules are finalized. Do not move cases between splits. Read queries forbid WRITE and all tools classified by needs_action_evidence. Explicit writes allow actions; non-target WRITE offers are diagnostic only.",
+  "cases": [
+    {
+      "id": "dev_resume_zh",
+      "split": "dev",
+      "query": "简历",
+      "expected_tools": [
+        "list_resumes"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "forbid_action_tools": true
+    },
+    {
+      "id": "dev_resume_en",
+      "split": "dev",
+      "query": "resume",
+      "expected_tools": [
+        "list_resumes"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "forbid_action_tools": true
+    },
+    {
+      "id": "dev_interview",
+      "split": "dev",
+      "query": "面试",
+      "expected_tools": [
+        "list_interviews"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "forbid_action_tools": true
+    },
+    {
+      "id": "dev_application",
+      "split": "dev",
+      "query": "投递",
+      "expected_tools": [
+        "list_applications"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "forbid_action_tools": true
+    },
+    {
+      "id": "dev_calendar",
+      "split": "dev",
+      "query": "calendar",
+      "expected_tools": [
+        "list_calendar_links"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "forbid_action_tools": true
+    },
+    {
+      "id": "dev_view_resumes",
+      "split": "dev",
+      "query": "查看我的简历",
+      "expected_tools": [
+        "list_resumes"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "forbid_action_tools": true
+    },
+    {
+      "id": "dev_draft",
+      "split": "dev",
+      "query": "起草定制简历",
+      "expected_tools": [
+        "draft_resume_tailoring"
+      ],
+      "required_k": 5,
+      "forbidden_effects": []
+    },
+    {
+      "id": "dev_export",
+      "split": "dev",
+      "query": "导出简历",
+      "expected_tools": [
+        "export_resume_artifact"
+      ],
+      "required_k": 5,
+      "forbidden_effects": []
+    },
+    {
+      "id": "dev_control_experience",
+      "split": "dev",
+      "query": "帮我看看我的经历",
+      "expected_tools": [
+        "search_career_memory"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "source": "64aea67",
+      "forbid_action_tools": true
+    },
+    {
+      "id": "dev_control_interview",
+      "split": "dev",
+      "query": "看看我的面试安排",
+      "expected_tools": [
+        "list_interviews"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "source": "64aea67",
+      "forbid_action_tools": true
+    },
+    {
+      "id": "dev_control_application",
+      "split": "dev",
+      "query": "我的投递记录有哪些",
+      "expected_tools": [
+        "list_applications"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "source": "64aea67",
+      "forbid_action_tools": true
+    },
+    {
+      "id": "dev_control_job",
+      "split": "dev",
+      "query": "这个岗位不错",
+      "expected_tools": [],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "source": "64aea67",
+      "exposure_only_reason": "Observational query without a single unambiguous required read tool; scores action exposure only.",
+      "forbid_action_tools": true
+    },
+    {
+      "id": "holdout_resume",
+      "split": "holdout",
+      "query": "简历列表",
+      "expected_tools": [
+        "list_resumes"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "forbid_action_tools": true
+    },
+    {
+      "id": "holdout_resume_en",
+      "split": "holdout",
+      "query": "list my resumes",
+      "expected_tools": [
+        "list_resumes"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "forbid_action_tools": true
+    },
+    {
+      "id": "holdout_interview",
+      "split": "holdout",
+      "query": "面试列表",
+      "expected_tools": [
+        "list_interviews"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "forbid_action_tools": true
+    },
+    {
+      "id": "holdout_application",
+      "split": "holdout",
+      "query": "投递列表",
+      "expected_tools": [
+        "list_applications"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "forbid_action_tools": true
+    },
+    {
+      "id": "holdout_calendar",
+      "split": "holdout",
+      "query": "日历关联",
+      "expected_tools": [
+        "list_calendar_links"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "forbid_action_tools": true
+    },
+    {
+      "id": "holdout_draft",
+      "split": "holdout",
+      "query": "生成针对岗位的简历",
+      "expected_tools": [
+        "draft_resume_tailoring"
+      ],
+      "required_k": 5,
+      "forbidden_effects": []
+    },
+    {
+      "id": "holdout_export",
+      "split": "holdout",
+      "query": "下载简历文件",
+      "expected_tools": [
+        "export_resume_artifact"
+      ],
+      "required_k": 5,
+      "forbidden_effects": []
+    },
+    {
+      "id": "holdout_control",
+      "split": "holdout",
+      "query": "查看我保存的经历",
+      "expected_tools": [
+        "search_career_memory"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [
+        "WRITE"
+      ],
+      "forbid_action_tools": true
+    },
+    {
+      "id": "dev_application_write",
+      "split": "dev",
+      "query": "把这个岗位加入投递",
+      "expected_tools": [
+        "create_application"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [],
+      "non_exact_write": true
+    },
+    {
+      "id": "dev_draft_write",
+      "split": "dev",
+      "query": "帮我生成一份定制简历",
+      "expected_tools": [
+        "draft_resume_tailoring"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [],
+      "non_exact_write": true
+    },
+    {
+      "id": "dev_export_write",
+      "split": "dev",
+      "query": "把简历导出成 PDF",
+      "expected_tools": [
+        "export_resume_artifact"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [],
+      "non_exact_write": true
+    },
+    {
+      "id": "holdout_application_write",
+      "split": "holdout",
+      "query": "帮我把当前职位加到投递清单里",
+      "expected_tools": [
+        "create_application"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [],
+      "non_exact_write": true
+    },
+    {
+      "id": "holdout_draft_write",
+      "split": "holdout",
+      "query": "请按这个岗位起草一版定制简历",
+      "expected_tools": [
+        "draft_resume_tailoring"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [],
+      "non_exact_write": true
+    },
+    {
+      "id": "holdout_export_write",
+      "split": "holdout",
+      "query": "请将这份简历导出为 PDF 文件",
+      "expected_tools": [
+        "export_resume_artifact"
+      ],
+      "required_k": 5,
+      "forbidden_effects": [],
+      "non_exact_write": true
+    }
+  ],
+  "amendment": "User review before tuning or holdout scoring: align experience read targets across splits; use shared action classification; observe non-target write offers without failing cases."
+}

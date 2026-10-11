@@ -1,0 +1,68 @@
+{
+  "scenario": "tool_selection_combines_job_analysis_and_resume_match",
+  "sample": 11,
+  "started_at": "2026-10-10T01:20:04.082323+00:00",
+  "recording": {
+    "recorded_at": "2026-10-10T01:20:10.340318+00:00",
+    "elapsed_ms": 6257.3,
+    "steps": [
+      {
+        "tool_call": {
+          "name": "analyze_job",
+          "arguments": {
+            "selection_index": 1
+          }
+        },
+        "scenario_step": 0,
+        "selected_schema_fingerprint": "69a7d99dd5ed2fbf36b35d5620245b91d5ed29c7d88e3be781799a9e58eabec9",
+        "decision_shape_fingerprint": "8077a3c7316f4c51e326d2cdf82fa9a9ac7f6d828346cda1f5b6250be0e59b8e",
+        "offered_tools": [
+          "load_skill",
+          "fetch_archived_constraints",
+          "search_career_memory",
+          "get_saved_job",
+          "analyze_job",
+          "compare_saved_jobs",
+          "search_capabilities"
+        ],
+        "elapsed_ms": 4620.9,
+        "model_request_count": 1,
+        "decision_retry_telemetry_version": 1,
+        "decision_retry_events": [],
+        "recording_retry_events": [],
+        "decision_invocations": 1
+      },
+      {
+        "tool_call": {
+          "name": "match_resume_to_job",
+          "arguments": {}
+        },
+        "scenario_step": 1,
+        "selected_schema_fingerprint": "e1f01fde757217be4af2cfb3d5b0713827b5024c5670f60703675ea5787bef42",
+        "decision_shape_fingerprint": "fcc042db55a9fb141d2d372101f9acd2877d2170ef826e1da15d485ffeb2d0f9",
+        "offered_tools": [
+          "load_skill",
+          "fetch_archived_constraints",
+          "search_career_memory",
+          "get_saved_job",
+          "analyze_job",
+          "compare_saved_jobs",
+          "match_resume_to_job",
+          "search_capabilities"
+        ],
+        "elapsed_ms": 1634.4,
+        "model_request_count": 1,
+        "decision_retry_telemetry_version": 1,
+        "decision_retry_events": [],
+        "recording_retry_events": [],
+        "decision_invocations": 1
+      }
+    ]
+  },
+  "passed": true,
+  "failures": [],
+  "quality_failures": [],
+  "prompt_fingerprint": "92f50f08bcfb4d242fb75bc057dea547fa7c9552918f9ace3ea3c2d7e1e113ed",
+  "model": "qwen3.7-plus",
+  "source_arm": "baseline"
+}

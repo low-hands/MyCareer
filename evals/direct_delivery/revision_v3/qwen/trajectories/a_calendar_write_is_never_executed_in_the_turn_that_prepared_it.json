@@ -1,0 +1,143 @@
+{
+  "scenario": "a_calendar_write_is_never_executed_in_the_turn_that_prepared_it",
+  "policy": "prepare_interview_calendar_sync only creates a fixed preview and performs no external write. After preparing it, ask for explicit approval; do not execute it in the same turn.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "20798982cb7ca22b734b11133fc1a09aae8015a3c0edf63a0ea9332b8ec05b48",
+  "context_shape_fingerprint": "a8a0e273782ca4b93940d5dfa820d817119907cccfa63236114240e3fdb23539",
+  "recorded_at": "2026-10-10T00:52:08.888143+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "get_calendar_proposal",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "8cdaa14afdf05d6e854dcf4c68f2c67265310190bf7e938906ce99127b6c7eb2",
+      "decision_shape_fingerprint": "57b80402910d15099ab0a7e3203817dcc7c7f06b286ec0439f409c7bfae4426a",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_interview",
+        "update_interview",
+        "list_calendar_accounts",
+        "list_calendar_links",
+        "prepare_interview_calendar_sync",
+        "get_calendar_proposal",
+        "execute_calendar_proposal",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2943.1,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T00:52:07.705621+00:00",
+      "elapsed_ms": 2946.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_calendar_proposal",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "8cdaa14afdf05d6e854dcf4c68f2c67265310190bf7e938906ce99127b6c7eb2",
+          "decision_shape_fingerprint": "57b80402910d15099ab0a7e3203817dcc7c7f06b286ec0439f409c7bfae4426a",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "update_interview",
+            "list_calendar_accounts",
+            "list_calendar_links",
+            "prepare_interview_calendar_sync",
+            "get_calendar_proposal",
+            "execute_calendar_proposal",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2943.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:52:09.433450+00:00",
+      "elapsed_ms": 3536.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_calendar_proposal",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "8cdaa14afdf05d6e854dcf4c68f2c67265310190bf7e938906ce99127b6c7eb2",
+          "decision_shape_fingerprint": "57b80402910d15099ab0a7e3203817dcc7c7f06b286ec0439f409c7bfae4426a",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "update_interview",
+            "list_calendar_accounts",
+            "list_calendar_links",
+            "prepare_interview_calendar_sync",
+            "get_calendar_proposal",
+            "execute_calendar_proposal",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3533.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:52:08.888143+00:00",
+      "elapsed_ms": 2668.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_calendar_proposal",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "8cdaa14afdf05d6e854dcf4c68f2c67265310190bf7e938906ce99127b6c7eb2",
+          "decision_shape_fingerprint": "57b80402910d15099ab0a7e3203817dcc7c7f06b286ec0439f409c7bfae4426a",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "update_interview",
+            "list_calendar_accounts",
+            "list_calendar_links",
+            "prepare_interview_calendar_sync",
+            "get_calendar_proposal",
+            "execute_calendar_proposal",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2664.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

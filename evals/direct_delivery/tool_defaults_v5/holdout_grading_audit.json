@@ -1,0 +1,24 @@
+[
+  {
+    "scenario": "three_sources",
+    "sample": 2,
+    "issue": "unordered request graded with ordered subsequence; all three reads and model summary completed",
+    "corrected_pass": true,
+    "calls": [
+      "list_applications",
+      "list_resumes",
+      "list_interviews"
+    ]
+  },
+  {
+    "scenario": "three_sources",
+    "sample": 3,
+    "issue": "unordered request graded with ordered subsequence; all three reads and model summary completed",
+    "corrected_pass": true,
+    "calls": [
+      "list_applications",
+      "list_resumes",
+      "list_interviews"
+    ]
+  }
+]

@@ -1,0 +1,213 @@
+{
+  "scenario": "a_bare_confirmation_expires_after_the_adjacent_turn",
+  "policy": "A bare confirmation authorizes a pending career fact, job intent, or free-text preference only on the immediately adjacent user turn and only when task.bare_confirmation_target names that type.",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "fb1e6c54183ca781cfed616fee4ecb8924af5c9fa4f46977bc1774347f15191a",
+  "context_shape_fingerprint": "689602ed95dd0a57a9d5a4844f3b033e6663bb6d60aa9b43c2792b1dcefefd89",
+  "recorded_at": "2026-10-11T07:45:20.670955+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"好的。为了帮你找新岗位，请告诉我城市和岗位方向（比如\\\"上海 · 数据分析师\\\"），有薪资或经验要求也可以一并说。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "43d3f8dae6617436b251932c9cd672a2270891e694be0b0175f0f1c26dda5085",
+      "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "confirm_job_intent",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2621.3,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "我需要先确定岗位方向才能打开搜索页，但你刚才没有说明。请补充你想看的岗位方向（以及城市，如需限定）。\n\n另外确认一下：你的偏好设置为「仅在明确要求时才进行 Boss 搜索」。你现在的「可以」是要我按某个具体方向打开招聘搜索页吗？请告诉我要搜的岗位关键词，我才能继续。",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-11T07:45:20.131624+00:00",
+      "elapsed_ms": 2624.1,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"好的。为了帮你找新岗位，请告诉我城市和岗位方向（比如\\\"上海 · 数据分析师\\\"），有薪资或经验要求也可以一并说。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "43d3f8dae6617436b251932c9cd672a2270891e694be0b0175f0f1c26dda5085",
+          "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2621.3,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "我需要先确定岗位方向才能打开搜索页，但你刚才没有说明。请补充你想看的岗位方向（以及城市，如需限定）。\n\n另外确认一下：你的偏好设置为「仅在明确要求时才进行 Boss 搜索」。你现在的「可以」是要我按某个具体方向打开招聘搜索页吗？请告诉我要搜的岗位关键词，我才能继续。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:21.544998+00:00",
+      "elapsed_ms": 3930.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "query": "open job search for new positions"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "43d3f8dae6617436b251932c9cd672a2270891e694be0b0175f0f1c26dda5085",
+          "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2275.7,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "你想看的岗位方向或城市是？告诉我一个具体条件（比如“上海 数据分析”），我就帮你打开对应的招聘搜索页。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请告诉我：1）要找的岗位关键词或方向（必需）；2）城市（可选，不填则不做城市筛选）。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "023e9ae14cde7fa466df1d02cf4d5cf8754d905a004388583bd8114c1ab0d210",
+          "decision_shape_fingerprint": "bfe721108cc2dfcb71244a4c5fd9f652af7bd573a918bed0b35f30a82af381f2",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "confirm_job_intent",
+            "search_career_history",
+            "search_career_episodes",
+            "propose_memory_amendment",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1649.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:20.670955+00:00",
+      "elapsed_ms": 2813.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "open_job_search",
+                "find_saved_jobs",
+                "list_target_roles"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "43d3f8dae6617436b251932c9cd672a2270891e694be0b0175f0f1c26dda5085",
+          "decision_shape_fingerprint": "4c43965c9f8e41ab223315a50946b3f3b5335578cc848c107ea271ed47f882eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2015.7,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "你想看哪个城市或岗位方向？另外我可以直接帮你打开招聘网站搜索页——需要我按什么关键词、什么城市来搜？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "8398356619dbe6e9755f90c4232cb7cc7d30acd21185be3b590a15f00538d36e",
+          "decision_shape_fingerprint": "271dcd9c15c430f966cd27be098e9649b3f89be4bdd399f03551883cfe4b9f64",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "list_target_roles",
+            "confirm_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 791.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

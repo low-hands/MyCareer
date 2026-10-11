@@ -54,13 +54,6 @@ class Interviews:
         return InterviewDetail(interview=self.interview, events=())
 
 
-def _route_to_interview() -> AgentDecision:
-    return AgentDecision(
-        action="tool_call",
-        tool_call=ToolCall(
-            name="route_to_capability", arguments={"domain": "interview"}
-        ),
-    )
 
 
 class Decisions:
@@ -70,7 +63,6 @@ class Decisions:
                 action="tool_call",
                 tool_call=ToolCall(name="list_interviews", arguments={}),
             ),
-            _route_to_interview(),
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(
@@ -325,7 +317,6 @@ class RetroDecisions:
                 action="tool_call",
                 tool_call=ToolCall(name="list_interviews", arguments={}),
             ),
-            _route_to_interview(),
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(

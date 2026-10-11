@@ -109,7 +109,6 @@ def test_a_valid_answer_is_parsed_into_the_declared_type() -> None:
     assert request["timeout"] == 30.0
 
 
-
 @pytest.mark.parametrize(
     ("error", "code", "retryable"),
     (
@@ -344,6 +343,8 @@ _MIGRATED_WORKERS = {
     "providers/email_tracking": "EMAIL_TRACKING",
     "providers/interview_preparation": "INTERVIEW_PREPARATION",
     "workflows/resume_tailoring/reviewer": "RESUME_REVIEW",
+    "workflows/resume_tailoring/worker": "RESUME_TAILORING",
+    "workflows/resume_tailoring/finalizer": "RESUME_FINALIZATION",
     "workflows/mock_interview/worker": "MOCK_INTERVIEW",
     "providers/resume_transcription": "RESUME_TRANSCRIPTION",
 }
@@ -376,8 +377,8 @@ def test_every_worker_wires_its_own_prefix_and_nothing_else_calls_the_provider()
     for source in agent.rglob("*.py"):
         if source.stem in helpers:
             continue
-        source_key = str(source.relative_to(agent).with_suffix(""))
-        tree = ast.parse(source.read_text())
+        source_key = source.relative_to(agent).with_suffix("").as_posix()
+        tree = ast.parse(source.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue

@@ -1,0 +1,156 @@
+{
+  "scenario": "an_unmentioned_company_without_compaction_is_not_invented",
+  "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "800f2de109ecb5a950946cc335eaf0be934617cbabd506b94d1f6bb664d53f62",
+  "context_shape_fingerprint": "50fe34d484f6fd66869bc1ab8ded0fe6df1901306ded2c5eea550a3075bba81a",
+  "recorded_at": "2026-10-11T07:48:19.857611+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"你还没有在系统中记录任何目标公司或岗位方向。\\n\\n刚才提到的\\\"美团 JD\\\"来自之前的对话窗口，但我无法直接看到那份职位详情。目前系统显示：\\n- 没有已收藏的岗位\\n- 没有已确认的目标岗位方向\\n- 没有活跃的职业目标\\n\\n如果你想分析美团的某个具体职位，可以：\\n1. 先收藏该岗位（通过招聘网站），然后我帮你查找和分析\\n2. 或者告诉我你想了解美团哪类岗位，我可以帮你设置目标岗位方向\\n\\n请问你希望怎么做？\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "902451cdedca118a31c58f651ab70eb7acc5217137ed8777b1b19ae428d0fdc8",
+      "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_target_roles",
+        "propose_job_intent",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 12507.5,
+      "model_request_count": 3,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "从当前可见的上下文来看，并没有记录你明确说过的目标公司名称。之前对话中提到过\"美团 JD\"，但那是作为对照参考，并未确认为你的目标公司。\n\n我需要向你确认：你的目标公司是美团吗？还是其他公司？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        },
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": true,
+          "raw_output": {
+            "content": "从当前上下文来看，并没有记录你明确指定的目标公司。之前对话中提到过“美团 JD”，但这只是作为对照参考，并未确认为你的目标公司。\n\n你目前也没有任何已保存的目标岗位方向或收藏的岗位记录。\n\n请问你想把哪家公司设为目标公司？或者你是想针对美团的某个具体岗位进行分析？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-11T07:48:26.806886+00:00",
+      "elapsed_ms": 12511.4,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你还没有在系统中记录任何目标公司或岗位方向。\\n\\n刚才提到的\\\"美团 JD\\\"来自之前的对话窗口，但我无法直接看到那份职位详情。目前系统显示：\\n- 没有已收藏的岗位\\n- 没有已确认的目标岗位方向\\n- 没有活跃的职业目标\\n\\n如果你想分析美团的某个具体职位，可以：\\n1. 先收藏该岗位（通过招聘网站），然后我帮你查找和分析\\n2. 或者告诉我你想了解美团哪类岗位，我可以帮你设置目标岗位方向\\n\\n请问你希望怎么做？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "902451cdedca118a31c58f651ab70eb7acc5217137ed8777b1b19ae428d0fdc8",
+          "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 12507.5,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "从当前可见的上下文来看，并没有记录你明确说过的目标公司名称。之前对话中提到过\"美团 JD\"，但那是作为对照参考，并未确认为你的目标公司。\n\n我需要向你确认：你的目标公司是美团吗？还是其他公司？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "从当前上下文来看，并没有记录你明确指定的目标公司。之前对话中提到过“美团 JD”，但这只是作为对照参考，并未确认为你的目标公司。\n\n你目前也没有任何已保存的目标岗位方向或收藏的岗位记录。\n\n请问你想把哪家公司设为目标公司？或者你是想针对美团的某个具体岗位进行分析？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:48:19.107545+00:00",
+      "elapsed_ms": 4445.9,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问你的目标公司全名是什么？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "902451cdedca118a31c58f651ab70eb7acc5217137ed8777b1b19ae428d0fdc8",
+          "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4441.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:48:19.857611+00:00",
+      "elapsed_ms": 2784.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "902451cdedca118a31c58f651ab70eb7acc5217137ed8777b1b19ae428d0fdc8",
+          "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2780.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

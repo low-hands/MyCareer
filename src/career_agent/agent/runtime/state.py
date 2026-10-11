@@ -41,6 +41,7 @@ class LoopControl(TypedDict, total=False):
     read_calls: int
     # Profile switches change the next offered tool set and consume no I/O slot.
     control_calls: int
+    search_calls: int
     # All durable writes, including the external subset below.
     write_calls: int
     external_write_calls: int
@@ -53,6 +54,9 @@ class LoopControl(TypedDict, total=False):
     retry_counts: dict[str, int]
     # Re-entering ``decide`` must not stamp the same projected episodes twice.
     episodes_marked: bool
+    # Exact schemas supplied to the most recent model decision. This is a
+    # per-turn execution boundary, independent of the legacy tool profile.
+    offered_tool_names: tuple[str, ...]
 
 
 class MainAgentState(TypedDict):

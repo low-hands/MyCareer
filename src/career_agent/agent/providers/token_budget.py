@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 from functools import lru_cache
+from threading import Lock
 from typing import Any
 
 import tiktoken
@@ -27,26 +28,30 @@ from career_agent.agent.providers.tiktoken_assets import (
 )
 
 BUDGET_ENCODING = "cl100k_base"
+_encoding_init_lock = Lock()
 
 
 @lru_cache(maxsize=1)
 def budget_encoding() -> tiktoken.Encoding:
-    should_revert = False
-    if "TIKTOKEN_CACHE_DIR" not in os.environ:
-        vocab = bundled_cl100k_vocab_path()
-        if not vocab.is_file():
-            raise RuntimeError(
-                "bundled cl100k_base vocab is missing at "
-                f"{vocab}. Fill it at install or build with "
-                "`python -m career_agent.agent.providers.tiktoken_assets`."
-            )
-        should_revert = True
-        os.environ["TIKTOKEN_CACHE_DIR"] = str(bundled_tiktoken_cache_dir())
-    try:
-        return tiktoken.get_encoding(BUDGET_ENCODING)
-    finally:
-        if should_revert:
-            del os.environ["TIKTOKEN_CACHE_DIR"]
+    # functools.lru_cache permits concurrent first misses. Keep the temporary
+    # process-wide cache setting stable while tiktoken initializes.
+    with _encoding_init_lock:
+        should_revert = False
+        if "TIKTOKEN_CACHE_DIR" not in os.environ:
+            vocab = bundled_cl100k_vocab_path()
+            if not vocab.is_file():
+                raise RuntimeError(
+                    "bundled cl100k_base vocab is missing at "
+                    f"{vocab}. Fill it at install or build with "
+                    "`python -m career_agent.agent.providers.tiktoken_assets`."
+                )
+            should_revert = True
+            os.environ["TIKTOKEN_CACHE_DIR"] = str(bundled_tiktoken_cache_dir())
+        try:
+            return tiktoken.get_encoding(BUDGET_ENCODING)
+        finally:
+            if should_revert:
+                del os.environ["TIKTOKEN_CACHE_DIR"]
 
 
 def count_tokens(text: str) -> int:

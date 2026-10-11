@@ -100,10 +100,10 @@ def _compacted_runtime(tmp_path, *decisions):
     store = CareerContextStore(tmp_path / "context.sqlite3")
     manager = ContextManager(
         store,
-        recent_message_limit=2,
+        recent_message_limit=2048,
         summary_batch_size=2,
         summary_worker=StaticSummaryWorker(),
-        max_recent_context_chars=60,
+        max_recent_context_tokens=22,
         compact_occupancy_threshold=0.7,
     )
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -144,6 +144,9 @@ def test_named_span_is_read_before_the_model_is_asked(tmp_path) -> None:
             {
                 "user_id": "u1",
                 "conversation_id": "c1",
+                "_has_compressed_history": True,
+                "_through_sequence": 4,
+                "_recent_from_sequence": 5,
                 "from_sequence": 1,
                 "through_sequence": 2,
             },
@@ -163,9 +166,10 @@ def test_named_span_is_read_before_the_model_is_asked(tmp_path) -> None:
     assert isinstance(result.origin, ModelDecision)
     assert result.tool_result is not None
     assert result.tool_result.state == "conversation_span_found"
-    # Delivered like any model-chosen span read: reply first, span body after.
+    # The runtime's named-span read delivers the requested original text.
     assert result.assistant_message.startswith("序号 1 到 2 是你最早的两句。")
     assert "private-old-user-0" in result.assistant_message
+    assert result.tool_result.explicit_sequence_span
     assert result.delegated_read_count == 1
 
 
@@ -217,16 +221,23 @@ def test_model_still_owns_its_own_calls_after_the_prelude(tmp_path) -> None:
         user_message="把序号 1 到 2 的对话读回来，再看看后面。",
     )
 
-    assert [(name, a["from_sequence"], a["through_sequence"]) for name, a in tools.calls] == [
-        ("read_conversation_span", 1, 2),
-        ("read_conversation_span", 3, 4),
+    assert [name for name, _ in tools.calls] == [
+        "read_conversation_span", "read_conversation_span",
     ]
+    assert tools.calls[0][1]["from_sequence"] == 1
+    assert tools.calls[0][1]["through_sequence"] == 2
+    assert "from_sequence" not in tools.calls[1][1]
+    assert "through_sequence" not in tools.calls[1][1]
     assert len(maker.contexts) == 2
     assert [o.arguments for o in maker.contexts[1].tool_observations[-2:]] == [
         {"from_sequence": 1, "through_sequence": 2},
         {"from_sequence": 3, "through_sequence": 4},
     ]
+    assert maker.contexts[1].tool_observations[-1].facts["from_sequence"] == 1
     assert result.assistant_message.startswith("两段都看过了。")
+    assert [r.explicit_sequence_span for r in result.tool_results] == [True, False]
+    assert result.assistant_message.count("private-old-user-0") == 1
+    assert "private-old-user-1" not in result.assistant_message
     assert result.delegated_read_count == 2
 
 

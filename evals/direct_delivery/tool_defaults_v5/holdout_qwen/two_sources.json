@@ -1,0 +1,531 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "two_sources",
+  "suite_fingerprint": "f0d700dd3dcbd2a40abac0f523ce2e3ea5100a768ade4f58cfeb7a1ea3339c87",
+  "recorded_at": "2026-10-10T01:42:57.420183+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。": {
+            "compare_saved_jobs": 0.716278097097306,
+            "find_saved_jobs": 0.63406853421744,
+            "get_saved_job": 0.6119280894481994,
+            "get_resume_job_match": 0.570706016819665,
+            "list_target_roles": 0.5629463005551972,
+            "list_applications": 0.5629108635779628,
+            "list_resumes": 0.5543902764132977,
+            "match_resume_to_job": 0.5541459646436071,
+            "complete_interview": 0.5509171365363041
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。",
+          "assistant_message": "已按你的要求依次检查：\n\n- **已收藏岗位**：没有找到任何已保存的岗位。\n- **简历**：没有找到任何已记录的简历版本。\n- **投递记录**：没有找到任何投递记录。\n\n目前系统中没有已收藏岗位、简历或投递记录可供查看。如果你希望开始求职流程，可以考虑：\n1. 使用 `open_job_search` 搜索新岗位并收藏感兴趣的职位\n2. 上传或创建简历版本\n3. 对心仪岗位进行投递并跟踪状态\n\n需要我帮你执行上述任一操作吗？",
+          "executed_calls": [
+            {
+              "name": "find_saved_jobs",
+              "arguments": {
+                "user_id": "eval-user",
+                "query": "",
+                "limit": 20
+              }
+            },
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [
+                    "find_saved_jobs"
+                  ],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            },
+            {
+              "name": "list_applications",
+              "arguments": {
+                "user_id": "eval-user",
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "find_saved_jobs",
+                  "arguments": {
+                    "limit": 20
+                  }
+                }
+              },
+              "schema_fingerprint": "5bce4a14f516345af2f0aee7f8ac33fb24e347f9cbfe29e0bdba3ba3e8bcb53b",
+              "action": "tool_call",
+              "tool": "find_saved_jobs"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "5bce4a14f516345af2f0aee7f8ac33fb24e347f9cbfe29e0bdba3ba3e8bcb53b",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "2482c25427d50059cb77f4a6b4fab63f019dec5a8c49d75dbacab7b0a3ef57b9",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_applications",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "2482c25427d50059cb77f4a6b4fab63f019dec5a8c49d75dbacab7b0a3ef57b9",
+              "action": "tool_call",
+              "tool": "list_applications"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已按你的要求依次检查：\\n\\n- **已收藏岗位**：没有找到任何已保存的岗位。\\n- **简历**：没有找到任何已记录的简历版本。\\n- **投递记录**：没有找到任何投递记录。\\n\\n目前系统中没有已收藏岗位、简历或投递记录可供查看。如果你希望开始求职流程，可以考虑：\\n1. 使用 `open_job_search` 搜索新岗位并收藏感兴趣的职位\\n2. 上传或创建简历版本\\n3. 对心仪岗位进行投递并跟踪状态\\n\\n需要我帮你执行上述任一操作吗？\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "2482c25427d50059cb77f4a6b4fab63f019dec5a8c49d75dbacab7b0a3ef57b9",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 5,
+          "direct_delivery": false,
+          "result_states": [
+            "no_saved_jobs_found",
+            "capabilities_found",
+            "no_resumes_found",
+            "no_applications_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。": {
+            "compare_saved_jobs": 0.7162905623046391,
+            "find_saved_jobs": 0.634138790850593,
+            "get_saved_job": 0.6120474144680838,
+            "get_resume_job_match": 0.5708640606997785,
+            "list_target_roles": 0.563092971688233,
+            "list_applications": 0.5629847809030635,
+            "list_resumes": 0.5545415530882313,
+            "match_resume_to_job": 0.5542360296694512,
+            "complete_interview": 0.5509269396341863
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。",
+          "assistant_message": "已按您的要求完成检查：\n\n1. **已收藏岗位**：当前没有找到任何已保存的岗位。\n2. **简历库**：当前也没有找到任何简历记录。\n\n**结论**：目前系统中没有已收藏的岗位，也没有可用的简历。如果您希望开始求职流程，建议先上传简历或收藏感兴趣的岗位，以便后续进行匹配分析和投递管理。",
+          "executed_calls": [
+            {
+              "name": "find_saved_jobs",
+              "arguments": {
+                "user_id": "eval-user",
+                "query": "",
+                "limit": 10
+              }
+            },
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [
+                    "find_saved_jobs"
+                  ],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "find_saved_jobs",
+                  "arguments": {
+                    "limit": 10
+                  }
+                }
+              },
+              "schema_fingerprint": "5bce4a14f516345af2f0aee7f8ac33fb24e347f9cbfe29e0bdba3ba3e8bcb53b",
+              "action": "tool_call",
+              "tool": "find_saved_jobs"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "5bce4a14f516345af2f0aee7f8ac33fb24e347f9cbfe29e0bdba3ba3e8bcb53b",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "2482c25427d50059cb77f4a6b4fab63f019dec5a8c49d75dbacab7b0a3ef57b9",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已按您的要求完成检查：\\n\\n1. **已收藏岗位**：当前没有找到任何已保存的岗位。\\n2. **简历库**：当前也没有找到任何简历记录。\\n\\n**结论**：目前系统中没有已收藏的岗位，也没有可用的简历。如果您希望开始求职流程，建议先上传简历或收藏感兴趣的岗位，以便后续进行匹配分析和投递管理。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "2482c25427d50059cb77f4a6b4fab63f019dec5a8c49d75dbacab7b0a3ef57b9",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 4,
+          "direct_delivery": false,
+          "result_states": [
+            "no_saved_jobs_found",
+            "capabilities_found",
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。": {
+            "compare_saved_jobs": 0.716278097097306,
+            "find_saved_jobs": 0.63406853421744,
+            "get_saved_job": 0.6119280894481994,
+            "get_resume_job_match": 0.570706016819665,
+            "list_target_roles": 0.5629463005551972,
+            "list_applications": 0.5629108635779628,
+            "list_resumes": 0.5543902764132977,
+            "match_resume_to_job": 0.5541459646436071,
+            "complete_interview": 0.5509171365363041
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。",
+          "assistant_message": "已按你的要求依次检查：\n\n- **已收藏岗位**：当前没有任何已保存的岗位记录。\n- **简历**：当前也没有任何已记录的简历版本。\n\n结论：目前系统中既没有收藏的岗位，也没有可用的简历。如果你希望开始求职流程，需要先添加目标岗位方向、收藏具体岗位，或上传/创建简历版本。我可以协助你完成这些操作。",
+          "executed_calls": [
+            {
+              "name": "find_saved_jobs",
+              "arguments": {
+                "user_id": "eval-user",
+                "query": "",
+                "limit": 10
+              }
+            },
+            {
+              "name": "search_capabilities",
+              "arguments": {
+                "current_task": {
+                  "workflow": null,
+                  "loaded_capabilities": [
+                    "find_saved_jobs"
+                  ],
+                  "pending_interaction": null,
+                  "domain_context": {
+                    "application": {
+                      "active_id": null,
+                      "active_status": null,
+                      "candidates": [],
+                      "email_event_candidates": [],
+                      "email_sync_phase": null
+                    },
+                    "interview": {
+                      "active_round_id": null,
+                      "candidates": [],
+                      "active_preparation_id": null,
+                      "active_calendar_proposal_id": null,
+                      "calendar_proposal_expires_at": null,
+                      "calendar_account_candidates": []
+                    },
+                    "action_center": {
+                      "active_id": null,
+                      "candidates": []
+                    },
+                    "job": {
+                      "active_posting_id": null,
+                      "active_jd_snapshot_id": null,
+                      "active_saved_job": null,
+                      "saved_job_candidates": [],
+                      "target_role_candidates": [],
+                      "active_analysis_id": null,
+                      "active_analysis_jd_snapshot_id": null,
+                      "analysis_status": null,
+                      "active_research_run_id": null,
+                      "active_research_report_id": null,
+                      "research_status": null
+                    },
+                    "resume": {
+                      "active_job_match_id": null,
+                      "job_match_status": null,
+                      "active_tailoring_draft_id": null,
+                      "tailoring_status": null,
+                      "active_version_id": null,
+                      "active_artifact_id": null,
+                      "candidates": [],
+                      "version_candidates": []
+                    }
+                  }
+                },
+                "names": [
+                  "list_resumes"
+                ],
+                "limit": 5
+              }
+            },
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "find_saved_jobs",
+                  "arguments": {
+                    "limit": 10
+                  }
+                }
+              },
+              "schema_fingerprint": "5bce4a14f516345af2f0aee7f8ac33fb24e347f9cbfe29e0bdba3ba3e8bcb53b",
+              "action": "tool_call",
+              "tool": "find_saved_jobs"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "search_capabilities",
+                  "arguments": {
+                    "names": [
+                      "list_resumes"
+                    ]
+                  }
+                }
+              },
+              "schema_fingerprint": "5bce4a14f516345af2f0aee7f8ac33fb24e347f9cbfe29e0bdba3ba3e8bcb53b",
+              "action": "tool_call",
+              "tool": "search_capabilities"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "2482c25427d50059cb77f4a6b4fab63f019dec5a8c49d75dbacab7b0a3ef57b9",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已按你的要求依次检查：\\n\\n- **已收藏岗位**：当前没有任何已保存的岗位记录。\\n- **简历**：当前也没有任何已记录的简历版本。\\n\\n结论：目前系统中既没有收藏的岗位，也没有可用的简历。如果你希望开始求职流程，需要先添加目标岗位方向、收藏具体岗位，或上传/创建简历版本。我可以协助你完成这些操作。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "2482c25427d50059cb77f4a6b4fab63f019dec5a8c49d75dbacab7b0a3ef57b9",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 4,
+          "direct_delivery": false,
+          "result_states": [
+            "no_saved_jobs_found",
+            "capabilities_found",
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

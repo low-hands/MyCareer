@@ -1,0 +1,135 @@
+{
+  "scenario": "a_report_that_scrolled_out_of_the_catalogue_is_not_faked",
+  "policy": "Only reports the projection still names can be read back. When the report the user asks about is not among them, say it can no longer be reached instead of sending some other report's handle.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "3647a8bab4f97c048e14980600b4bb2391b21400f81db7de9588abf130d59be5",
+  "context_shape_fingerprint": "7dc8bc63cc400316563ba507e92c92ea31ce9eb9fd7f1f2b25265cfaa69c36b7",
+  "recorded_at": "2026-10-10T00:52:33.060838+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "search_career_memory",
+        "arguments": {
+          "query": "Shopee 竞争对手",
+          "limit": 8
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "b8ebfdc77e5bcdad4bf4c0a7729a4cfd2361e58b66b209e16f4fd608bbe6312b",
+      "decision_shape_fingerprint": "445ca03f34bb6c3cfb923e49d61b5e12d5591cd5b633d7109230b3e67398a7bf",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_job_research",
+        "search_career_episodes",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2750.7,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T00:52:29.029043+00:00",
+      "elapsed_ms": 2754.8,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_career_memory",
+            "arguments": {
+              "query": "Shopee 竞争对手",
+              "limit": 8
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "b8ebfdc77e5bcdad4bf4c0a7729a4cfd2361e58b66b209e16f4fd608bbe6312b",
+          "decision_shape_fingerprint": "445ca03f34bb6c3cfb923e49d61b5e12d5591cd5b633d7109230b3e67398a7bf",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2750.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:52:33.035579+00:00",
+      "elapsed_ms": 4004.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_career_memory",
+            "arguments": {
+              "query": "Shopee 调研 竞争对手",
+              "limit": 10
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "b8ebfdc77e5bcdad4bf4c0a7729a4cfd2361e58b66b209e16f4fd608bbe6312b",
+          "decision_shape_fingerprint": "445ca03f34bb6c3cfb923e49d61b5e12d5591cd5b633d7109230b3e67398a7bf",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3999.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:52:33.060838+00:00",
+      "elapsed_ms": 3703.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_career_memory",
+            "arguments": {
+              "query": "Shopee 调研 竞争对手",
+              "limit": 10
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "b8ebfdc77e5bcdad4bf4c0a7729a4cfd2361e58b66b209e16f4fd608bbe6312b",
+          "decision_shape_fingerprint": "445ca03f34bb6c3cfb923e49d61b5e12d5591cd5b633d7109230b3e67398a7bf",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3700.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

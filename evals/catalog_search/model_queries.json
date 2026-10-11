@@ -1,0 +1,253 @@
+{
+  "version": 4,
+  "frozen_before_tuning": "2026-10-08",
+  "baseline_revision": "6f801b5",
+  "policy": "Direct search_catalog queries, separate from user-message scenarios. Pass/fail checks expected-tool recall only. WRITE and propose_* offers are observations, never failures. Cases without expected tools are observation-only. Dev may repeat; holdout remains unscored and is scored once after rules are finalized. Do not move cases between splits.",
+  "cases": [
+    {
+      "id": "dev_resume_zh",
+      "split": "dev",
+      "query": "简历",
+      "expected_tools": [
+        "list_resumes"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "dev_resume_en",
+      "split": "dev",
+      "query": "resume",
+      "expected_tools": [
+        "list_resumes"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "dev_interview",
+      "split": "dev",
+      "query": "面试",
+      "expected_tools": [
+        "list_interviews"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "dev_application",
+      "split": "dev",
+      "query": "投递",
+      "expected_tools": [
+        "list_applications"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "dev_calendar",
+      "split": "dev",
+      "query": "calendar",
+      "expected_tools": [
+        "list_calendar_links"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "dev_view_resumes",
+      "split": "dev",
+      "query": "查看我的简历",
+      "expected_tools": [
+        "list_resumes"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "dev_draft",
+      "split": "dev",
+      "query": "起草定制简历",
+      "expected_tools": [
+        "draft_resume_tailoring"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "dev_export",
+      "split": "dev",
+      "query": "导出简历",
+      "expected_tools": [
+        "export_resume_artifact"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "dev_control_experience",
+      "split": "dev",
+      "query": "帮我看看我的经历",
+      "expected_tools": [
+        "search_career_memory"
+      ],
+      "required_k": 5,
+      "source": "64aea67"
+    },
+    {
+      "id": "dev_control_interview",
+      "split": "dev",
+      "query": "看看我的面试安排",
+      "expected_tools": [
+        "list_interviews"
+      ],
+      "required_k": 5,
+      "source": "64aea67"
+    },
+    {
+      "id": "dev_control_application",
+      "split": "dev",
+      "query": "我的投递记录有哪些",
+      "expected_tools": [
+        "list_applications"
+      ],
+      "required_k": 5,
+      "source": "64aea67"
+    },
+    {
+      "id": "dev_control_job",
+      "split": "dev",
+      "query": "这个岗位不错",
+      "expected_tools": [],
+      "required_k": 5,
+      "source": "64aea67",
+      "exposure_only_reason": "Observational query without a single unambiguous required read tool; scores action exposure only."
+    },
+    {
+      "id": "holdout_resume",
+      "split": "holdout",
+      "query": "简历列表",
+      "expected_tools": [
+        "list_resumes"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "holdout_resume_en",
+      "split": "holdout",
+      "query": "list my resumes",
+      "expected_tools": [
+        "list_resumes"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "holdout_interview",
+      "split": "holdout",
+      "query": "面试列表",
+      "expected_tools": [
+        "list_interviews"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "holdout_application",
+      "split": "holdout",
+      "query": "投递列表",
+      "expected_tools": [
+        "list_applications"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "holdout_calendar",
+      "split": "holdout",
+      "query": "日历关联",
+      "expected_tools": [
+        "list_calendar_links"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "holdout_draft",
+      "split": "holdout",
+      "query": "生成针对岗位的简历",
+      "expected_tools": [
+        "draft_resume_tailoring"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "holdout_export",
+      "split": "holdout",
+      "query": "下载简历文件",
+      "expected_tools": [
+        "export_resume_artifact"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "holdout_control",
+      "split": "holdout",
+      "query": "查看我保存的经历",
+      "expected_tools": [
+        "search_career_memory"
+      ],
+      "required_k": 5
+    },
+    {
+      "id": "dev_application_write",
+      "split": "dev",
+      "query": "把这个岗位加入投递",
+      "expected_tools": [
+        "create_application"
+      ],
+      "required_k": 5,
+      "non_exact_write": true
+    },
+    {
+      "id": "dev_draft_write",
+      "split": "dev",
+      "query": "帮我生成一份定制简历",
+      "expected_tools": [
+        "draft_resume_tailoring"
+      ],
+      "required_k": 5,
+      "non_exact_write": true
+    },
+    {
+      "id": "dev_export_write",
+      "split": "dev",
+      "query": "把简历导出成 PDF",
+      "expected_tools": [
+        "export_resume_artifact"
+      ],
+      "required_k": 5,
+      "non_exact_write": true
+    },
+    {
+      "id": "holdout_application_write",
+      "split": "holdout",
+      "query": "帮我把当前职位加到投递清单里",
+      "expected_tools": [
+        "create_application"
+      ],
+      "required_k": 5,
+      "non_exact_write": true
+    },
+    {
+      "id": "holdout_draft_write",
+      "split": "holdout",
+      "query": "请按这个岗位起草一版定制简历",
+      "expected_tools": [
+        "draft_resume_tailoring"
+      ],
+      "required_k": 5,
+      "non_exact_write": true
+    },
+    {
+      "id": "holdout_export_write",
+      "split": "holdout",
+      "query": "请将这份简历导出为 PDF 文件",
+      "expected_tools": [
+        "export_resume_artifact"
+      ],
+      "required_k": 5,
+      "non_exact_write": true
+    }
+  ],
+  "amendment": "2026-10-08 user-authorized scoring-policy change: remove effect/action prohibitions from all cases without changing queries, expected tools, required_k or splits. Version 3 is retained for historical comparison.",
+  "supersedes_fixture_sha256": "dc59903daed119cda847b73295110129a2d036f172e6ebd3d3c9c2673926e660"
+}

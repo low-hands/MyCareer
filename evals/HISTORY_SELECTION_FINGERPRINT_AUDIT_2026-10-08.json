@@ -1,0 +1,1709 @@
+{
+  "scope": "search cassette metadata only; frozen catalog-search holdout never scored",
+  "before_fix": [
+    {
+      "path": "evals/main_agent_search/a_bare_confirmation_expires_after_the_adjacent_turn.json",
+      "reason": null,
+      "stored_prompt": "05c4b66d5a4152d90df20a0f0bf64f2040eeb94d234f86eb3dccdff1f7b2f2bd",
+      "current_prompt": "05c4b66d5a4152d90df20a0f0bf64f2040eeb94d234f86eb3dccdff1f7b2f2bd"
+    },
+    {
+      "path": "evals/main_agent_search/a_calendar_write_is_never_executed_in_the_turn_that_prepared_it.json",
+      "reason": null,
+      "stored_prompt": "7bb6e884e0ac65440cc5eefcdf64d55516e906537b27f358f2a26ea6ba3bc21c",
+      "current_prompt": "7bb6e884e0ac65440cc5eefcdf64d55516e906537b27f358f2a26ea6ba3bc21c"
+    },
+    {
+      "path": "evals/main_agent_search/a_card_backed_report_is_answered_without_reproducing_it.json",
+      "reason": null,
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53"
+    },
+    {
+      "path": "evals/main_agent_search/a_compacted_fact_is_paged_in_rather_than_guessed.json",
+      "reason": null,
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c"
+    },
+    {
+      "path": "evals/main_agent_search/a_core_request_routes_before_job_analysis.json",
+      "reason": null,
+      "stored_prompt": "fd8957399acfb7084ae0ec5f8ffa49230d20c0dc2cfc47a8199e337feb1d2000",
+      "current_prompt": "fd8957399acfb7084ae0ec5f8ffa49230d20c0dc2cfc47a8199e337feb1d2000"
+    },
+    {
+      "path": "evals/main_agent_search/a_fact_still_in_the_window_is_answered_without_page_in.json",
+      "reason": null,
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c"
+    },
+    {
+      "path": "evals/main_agent_search/a_long_compacted_history_is_searched_in_one_page_in_call.json",
+      "reason": null,
+      "stored_prompt": "714162ca6a862bf5374845b2ffb3deb12359ab3c0b82f1b66851bd5c95694121",
+      "current_prompt": "714162ca6a862bf5374845b2ffb3deb12359ab3c0b82f1b66851bd5c95694121"
+    },
+    {
+      "path": "evals/main_agent_search/a_missing_city_is_asked_for_not_guessed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "8740e420dc7ce336b30b7f652c22cf0c3fa81f258f7187c475651e6cb01e1e99"
+    },
+    {
+      "path": "evals/main_agent_search/a_nonretryable_read_failure_is_not_reissued.json",
+      "reason": null,
+      "stored_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f",
+      "current_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f"
+    },
+    {
+      "path": "evals/main_agent_search/a_note_derived_filter_is_confirmed_with_the_user.json",
+      "reason": null,
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3"
+    },
+    {
+      "path": "evals/main_agent_search/a_questionnaire_answer_is_proposed_with_user_input_provenance.json",
+      "reason": null,
+      "stored_prompt": "341beb8320f32fda677f3c15ace658310f986bba64c27d65c0abf2c26acdfcc2",
+      "current_prompt": "341beb8320f32fda677f3c15ace658310f986bba64c27d65c0abf2c26acdfcc2"
+    },
+    {
+      "path": "evals/main_agent_search/a_repeated_call_is_not_reissued_after_an_observation.json",
+      "reason": null,
+      "stored_prompt": "14e59a389b6b5e59b886576df602a3146786b6a933f9382096106c6b21c58d82",
+      "current_prompt": "14e59a389b6b5e59b886576df602a3146786b6a933f9382096106c6b21c58d82"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_made_this_turn_is_read_back_by_its_index.json",
+      "reason": null,
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_made_this_turn_without_an_index_cannot_be_named.json",
+      "reason": null,
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_older_than_the_window_is_still_read_back.json",
+      "reason": null,
+      "stored_prompt": "152184a2bce74cbc002b8837328930eb005d737a430655d2d8d76801c342042d",
+      "current_prompt": "152184a2bce74cbc002b8837328930eb005d737a430655d2d8d76801c342042d"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_that_scrolled_out_of_the_catalogue_is_not_faked.json",
+      "reason": null,
+      "stored_prompt": "cacff6db701bd5080a273c63c346c52c2f093916971fdf40e4e06ff97c1018d5",
+      "current_prompt": "cacff6db701bd5080a273c63c346c52c2f093916971fdf40e4e06ff97c1018d5"
+    },
+    {
+      "path": "evals/main_agent_search/a_resume_critique_loads_its_skill.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "699de04d30227db368ac05b8eda655cbb78e9c0aa78f7f883ada4eaf3208cc6b",
+      "current_prompt": "6ea8858fc479293abb014486d40d16b9f4ee7d7766569730ed6ba1b895cb6fd0"
+    },
+    {
+      "path": "evals/main_agent_search/a_retryable_read_failure_does_not_change_the_user_intent.json",
+      "reason": null,
+      "stored_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f",
+      "current_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f"
+    },
+    {
+      "path": "evals/main_agent_search/a_returned_span_body_is_used_not_the_window_decoy.json",
+      "reason": null,
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c"
+    },
+    {
+      "path": "evals/main_agent_search/a_stale_note_is_reviewed_before_reuse.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "8740e420dc7ce336b30b7f652c22cf0c3fa81f258f7187c475651e6cb01e1e99"
+    },
+    {
+      "path": "evals/main_agent_search/a_stale_working_note_is_merged_not_overwritten.json",
+      "reason": null,
+      "stored_prompt": "0afbecd4ba9b920cabf512ceae5d91e3c1fb28a4da89d5cfc8cf7ae3c1437afc",
+      "current_prompt": "0afbecd4ba9b920cabf512ceae5d91e3c1fb28a4da89d5cfc8cf7ae3c1437afc"
+    },
+    {
+      "path": "evals/main_agent_search/a_stored_report_is_read_back_rather_than_recalled.json",
+      "reason": null,
+      "stored_prompt": "a88fbee81fc5ff1b78319e1e49066f154141f1f8aaf529c06a47bb8373389e82",
+      "current_prompt": "a88fbee81fc5ff1b78319e1e49066f154141f1f8aaf529c06a47bb8373389e82"
+    },
+    {
+      "path": "evals/main_agent_search/an_approved_calendar_proposal_is_executed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "dca1ca45f2c2f52764cefd9c08bdb562da2be6d2bf3719f7ca4923a5ef16a426",
+      "current_prompt": "e87293b672f230e2272427c0d7b3efaff608bdb381905ff80cdbac9b1e61a5f4"
+    },
+    {
+      "path": "evals/main_agent_search/an_authorization_refusal_is_explained_not_bypassed.json",
+      "reason": null,
+      "stored_prompt": "a8c3f4606ad525fc23a4e3b9b8a66c307d96156fac8c570a344a1f24aa1afb9f",
+      "current_prompt": "a8c3f4606ad525fc23a4e3b9b8a66c307d96156fac8c570a344a1f24aa1afb9f"
+    },
+    {
+      "path": "evals/main_agent_search/an_empty_conversation_span_is_not_filled_from_the_window.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "a331e59211246e6c7daf6f1b96a597090b2e67f043fce8e7d7133865385679ff",
+      "current_prompt": "f1cd706b1f6db80c09871342fd7e3aa977ce6933f3f575a138af9c5b756f4160"
+    },
+    {
+      "path": "evals/main_agent_search/an_invalid_selection_is_not_reconstructed.json",
+      "reason": null,
+      "stored_prompt": "67662d51e0825fb2e0c5d6fe594244ece0ab71cd5cda3141ac6d56903318e523",
+      "current_prompt": "67662d51e0825fb2e0c5d6fe594244ece0ab71cd5cda3141ac6d56903318e523"
+    },
+    {
+      "path": "evals/main_agent_search/an_owner_rule_that_stopped_an_action_is_not_proposed_away.json",
+      "reason": null,
+      "stored_prompt": "7c923170dd3ad34a5f214e296da62503cdb8ca25101062917e56a809a3388e59",
+      "current_prompt": "7c923170dd3ad34a5f214e296da62503cdb8ca25101062917e56a809a3388e59"
+    },
+    {
+      "path": "evals/main_agent_search/an_unavailable_span_does_not_supply_an_unmentioned_company.json",
+      "reason": null,
+      "stored_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8",
+      "current_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8"
+    },
+    {
+      "path": "evals/main_agent_search/an_uncertain_calendar_write_is_not_reissued_or_claimed.json",
+      "reason": null,
+      "stored_prompt": "ff055b834960fc29c2adad1a170ed85cde97e7ab43d700a5dba402b312305c46",
+      "current_prompt": "ff055b834960fc29c2adad1a170ed85cde97e7ab43d700a5dba402b312305c46"
+    },
+    {
+      "path": "evals/main_agent_search/an_unmentioned_company_without_compaction_is_not_invented.json",
+      "reason": null,
+      "stored_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8",
+      "current_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8"
+    },
+    {
+      "path": "evals/main_agent_search/an_unseen_result_is_delivered_rather_than_characterized.json",
+      "reason": null,
+      "stored_prompt": "142fa81cd96edcbe454f7b3c618d9a04d4c4fa4ce9ebddc55bbe47de4a7f36d3",
+      "current_prompt": "142fa81cd96edcbe454f7b3c618d9a04d4c4fa4ce9ebddc55bbe47de4a7f36d3"
+    },
+    {
+      "path": "evals/main_agent_search/cached_research_routes_to_an_explicit_new_focus.json",
+      "reason": null,
+      "stored_prompt": "794fee4ad3281301f3bda99142586d76ea9c5afa3e0ecfdbc8c119ff63416ba6",
+      "current_prompt": "794fee4ad3281301f3bda99142586d76ea9c5afa3e0ecfdbc8c119ff63416ba6"
+    },
+    {
+      "path": "evals/main_agent_search/clear_brief_finishes_without_opening_the_action_list.json",
+      "reason": null,
+      "stored_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd",
+      "current_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd"
+    },
+    {
+      "path": "evals/main_agent_search/five_missing_resume_facts_use_one_questionnaire.json",
+      "reason": null,
+      "stored_prompt": "f1cd706b1f6db80c09871342fd7e3aa977ce6933f3f575a138af9c5b756f4160",
+      "current_prompt": "f1cd706b1f6db80c09871342fd7e3aa977ce6933f3f575a138af9c5b756f4160"
+    },
+    {
+      "path": "evals/main_agent_search/intent_is_not_inferred_from_a_job_the_user_liked.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "f8058926ccbc4a692a89d09eadda86f8a0c0b2d1e53e2cd211bc258192d67f4e",
+      "current_prompt": "8dbf5cdac415f757f64cc469b102ca75edf6919379052f9b2fba41b1974041e0"
+    },
+    {
+      "path": "evals/main_agent_search/interview_completion_is_not_inferred_from_the_clock.json",
+      "reason": null,
+      "stored_prompt": "baa579320a74cbcd30db63338cfef67c8d05f297dbc961dc21d4afd74b3b5353",
+      "current_prompt": "baa579320a74cbcd30db63338cfef67c8d05f297dbc961dc21d4afd74b3b5353"
+    },
+    {
+      "path": "evals/main_agent_search/overdue_brief_routes_to_the_action_list.json",
+      "reason": null,
+      "stored_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd",
+      "current_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd"
+    },
+    {
+      "path": "evals/main_agent_search/planning_to_apply_does_not_create_an_application.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "da31282fa90291b4f0c8e5b6f3ab693f23277471f87df0741c941656c55d42b2",
+      "current_prompt": "12ca9562c4ede17732d7c949588bb01e4adf08042fcfd87560abf55bbdd02185"
+    },
+    {
+      "path": "evals/main_agent_search/research_is_not_started_as_part_of_matching.json",
+      "reason": null,
+      "stored_prompt": "932d028555e370a140746a006d5cb50b13fd4acff88e4360204f62e57d40aabe",
+      "current_prompt": "932d028555e370a140746a006d5cb50b13fd4acff88e4360204f62e57d40aabe"
+    },
+    {
+      "path": "evals/main_agent_search/saved_jd_body_drives_the_next_read_step.json",
+      "reason": null,
+      "stored_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7",
+      "current_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7"
+    },
+    {
+      "path": "evals/main_agent_search/saved_jd_body_without_language_requirement_finishes.json",
+      "reason": null,
+      "stored_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7",
+      "current_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7"
+    },
+    {
+      "path": "evals/main_agent_search/stated_intent_is_proposed_before_it_is_recorded.json",
+      "reason": null,
+      "stored_prompt": "d094b52aeeb24bf6c7604bbf710bde257bc5f0d16d7853d348c7cf2b7de6af45",
+      "current_prompt": "d094b52aeeb24bf6c7604bbf710bde257bc5f0d16d7853d348c7cf2b7de6af45"
+    },
+    {
+      "path": "evals/main_agent_search/submitted_resume_questionnaire_continues_tailoring.json",
+      "reason": null,
+      "stored_prompt": "7bf4a78e7e4a1b2bf4e3f572b3bcfa4d28b0b133be00446a477dc18421fa823e",
+      "current_prompt": "7bf4a78e7e4a1b2bf4e3f572b3bcfa4d28b0b133be00446a477dc18421fa823e"
+    },
+    {
+      "path": "evals/main_agent_search/tool_selection_combines_job_analysis_and_resume_match.json",
+      "reason": null,
+      "stored_prompt": "1af3bc11afa72a3cf56513e56afc3d253cf4d8362b6ee1e0f85fb4273fb46b77",
+      "current_prompt": "1af3bc11afa72a3cf56513e56afc3d253cf4d8362b6ee1e0f85fb4273fb46b77"
+    },
+    {
+      "path": "evals/main_agent_search/tool_selection_switches_from_resume_to_job_research.json",
+      "reason": null,
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53"
+    },
+    {
+      "path": "evals/main_agent_search/weak_match_routes_to_resume_tailoring.json",
+      "reason": null,
+      "stored_prompt": "8eace026cbb8afd566a982815c85b087db97e74806be3f940dc0ebfe32f6a11f",
+      "current_prompt": "8eace026cbb8afd566a982815c85b087db97e74806be3f940dc0ebfe32f6a11f"
+    },
+    {
+      "path": "evals/main_agent_search/working_notes_never_choose_or_rank_a_job.json",
+      "reason": null,
+      "stored_prompt": "1d032bc45a190f15d6f60dac28a0f37685e00aab021a3de7b4f9b72843b6fd87",
+      "current_prompt": "1d032bc45a190f15d6f60dac28a0f37685e00aab021a3de7b4f9b72843b6fd87"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_bare_confirmation_expires_after_the_adjacent_turn.json",
+      "reason": null,
+      "stored_prompt": "05c4b66d5a4152d90df20a0f0bf64f2040eeb94d234f86eb3dccdff1f7b2f2bd",
+      "current_prompt": "05c4b66d5a4152d90df20a0f0bf64f2040eeb94d234f86eb3dccdff1f7b2f2bd"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_calendar_write_is_never_executed_in_the_turn_that_prepared_it.json",
+      "reason": null,
+      "stored_prompt": "7bb6e884e0ac65440cc5eefcdf64d55516e906537b27f358f2a26ea6ba3bc21c",
+      "current_prompt": "7bb6e884e0ac65440cc5eefcdf64d55516e906537b27f358f2a26ea6ba3bc21c"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_card_backed_report_is_answered_without_reproducing_it.json",
+      "reason": null,
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_compacted_fact_is_paged_in_rather_than_guessed.json",
+      "reason": null,
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_core_request_routes_before_job_analysis.json",
+      "reason": null,
+      "stored_prompt": "fd8957399acfb7084ae0ec5f8ffa49230d20c0dc2cfc47a8199e337feb1d2000",
+      "current_prompt": "fd8957399acfb7084ae0ec5f8ffa49230d20c0dc2cfc47a8199e337feb1d2000"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_fact_still_in_the_window_is_answered_without_page_in.json",
+      "reason": null,
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_long_compacted_history_is_searched_in_one_page_in_call.json",
+      "reason": null,
+      "stored_prompt": "714162ca6a862bf5374845b2ffb3deb12359ab3c0b82f1b66851bd5c95694121",
+      "current_prompt": "714162ca6a862bf5374845b2ffb3deb12359ab3c0b82f1b66851bd5c95694121"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_missing_city_is_asked_for_not_guessed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "8740e420dc7ce336b30b7f652c22cf0c3fa81f258f7187c475651e6cb01e1e99"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_nonretryable_read_failure_is_not_reissued.json",
+      "reason": null,
+      "stored_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f",
+      "current_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_note_derived_filter_is_confirmed_with_the_user.json",
+      "reason": null,
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_questionnaire_answer_is_proposed_with_user_input_provenance.json",
+      "reason": null,
+      "stored_prompt": "341beb8320f32fda677f3c15ace658310f986bba64c27d65c0abf2c26acdfcc2",
+      "current_prompt": "341beb8320f32fda677f3c15ace658310f986bba64c27d65c0abf2c26acdfcc2"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_repeated_call_is_not_reissued_after_an_observation.json",
+      "reason": null,
+      "stored_prompt": "14e59a389b6b5e59b886576df602a3146786b6a933f9382096106c6b21c58d82",
+      "current_prompt": "14e59a389b6b5e59b886576df602a3146786b6a933f9382096106c6b21c58d82"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_report_made_this_turn_is_read_back_by_its_index.json",
+      "reason": null,
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_report_made_this_turn_without_an_index_cannot_be_named.json",
+      "reason": null,
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_report_older_than_the_window_is_still_read_back.json",
+      "reason": null,
+      "stored_prompt": "152184a2bce74cbc002b8837328930eb005d737a430655d2d8d76801c342042d",
+      "current_prompt": "152184a2bce74cbc002b8837328930eb005d737a430655d2d8d76801c342042d"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_report_that_scrolled_out_of_the_catalogue_is_not_faked.json",
+      "reason": null,
+      "stored_prompt": "cacff6db701bd5080a273c63c346c52c2f093916971fdf40e4e06ff97c1018d5",
+      "current_prompt": "cacff6db701bd5080a273c63c346c52c2f093916971fdf40e4e06ff97c1018d5"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_resume_critique_loads_its_skill.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "699de04d30227db368ac05b8eda655cbb78e9c0aa78f7f883ada4eaf3208cc6b",
+      "current_prompt": "6ea8858fc479293abb014486d40d16b9f4ee7d7766569730ed6ba1b895cb6fd0"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_retryable_read_failure_does_not_change_the_user_intent.json",
+      "reason": null,
+      "stored_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f",
+      "current_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_returned_span_body_is_used_not_the_window_decoy.json",
+      "reason": null,
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_stale_note_is_reviewed_before_reuse.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "8740e420dc7ce336b30b7f652c22cf0c3fa81f258f7187c475651e6cb01e1e99"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_stale_working_note_is_merged_not_overwritten.json",
+      "reason": null,
+      "stored_prompt": "0afbecd4ba9b920cabf512ceae5d91e3c1fb28a4da89d5cfc8cf7ae3c1437afc",
+      "current_prompt": "0afbecd4ba9b920cabf512ceae5d91e3c1fb28a4da89d5cfc8cf7ae3c1437afc"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_stored_report_is_read_back_rather_than_recalled.json",
+      "reason": null,
+      "stored_prompt": "a88fbee81fc5ff1b78319e1e49066f154141f1f8aaf529c06a47bb8373389e82",
+      "current_prompt": "a88fbee81fc5ff1b78319e1e49066f154141f1f8aaf529c06a47bb8373389e82"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_approved_calendar_proposal_is_executed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "dca1ca45f2c2f52764cefd9c08bdb562da2be6d2bf3719f7ca4923a5ef16a426",
+      "current_prompt": "e87293b672f230e2272427c0d7b3efaff608bdb381905ff80cdbac9b1e61a5f4"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_authorization_refusal_is_explained_not_bypassed.json",
+      "reason": null,
+      "stored_prompt": "a8c3f4606ad525fc23a4e3b9b8a66c307d96156fac8c570a344a1f24aa1afb9f",
+      "current_prompt": "a8c3f4606ad525fc23a4e3b9b8a66c307d96156fac8c570a344a1f24aa1afb9f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_empty_conversation_span_is_not_filled_from_the_window.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "a331e59211246e6c7daf6f1b96a597090b2e67f043fce8e7d7133865385679ff",
+      "current_prompt": "f1cd706b1f6db80c09871342fd7e3aa977ce6933f3f575a138af9c5b756f4160"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_invalid_selection_is_not_reconstructed.json",
+      "reason": null,
+      "stored_prompt": "67662d51e0825fb2e0c5d6fe594244ece0ab71cd5cda3141ac6d56903318e523",
+      "current_prompt": "67662d51e0825fb2e0c5d6fe594244ece0ab71cd5cda3141ac6d56903318e523"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_owner_rule_that_stopped_an_action_is_not_proposed_away.json",
+      "reason": null,
+      "stored_prompt": "7c923170dd3ad34a5f214e296da62503cdb8ca25101062917e56a809a3388e59",
+      "current_prompt": "7c923170dd3ad34a5f214e296da62503cdb8ca25101062917e56a809a3388e59"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_unavailable_span_does_not_supply_an_unmentioned_company.json",
+      "reason": null,
+      "stored_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8",
+      "current_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_uncertain_calendar_write_is_not_reissued_or_claimed.json",
+      "reason": null,
+      "stored_prompt": "ff055b834960fc29c2adad1a170ed85cde97e7ab43d700a5dba402b312305c46",
+      "current_prompt": "ff055b834960fc29c2adad1a170ed85cde97e7ab43d700a5dba402b312305c46"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_unmentioned_company_without_compaction_is_not_invented.json",
+      "reason": null,
+      "stored_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8",
+      "current_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_unseen_result_is_delivered_rather_than_characterized.json",
+      "reason": null,
+      "stored_prompt": "142fa81cd96edcbe454f7b3c618d9a04d4c4fa4ce9ebddc55bbe47de4a7f36d3",
+      "current_prompt": "142fa81cd96edcbe454f7b3c618d9a04d4c4fa4ce9ebddc55bbe47de4a7f36d3"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/cached_research_routes_to_an_explicit_new_focus.json",
+      "reason": null,
+      "stored_prompt": "794fee4ad3281301f3bda99142586d76ea9c5afa3e0ecfdbc8c119ff63416ba6",
+      "current_prompt": "794fee4ad3281301f3bda99142586d76ea9c5afa3e0ecfdbc8c119ff63416ba6"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/clear_brief_finishes_without_opening_the_action_list.json",
+      "reason": null,
+      "stored_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd",
+      "current_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/five_missing_resume_facts_use_one_questionnaire.json",
+      "reason": null,
+      "stored_prompt": "f1cd706b1f6db80c09871342fd7e3aa977ce6933f3f575a138af9c5b756f4160",
+      "current_prompt": "f1cd706b1f6db80c09871342fd7e3aa977ce6933f3f575a138af9c5b756f4160"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/intent_is_not_inferred_from_a_job_the_user_liked.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "f8058926ccbc4a692a89d09eadda86f8a0c0b2d1e53e2cd211bc258192d67f4e",
+      "current_prompt": "8dbf5cdac415f757f64cc469b102ca75edf6919379052f9b2fba41b1974041e0"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/interview_completion_is_not_inferred_from_the_clock.json",
+      "reason": null,
+      "stored_prompt": "baa579320a74cbcd30db63338cfef67c8d05f297dbc961dc21d4afd74b3b5353",
+      "current_prompt": "baa579320a74cbcd30db63338cfef67c8d05f297dbc961dc21d4afd74b3b5353"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/overdue_brief_routes_to_the_action_list.json",
+      "reason": null,
+      "stored_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd",
+      "current_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/planning_to_apply_does_not_create_an_application.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "da31282fa90291b4f0c8e5b6f3ab693f23277471f87df0741c941656c55d42b2",
+      "current_prompt": "12ca9562c4ede17732d7c949588bb01e4adf08042fcfd87560abf55bbdd02185"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/research_is_not_started_as_part_of_matching.json",
+      "reason": null,
+      "stored_prompt": "932d028555e370a140746a006d5cb50b13fd4acff88e4360204f62e57d40aabe",
+      "current_prompt": "932d028555e370a140746a006d5cb50b13fd4acff88e4360204f62e57d40aabe"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/saved_jd_body_drives_the_next_read_step.json",
+      "reason": null,
+      "stored_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7",
+      "current_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/saved_jd_body_without_language_requirement_finishes.json",
+      "reason": null,
+      "stored_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7",
+      "current_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/stated_intent_is_proposed_before_it_is_recorded.json",
+      "reason": null,
+      "stored_prompt": "d094b52aeeb24bf6c7604bbf710bde257bc5f0d16d7853d348c7cf2b7de6af45",
+      "current_prompt": "d094b52aeeb24bf6c7604bbf710bde257bc5f0d16d7853d348c7cf2b7de6af45"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/submitted_resume_questionnaire_continues_tailoring.json",
+      "reason": null,
+      "stored_prompt": "7bf4a78e7e4a1b2bf4e3f572b3bcfa4d28b0b133be00446a477dc18421fa823e",
+      "current_prompt": "7bf4a78e7e4a1b2bf4e3f572b3bcfa4d28b0b133be00446a477dc18421fa823e"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/tool_selection_combines_job_analysis_and_resume_match.json",
+      "reason": null,
+      "stored_prompt": "1af3bc11afa72a3cf56513e56afc3d253cf4d8362b6ee1e0f85fb4273fb46b77",
+      "current_prompt": "1af3bc11afa72a3cf56513e56afc3d253cf4d8362b6ee1e0f85fb4273fb46b77"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/tool_selection_switches_from_resume_to_job_research.json",
+      "reason": null,
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/weak_match_routes_to_resume_tailoring.json",
+      "reason": null,
+      "stored_prompt": "8eace026cbb8afd566a982815c85b087db97e74806be3f940dc0ebfe32f6a11f",
+      "current_prompt": "8eace026cbb8afd566a982815c85b087db97e74806be3f940dc0ebfe32f6a11f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/working_notes_never_choose_or_rank_a_job.json",
+      "reason": null,
+      "stored_prompt": "1d032bc45a190f15d6f60dac28a0f37685e00aab021a3de7b4f9b72843b6fd87",
+      "current_prompt": "1d032bc45a190f15d6f60dac28a0f37685e00aab021a3de7b4f9b72843b6fd87"
+    }
+  ],
+  "after_history_fix": [
+    {
+      "path": "evals/main_agent_search/a_bare_confirmation_expires_after_the_adjacent_turn.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "05c4b66d5a4152d90df20a0f0bf64f2040eeb94d234f86eb3dccdff1f7b2f2bd",
+      "current_prompt": "4630cbfb3895718035cda97bc67fe08059e77cd75fd6c57fef17ad23d89e542d"
+    },
+    {
+      "path": "evals/main_agent_search/a_calendar_write_is_never_executed_in_the_turn_that_prepared_it.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "7bb6e884e0ac65440cc5eefcdf64d55516e906537b27f358f2a26ea6ba3bc21c",
+      "current_prompt": "0082a2baec7181d60ac2cb1e567375cba81cd624b590f9bb1a460dffa3878568"
+    },
+    {
+      "path": "evals/main_agent_search/a_card_backed_report_is_answered_without_reproducing_it.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_search/a_compacted_fact_is_paged_in_rather_than_guessed.json",
+      "reason": null,
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c"
+    },
+    {
+      "path": "evals/main_agent_search/a_core_request_routes_before_job_analysis.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "fd8957399acfb7084ae0ec5f8ffa49230d20c0dc2cfc47a8199e337feb1d2000",
+      "current_prompt": "6a9a8be8aab504ff4d61a9f0f6d6f2b43b7b8b3f3aa0b15bd5401a4a47643044"
+    },
+    {
+      "path": "evals/main_agent_search/a_fact_still_in_the_window_is_answered_without_page_in.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "c106fa321706307ad63e4803804e5c46c26e8e814f58ac8018998a1b599007f8"
+    },
+    {
+      "path": "evals/main_agent_search/a_long_compacted_history_is_searched_in_one_page_in_call.json",
+      "reason": null,
+      "stored_prompt": "714162ca6a862bf5374845b2ffb3deb12359ab3c0b82f1b66851bd5c95694121",
+      "current_prompt": "714162ca6a862bf5374845b2ffb3deb12359ab3c0b82f1b66851bd5c95694121"
+    },
+    {
+      "path": "evals/main_agent_search/a_missing_city_is_asked_for_not_guessed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "ad8babe2658166dd736b4ecf3eae55c16a8da4e928ccdba9a1e8b9175cf3a7f2"
+    },
+    {
+      "path": "evals/main_agent_search/a_nonretryable_read_failure_is_not_reissued.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f",
+      "current_prompt": "8ebe10fda006b82815806b8936f4bbca19d8931564a7ce68e62a8ee26d28ba97"
+    },
+    {
+      "path": "evals/main_agent_search/a_note_derived_filter_is_confirmed_with_the_user.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "552e874c99a1ea3374a4bd464ecf1949a54ccf9249a9abeb512081d805dd6a3f"
+    },
+    {
+      "path": "evals/main_agent_search/a_questionnaire_answer_is_proposed_with_user_input_provenance.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "341beb8320f32fda677f3c15ace658310f986bba64c27d65c0abf2c26acdfcc2",
+      "current_prompt": "1536259f973a5e42d11a7610568e66a8ae9e6c2be5db4229ae3b65a33845e60c"
+    },
+    {
+      "path": "evals/main_agent_search/a_repeated_call_is_not_reissued_after_an_observation.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "14e59a389b6b5e59b886576df602a3146786b6a933f9382096106c6b21c58d82",
+      "current_prompt": "09383ef3c4954f8d7044f51600e05908ee2c8aea77eec433cc4b9058510963ae"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_made_this_turn_is_read_back_by_its_index.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_made_this_turn_without_an_index_cannot_be_named.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_older_than_the_window_is_still_read_back.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "152184a2bce74cbc002b8837328930eb005d737a430655d2d8d76801c342042d",
+      "current_prompt": "695f9017b691a73ac8d1bf453a3e8b25a0201977c28be3fd2f0330da34c46113"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_that_scrolled_out_of_the_catalogue_is_not_faked.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "cacff6db701bd5080a273c63c346c52c2f093916971fdf40e4e06ff97c1018d5",
+      "current_prompt": "c91c5e4a626bde79331a5950f7b544532557dd041ea4f705547dc01e17013a97"
+    },
+    {
+      "path": "evals/main_agent_search/a_resume_critique_loads_its_skill.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "699de04d30227db368ac05b8eda655cbb78e9c0aa78f7f883ada4eaf3208cc6b",
+      "current_prompt": "46fb4623b28228242dda42f01666f466e3c8585b634340a563c7e8e16f2b3e70"
+    },
+    {
+      "path": "evals/main_agent_search/a_retryable_read_failure_does_not_change_the_user_intent.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f",
+      "current_prompt": "8ebe10fda006b82815806b8936f4bbca19d8931564a7ce68e62a8ee26d28ba97"
+    },
+    {
+      "path": "evals/main_agent_search/a_returned_span_body_is_used_not_the_window_decoy.json",
+      "reason": null,
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c"
+    },
+    {
+      "path": "evals/main_agent_search/a_stale_note_is_reviewed_before_reuse.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "ad8babe2658166dd736b4ecf3eae55c16a8da4e928ccdba9a1e8b9175cf3a7f2"
+    },
+    {
+      "path": "evals/main_agent_search/a_stale_working_note_is_merged_not_overwritten.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "0afbecd4ba9b920cabf512ceae5d91e3c1fb28a4da89d5cfc8cf7ae3c1437afc",
+      "current_prompt": "185d170e3d3015b9e6bc8b7782494c944797690ef7edbc8b660feb3454681910"
+    },
+    {
+      "path": "evals/main_agent_search/a_stored_report_is_read_back_rather_than_recalled.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "a88fbee81fc5ff1b78319e1e49066f154141f1f8aaf529c06a47bb8373389e82",
+      "current_prompt": "b69f3e807e7b565280c8c7c14a8543b9cab20f03c21c000dc895d0660893c54c"
+    },
+    {
+      "path": "evals/main_agent_search/an_approved_calendar_proposal_is_executed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "dca1ca45f2c2f52764cefd9c08bdb562da2be6d2bf3719f7ca4923a5ef16a426",
+      "current_prompt": "a89b6c140b0f31d00124f20e2793341c7abbec4322c13cc6219ec29630870e96"
+    },
+    {
+      "path": "evals/main_agent_search/an_authorization_refusal_is_explained_not_bypassed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "a8c3f4606ad525fc23a4e3b9b8a66c307d96156fac8c570a344a1f24aa1afb9f",
+      "current_prompt": "c2150d4d040cab44b42a139538ec38bba403cd63501ec11fd76e521c2f0e1eac"
+    },
+    {
+      "path": "evals/main_agent_search/an_empty_conversation_span_is_not_filled_from_the_window.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "a331e59211246e6c7daf6f1b96a597090b2e67f043fce8e7d7133865385679ff",
+      "current_prompt": "f1cd706b1f6db80c09871342fd7e3aa977ce6933f3f575a138af9c5b756f4160"
+    },
+    {
+      "path": "evals/main_agent_search/an_invalid_selection_is_not_reconstructed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "67662d51e0825fb2e0c5d6fe594244ece0ab71cd5cda3141ac6d56903318e523",
+      "current_prompt": "d505f696147623e451b89357202500dc60b2f69cd80b08af1602db76e98b7121"
+    },
+    {
+      "path": "evals/main_agent_search/an_owner_rule_that_stopped_an_action_is_not_proposed_away.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "7c923170dd3ad34a5f214e296da62503cdb8ca25101062917e56a809a3388e59",
+      "current_prompt": "afe64a92f4fff9af4abc55d762ca1008b73e562b2c718d3a6c1df78a03e11aae"
+    },
+    {
+      "path": "evals/main_agent_search/an_unavailable_span_does_not_supply_an_unmentioned_company.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8",
+      "current_prompt": "bd55a24023b849a9dfa611524a991c3c26b91e36c178d105c897078834f3ba60"
+    },
+    {
+      "path": "evals/main_agent_search/an_uncertain_calendar_write_is_not_reissued_or_claimed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "ff055b834960fc29c2adad1a170ed85cde97e7ab43d700a5dba402b312305c46",
+      "current_prompt": "a925df99902ccd506edc8082a18248bc487d878b646606303c8ec0258e48010f"
+    },
+    {
+      "path": "evals/main_agent_search/an_unmentioned_company_without_compaction_is_not_invented.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8",
+      "current_prompt": "bd55a24023b849a9dfa611524a991c3c26b91e36c178d105c897078834f3ba60"
+    },
+    {
+      "path": "evals/main_agent_search/an_unseen_result_is_delivered_rather_than_characterized.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "142fa81cd96edcbe454f7b3c618d9a04d4c4fa4ce9ebddc55bbe47de4a7f36d3",
+      "current_prompt": "963b13717a29b611472ae3e1c86518cd5746f781e33a83d6a8b85e4e504b8e04"
+    },
+    {
+      "path": "evals/main_agent_search/cached_research_routes_to_an_explicit_new_focus.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "794fee4ad3281301f3bda99142586d76ea9c5afa3e0ecfdbc8c119ff63416ba6",
+      "current_prompt": "2e74fcbda3e03a4317ee842c991d2bb5887add2d4d6e838d3646e8dc9da8f86b"
+    },
+    {
+      "path": "evals/main_agent_search/clear_brief_finishes_without_opening_the_action_list.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd",
+      "current_prompt": "df54d2f2e0fe43dd61f644665324fda9380cefc8c5f284fecfa0378c079bd6fa"
+    },
+    {
+      "path": "evals/main_agent_search/five_missing_resume_facts_use_one_questionnaire.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "f1cd706b1f6db80c09871342fd7e3aa977ce6933f3f575a138af9c5b756f4160",
+      "current_prompt": "740e5e17378c0365d2bd781bfd5ccb401afcf1d55ebf68f020af57c36fff8a99"
+    },
+    {
+      "path": "evals/main_agent_search/intent_is_not_inferred_from_a_job_the_user_liked.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "f8058926ccbc4a692a89d09eadda86f8a0c0b2d1e53e2cd211bc258192d67f4e",
+      "current_prompt": "21ebc0c83629463887899e7154c3ceebf189806091a75c63f4bb256d475e9262"
+    },
+    {
+      "path": "evals/main_agent_search/interview_completion_is_not_inferred_from_the_clock.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "baa579320a74cbcd30db63338cfef67c8d05f297dbc961dc21d4afd74b3b5353",
+      "current_prompt": "6e72b69e8903ef378be504d812ab565286ae4402cd09994adc635d79b6700a95"
+    },
+    {
+      "path": "evals/main_agent_search/overdue_brief_routes_to_the_action_list.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd",
+      "current_prompt": "df54d2f2e0fe43dd61f644665324fda9380cefc8c5f284fecfa0378c079bd6fa"
+    },
+    {
+      "path": "evals/main_agent_search/planning_to_apply_does_not_create_an_application.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "da31282fa90291b4f0c8e5b6f3ab693f23277471f87df0741c941656c55d42b2",
+      "current_prompt": "622b187736cc96b3eec4d9c2cca959d08d92addca59e35e395824c42951ab961"
+    },
+    {
+      "path": "evals/main_agent_search/research_is_not_started_as_part_of_matching.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "932d028555e370a140746a006d5cb50b13fd4acff88e4360204f62e57d40aabe",
+      "current_prompt": "33990ef5c8063467a6b29c9c3a276545ffaaaf15e5a69c4b186ca8269a7c5cd7"
+    },
+    {
+      "path": "evals/main_agent_search/saved_jd_body_drives_the_next_read_step.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7",
+      "current_prompt": "63aedcc812e4259976611ee9a7da7414c1d3e1e7cc0abb0a10f4041d8b024e9b"
+    },
+    {
+      "path": "evals/main_agent_search/saved_jd_body_without_language_requirement_finishes.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7",
+      "current_prompt": "63aedcc812e4259976611ee9a7da7414c1d3e1e7cc0abb0a10f4041d8b024e9b"
+    },
+    {
+      "path": "evals/main_agent_search/stated_intent_is_proposed_before_it_is_recorded.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "d094b52aeeb24bf6c7604bbf710bde257bc5f0d16d7853d348c7cf2b7de6af45",
+      "current_prompt": "251828ffaac857646df65af3010f0f103660f36d8c6c47f2b9c2d789713a0f0a"
+    },
+    {
+      "path": "evals/main_agent_search/submitted_resume_questionnaire_continues_tailoring.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "7bf4a78e7e4a1b2bf4e3f572b3bcfa4d28b0b133be00446a477dc18421fa823e",
+      "current_prompt": "102055646457f74bdb672349c32124b916ae6e3ba29291f6fe32e85893394dbe"
+    },
+    {
+      "path": "evals/main_agent_search/tool_selection_combines_job_analysis_and_resume_match.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "1af3bc11afa72a3cf56513e56afc3d253cf4d8362b6ee1e0f85fb4273fb46b77",
+      "current_prompt": "92f50f08bcfb4d242fb75bc057dea547fa7c9552918f9ace3ea3c2d7e1e113ed"
+    },
+    {
+      "path": "evals/main_agent_search/tool_selection_switches_from_resume_to_job_research.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_search/weak_match_routes_to_resume_tailoring.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8eace026cbb8afd566a982815c85b087db97e74806be3f940dc0ebfe32f6a11f",
+      "current_prompt": "407c4af2952c59cce1404ebef0e60560aa87bd0057be99dc93dddecac4db437f"
+    },
+    {
+      "path": "evals/main_agent_search/working_notes_never_choose_or_rank_a_job.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "1d032bc45a190f15d6f60dac28a0f37685e00aab021a3de7b4f9b72843b6fd87",
+      "current_prompt": "7db4c2c1ee6a0744d392507178fd73a4ff0f943d7b4354a6d2a3c56ed71eb246"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_bare_confirmation_expires_after_the_adjacent_turn.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "05c4b66d5a4152d90df20a0f0bf64f2040eeb94d234f86eb3dccdff1f7b2f2bd",
+      "current_prompt": "4630cbfb3895718035cda97bc67fe08059e77cd75fd6c57fef17ad23d89e542d"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_calendar_write_is_never_executed_in_the_turn_that_prepared_it.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "7bb6e884e0ac65440cc5eefcdf64d55516e906537b27f358f2a26ea6ba3bc21c",
+      "current_prompt": "0082a2baec7181d60ac2cb1e567375cba81cd624b590f9bb1a460dffa3878568"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_card_backed_report_is_answered_without_reproducing_it.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_compacted_fact_is_paged_in_rather_than_guessed.json",
+      "reason": null,
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_core_request_routes_before_job_analysis.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "fd8957399acfb7084ae0ec5f8ffa49230d20c0dc2cfc47a8199e337feb1d2000",
+      "current_prompt": "6a9a8be8aab504ff4d61a9f0f6d6f2b43b7b8b3f3aa0b15bd5401a4a47643044"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_fact_still_in_the_window_is_answered_without_page_in.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "c106fa321706307ad63e4803804e5c46c26e8e814f58ac8018998a1b599007f8"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_long_compacted_history_is_searched_in_one_page_in_call.json",
+      "reason": null,
+      "stored_prompt": "714162ca6a862bf5374845b2ffb3deb12359ab3c0b82f1b66851bd5c95694121",
+      "current_prompt": "714162ca6a862bf5374845b2ffb3deb12359ab3c0b82f1b66851bd5c95694121"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_missing_city_is_asked_for_not_guessed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "ad8babe2658166dd736b4ecf3eae55c16a8da4e928ccdba9a1e8b9175cf3a7f2"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_nonretryable_read_failure_is_not_reissued.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f",
+      "current_prompt": "8ebe10fda006b82815806b8936f4bbca19d8931564a7ce68e62a8ee26d28ba97"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_note_derived_filter_is_confirmed_with_the_user.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "552e874c99a1ea3374a4bd464ecf1949a54ccf9249a9abeb512081d805dd6a3f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_questionnaire_answer_is_proposed_with_user_input_provenance.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "341beb8320f32fda677f3c15ace658310f986bba64c27d65c0abf2c26acdfcc2",
+      "current_prompt": "1536259f973a5e42d11a7610568e66a8ae9e6c2be5db4229ae3b65a33845e60c"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_repeated_call_is_not_reissued_after_an_observation.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "14e59a389b6b5e59b886576df602a3146786b6a933f9382096106c6b21c58d82",
+      "current_prompt": "09383ef3c4954f8d7044f51600e05908ee2c8aea77eec433cc4b9058510963ae"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_report_made_this_turn_is_read_back_by_its_index.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_report_made_this_turn_without_an_index_cannot_be_named.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_report_older_than_the_window_is_still_read_back.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "152184a2bce74cbc002b8837328930eb005d737a430655d2d8d76801c342042d",
+      "current_prompt": "695f9017b691a73ac8d1bf453a3e8b25a0201977c28be3fd2f0330da34c46113"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_report_that_scrolled_out_of_the_catalogue_is_not_faked.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "cacff6db701bd5080a273c63c346c52c2f093916971fdf40e4e06ff97c1018d5",
+      "current_prompt": "c91c5e4a626bde79331a5950f7b544532557dd041ea4f705547dc01e17013a97"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_resume_critique_loads_its_skill.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "699de04d30227db368ac05b8eda655cbb78e9c0aa78f7f883ada4eaf3208cc6b",
+      "current_prompt": "46fb4623b28228242dda42f01666f466e3c8585b634340a563c7e8e16f2b3e70"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_retryable_read_failure_does_not_change_the_user_intent.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f",
+      "current_prompt": "8ebe10fda006b82815806b8936f4bbca19d8931564a7ce68e62a8ee26d28ba97"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_returned_span_body_is_used_not_the_window_decoy.json",
+      "reason": null,
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_stale_note_is_reviewed_before_reuse.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "ad8babe2658166dd736b4ecf3eae55c16a8da4e928ccdba9a1e8b9175cf3a7f2"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_stale_working_note_is_merged_not_overwritten.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "0afbecd4ba9b920cabf512ceae5d91e3c1fb28a4da89d5cfc8cf7ae3c1437afc",
+      "current_prompt": "185d170e3d3015b9e6bc8b7782494c944797690ef7edbc8b660feb3454681910"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_stored_report_is_read_back_rather_than_recalled.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "a88fbee81fc5ff1b78319e1e49066f154141f1f8aaf529c06a47bb8373389e82",
+      "current_prompt": "b69f3e807e7b565280c8c7c14a8543b9cab20f03c21c000dc895d0660893c54c"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_approved_calendar_proposal_is_executed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "dca1ca45f2c2f52764cefd9c08bdb562da2be6d2bf3719f7ca4923a5ef16a426",
+      "current_prompt": "a89b6c140b0f31d00124f20e2793341c7abbec4322c13cc6219ec29630870e96"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_authorization_refusal_is_explained_not_bypassed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "a8c3f4606ad525fc23a4e3b9b8a66c307d96156fac8c570a344a1f24aa1afb9f",
+      "current_prompt": "c2150d4d040cab44b42a139538ec38bba403cd63501ec11fd76e521c2f0e1eac"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_empty_conversation_span_is_not_filled_from_the_window.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "a331e59211246e6c7daf6f1b96a597090b2e67f043fce8e7d7133865385679ff",
+      "current_prompt": "f1cd706b1f6db80c09871342fd7e3aa977ce6933f3f575a138af9c5b756f4160"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_invalid_selection_is_not_reconstructed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "67662d51e0825fb2e0c5d6fe594244ece0ab71cd5cda3141ac6d56903318e523",
+      "current_prompt": "d505f696147623e451b89357202500dc60b2f69cd80b08af1602db76e98b7121"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_owner_rule_that_stopped_an_action_is_not_proposed_away.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "7c923170dd3ad34a5f214e296da62503cdb8ca25101062917e56a809a3388e59",
+      "current_prompt": "afe64a92f4fff9af4abc55d762ca1008b73e562b2c718d3a6c1df78a03e11aae"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_unavailable_span_does_not_supply_an_unmentioned_company.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8",
+      "current_prompt": "bd55a24023b849a9dfa611524a991c3c26b91e36c178d105c897078834f3ba60"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_uncertain_calendar_write_is_not_reissued_or_claimed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "ff055b834960fc29c2adad1a170ed85cde97e7ab43d700a5dba402b312305c46",
+      "current_prompt": "a925df99902ccd506edc8082a18248bc487d878b646606303c8ec0258e48010f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_unmentioned_company_without_compaction_is_not_invented.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8",
+      "current_prompt": "bd55a24023b849a9dfa611524a991c3c26b91e36c178d105c897078834f3ba60"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_unseen_result_is_delivered_rather_than_characterized.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "142fa81cd96edcbe454f7b3c618d9a04d4c4fa4ce9ebddc55bbe47de4a7f36d3",
+      "current_prompt": "963b13717a29b611472ae3e1c86518cd5746f781e33a83d6a8b85e4e504b8e04"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/cached_research_routes_to_an_explicit_new_focus.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "794fee4ad3281301f3bda99142586d76ea9c5afa3e0ecfdbc8c119ff63416ba6",
+      "current_prompt": "2e74fcbda3e03a4317ee842c991d2bb5887add2d4d6e838d3646e8dc9da8f86b"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/clear_brief_finishes_without_opening_the_action_list.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd",
+      "current_prompt": "df54d2f2e0fe43dd61f644665324fda9380cefc8c5f284fecfa0378c079bd6fa"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/five_missing_resume_facts_use_one_questionnaire.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "f1cd706b1f6db80c09871342fd7e3aa977ce6933f3f575a138af9c5b756f4160",
+      "current_prompt": "740e5e17378c0365d2bd781bfd5ccb401afcf1d55ebf68f020af57c36fff8a99"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/intent_is_not_inferred_from_a_job_the_user_liked.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "f8058926ccbc4a692a89d09eadda86f8a0c0b2d1e53e2cd211bc258192d67f4e",
+      "current_prompt": "21ebc0c83629463887899e7154c3ceebf189806091a75c63f4bb256d475e9262"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/interview_completion_is_not_inferred_from_the_clock.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "baa579320a74cbcd30db63338cfef67c8d05f297dbc961dc21d4afd74b3b5353",
+      "current_prompt": "6e72b69e8903ef378be504d812ab565286ae4402cd09994adc635d79b6700a95"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/overdue_brief_routes_to_the_action_list.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd",
+      "current_prompt": "df54d2f2e0fe43dd61f644665324fda9380cefc8c5f284fecfa0378c079bd6fa"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/planning_to_apply_does_not_create_an_application.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "da31282fa90291b4f0c8e5b6f3ab693f23277471f87df0741c941656c55d42b2",
+      "current_prompt": "622b187736cc96b3eec4d9c2cca959d08d92addca59e35e395824c42951ab961"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/research_is_not_started_as_part_of_matching.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "932d028555e370a140746a006d5cb50b13fd4acff88e4360204f62e57d40aabe",
+      "current_prompt": "33990ef5c8063467a6b29c9c3a276545ffaaaf15e5a69c4b186ca8269a7c5cd7"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/saved_jd_body_drives_the_next_read_step.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7",
+      "current_prompt": "63aedcc812e4259976611ee9a7da7414c1d3e1e7cc0abb0a10f4041d8b024e9b"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/saved_jd_body_without_language_requirement_finishes.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7",
+      "current_prompt": "63aedcc812e4259976611ee9a7da7414c1d3e1e7cc0abb0a10f4041d8b024e9b"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/stated_intent_is_proposed_before_it_is_recorded.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "d094b52aeeb24bf6c7604bbf710bde257bc5f0d16d7853d348c7cf2b7de6af45",
+      "current_prompt": "251828ffaac857646df65af3010f0f103660f36d8c6c47f2b9c2d789713a0f0a"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/submitted_resume_questionnaire_continues_tailoring.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "7bf4a78e7e4a1b2bf4e3f572b3bcfa4d28b0b133be00446a477dc18421fa823e",
+      "current_prompt": "102055646457f74bdb672349c32124b916ae6e3ba29291f6fe32e85893394dbe"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/tool_selection_combines_job_analysis_and_resume_match.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "1af3bc11afa72a3cf56513e56afc3d253cf4d8362b6ee1e0f85fb4273fb46b77",
+      "current_prompt": "92f50f08bcfb4d242fb75bc057dea547fa7c9552918f9ace3ea3c2d7e1e113ed"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/tool_selection_switches_from_resume_to_job_research.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/weak_match_routes_to_resume_tailoring.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8eace026cbb8afd566a982815c85b087db97e74806be3f940dc0ebfe32f6a11f",
+      "current_prompt": "407c4af2952c59cce1404ebef0e60560aa87bd0057be99dc93dddecac4db437f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/working_notes_never_choose_or_rank_a_job.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "1d032bc45a190f15d6f60dac28a0f37685e00aab021a3de7b4f9b72843b6fd87",
+      "current_prompt": "7db4c2c1ee6a0744d392507178fd73a4ff0f943d7b4354a6d2a3c56ed71eb246"
+    }
+  ],
+  "after_uniform_gate": [
+    {
+      "path": "evals/main_agent_search/a_bare_confirmation_expires_after_the_adjacent_turn.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "05c4b66d5a4152d90df20a0f0bf64f2040eeb94d234f86eb3dccdff1f7b2f2bd",
+      "current_prompt": "4630cbfb3895718035cda97bc67fe08059e77cd75fd6c57fef17ad23d89e542d"
+    },
+    {
+      "path": "evals/main_agent_search/a_calendar_write_is_never_executed_in_the_turn_that_prepared_it.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "7bb6e884e0ac65440cc5eefcdf64d55516e906537b27f358f2a26ea6ba3bc21c",
+      "current_prompt": "0082a2baec7181d60ac2cb1e567375cba81cd624b590f9bb1a460dffa3878568"
+    },
+    {
+      "path": "evals/main_agent_search/a_card_backed_report_is_answered_without_reproducing_it.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_search/a_compacted_fact_is_paged_in_rather_than_guessed.json",
+      "reason": null,
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c"
+    },
+    {
+      "path": "evals/main_agent_search/a_core_request_routes_before_job_analysis.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "fd8957399acfb7084ae0ec5f8ffa49230d20c0dc2cfc47a8199e337feb1d2000",
+      "current_prompt": "6a9a8be8aab504ff4d61a9f0f6d6f2b43b7b8b3f3aa0b15bd5401a4a47643044"
+    },
+    {
+      "path": "evals/main_agent_search/a_fact_still_in_the_window_is_answered_without_page_in.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "c106fa321706307ad63e4803804e5c46c26e8e814f58ac8018998a1b599007f8"
+    },
+    {
+      "path": "evals/main_agent_search/a_long_compacted_history_is_searched_in_one_page_in_call.json",
+      "reason": null,
+      "stored_prompt": "714162ca6a862bf5374845b2ffb3deb12359ab3c0b82f1b66851bd5c95694121",
+      "current_prompt": "714162ca6a862bf5374845b2ffb3deb12359ab3c0b82f1b66851bd5c95694121"
+    },
+    {
+      "path": "evals/main_agent_search/a_missing_city_is_asked_for_not_guessed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "b7230fc5b64460402cd1d0224af43ce8883e50741a8b0df4c5a20a2f069da24a"
+    },
+    {
+      "path": "evals/main_agent_search/a_nonretryable_read_failure_is_not_reissued.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f",
+      "current_prompt": "ad8babe2658166dd736b4ecf3eae55c16a8da4e928ccdba9a1e8b9175cf3a7f2"
+    },
+    {
+      "path": "evals/main_agent_search/a_note_derived_filter_is_confirmed_with_the_user.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "1836662633963b742a924b4bf7207b61bd6743930cebcb17f0cb7085b4070c5f"
+    },
+    {
+      "path": "evals/main_agent_search/a_questionnaire_answer_is_proposed_with_user_input_provenance.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "341beb8320f32fda677f3c15ace658310f986bba64c27d65c0abf2c26acdfcc2",
+      "current_prompt": "1536259f973a5e42d11a7610568e66a8ae9e6c2be5db4229ae3b65a33845e60c"
+    },
+    {
+      "path": "evals/main_agent_search/a_repeated_call_is_not_reissued_after_an_observation.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "14e59a389b6b5e59b886576df602a3146786b6a933f9382096106c6b21c58d82",
+      "current_prompt": "09383ef3c4954f8d7044f51600e05908ee2c8aea77eec433cc4b9058510963ae"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_made_this_turn_is_read_back_by_its_index.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_made_this_turn_without_an_index_cannot_be_named.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_older_than_the_window_is_still_read_back.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "152184a2bce74cbc002b8837328930eb005d737a430655d2d8d76801c342042d",
+      "current_prompt": "03eca0f0a7c9f315d478fce904d3753a08b7d507561a97d61d08a4c29d826887"
+    },
+    {
+      "path": "evals/main_agent_search/a_report_that_scrolled_out_of_the_catalogue_is_not_faked.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "cacff6db701bd5080a273c63c346c52c2f093916971fdf40e4e06ff97c1018d5",
+      "current_prompt": "c91c5e4a626bde79331a5950f7b544532557dd041ea4f705547dc01e17013a97"
+    },
+    {
+      "path": "evals/main_agent_search/a_resume_critique_loads_its_skill.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "699de04d30227db368ac05b8eda655cbb78e9c0aa78f7f883ada4eaf3208cc6b",
+      "current_prompt": "46fb4623b28228242dda42f01666f466e3c8585b634340a563c7e8e16f2b3e70"
+    },
+    {
+      "path": "evals/main_agent_search/a_retryable_read_failure_does_not_change_the_user_intent.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f",
+      "current_prompt": "ad8babe2658166dd736b4ecf3eae55c16a8da4e928ccdba9a1e8b9175cf3a7f2"
+    },
+    {
+      "path": "evals/main_agent_search/a_returned_span_body_is_used_not_the_window_decoy.json",
+      "reason": null,
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c"
+    },
+    {
+      "path": "evals/main_agent_search/a_stale_note_is_reviewed_before_reuse.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "8ebe10fda006b82815806b8936f4bbca19d8931564a7ce68e62a8ee26d28ba97"
+    },
+    {
+      "path": "evals/main_agent_search/a_stale_working_note_is_merged_not_overwritten.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "0afbecd4ba9b920cabf512ceae5d91e3c1fb28a4da89d5cfc8cf7ae3c1437afc",
+      "current_prompt": "185d170e3d3015b9e6bc8b7782494c944797690ef7edbc8b660feb3454681910"
+    },
+    {
+      "path": "evals/main_agent_search/a_stored_report_is_read_back_rather_than_recalled.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "a88fbee81fc5ff1b78319e1e49066f154141f1f8aaf529c06a47bb8373389e82",
+      "current_prompt": "b69f3e807e7b565280c8c7c14a8543b9cab20f03c21c000dc895d0660893c54c"
+    },
+    {
+      "path": "evals/main_agent_search/an_approved_calendar_proposal_is_executed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "dca1ca45f2c2f52764cefd9c08bdb562da2be6d2bf3719f7ca4923a5ef16a426",
+      "current_prompt": "4f2b3fbbb32c08849adb776c2eba1f9fd1a2fbb08cda7d038fadd151554d2841"
+    },
+    {
+      "path": "evals/main_agent_search/an_authorization_refusal_is_explained_not_bypassed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "a8c3f4606ad525fc23a4e3b9b8a66c307d96156fac8c570a344a1f24aa1afb9f",
+      "current_prompt": "c2150d4d040cab44b42a139538ec38bba403cd63501ec11fd76e521c2f0e1eac"
+    },
+    {
+      "path": "evals/main_agent_search/an_empty_conversation_span_is_not_filled_from_the_window.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "a331e59211246e6c7daf6f1b96a597090b2e67f043fce8e7d7133865385679ff",
+      "current_prompt": "083ac60b0c83d05ed06b46f6f2f4eed0cc427308537baa47bdd7f67d3c6850e3"
+    },
+    {
+      "path": "evals/main_agent_search/an_invalid_selection_is_not_reconstructed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "67662d51e0825fb2e0c5d6fe594244ece0ab71cd5cda3141ac6d56903318e523",
+      "current_prompt": "d505f696147623e451b89357202500dc60b2f69cd80b08af1602db76e98b7121"
+    },
+    {
+      "path": "evals/main_agent_search/an_owner_rule_that_stopped_an_action_is_not_proposed_away.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "7c923170dd3ad34a5f214e296da62503cdb8ca25101062917e56a809a3388e59",
+      "current_prompt": "afe64a92f4fff9af4abc55d762ca1008b73e562b2c718d3a6c1df78a03e11aae"
+    },
+    {
+      "path": "evals/main_agent_search/an_unavailable_span_does_not_supply_an_unmentioned_company.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8",
+      "current_prompt": "bd55a24023b849a9dfa611524a991c3c26b91e36c178d105c897078834f3ba60"
+    },
+    {
+      "path": "evals/main_agent_search/an_uncertain_calendar_write_is_not_reissued_or_claimed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "ff055b834960fc29c2adad1a170ed85cde97e7ab43d700a5dba402b312305c46",
+      "current_prompt": "a925df99902ccd506edc8082a18248bc487d878b646606303c8ec0258e48010f"
+    },
+    {
+      "path": "evals/main_agent_search/an_unmentioned_company_without_compaction_is_not_invented.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8",
+      "current_prompt": "bd55a24023b849a9dfa611524a991c3c26b91e36c178d105c897078834f3ba60"
+    },
+    {
+      "path": "evals/main_agent_search/an_unseen_result_is_delivered_rather_than_characterized.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "142fa81cd96edcbe454f7b3c618d9a04d4c4fa4ce9ebddc55bbe47de4a7f36d3",
+      "current_prompt": "963b13717a29b611472ae3e1c86518cd5746f781e33a83d6a8b85e4e504b8e04"
+    },
+    {
+      "path": "evals/main_agent_search/cached_research_routes_to_an_explicit_new_focus.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "794fee4ad3281301f3bda99142586d76ea9c5afa3e0ecfdbc8c119ff63416ba6",
+      "current_prompt": "2e74fcbda3e03a4317ee842c991d2bb5887add2d4d6e838d3646e8dc9da8f86b"
+    },
+    {
+      "path": "evals/main_agent_search/clear_brief_finishes_without_opening_the_action_list.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd",
+      "current_prompt": "df54d2f2e0fe43dd61f644665324fda9380cefc8c5f284fecfa0378c079bd6fa"
+    },
+    {
+      "path": "evals/main_agent_search/five_missing_resume_facts_use_one_questionnaire.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "f1cd706b1f6db80c09871342fd7e3aa977ce6933f3f575a138af9c5b756f4160",
+      "current_prompt": "740e5e17378c0365d2bd781bfd5ccb401afcf1d55ebf68f020af57c36fff8a99"
+    },
+    {
+      "path": "evals/main_agent_search/intent_is_not_inferred_from_a_job_the_user_liked.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "f8058926ccbc4a692a89d09eadda86f8a0c0b2d1e53e2cd211bc258192d67f4e",
+      "current_prompt": "14eb39dfc617a6f3dc8d1303400ac174e3a868f5373524ee5327cf3bf47ec1f2"
+    },
+    {
+      "path": "evals/main_agent_search/interview_completion_is_not_inferred_from_the_clock.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "baa579320a74cbcd30db63338cfef67c8d05f297dbc961dc21d4afd74b3b5353",
+      "current_prompt": "25a12130fc2561cd8a7fa3c9f75dd7e91b61af0ff7a9886748b305ec77288993"
+    },
+    {
+      "path": "evals/main_agent_search/overdue_brief_routes_to_the_action_list.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd",
+      "current_prompt": "df54d2f2e0fe43dd61f644665324fda9380cefc8c5f284fecfa0378c079bd6fa"
+    },
+    {
+      "path": "evals/main_agent_search/planning_to_apply_does_not_create_an_application.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "da31282fa90291b4f0c8e5b6f3ab693f23277471f87df0741c941656c55d42b2",
+      "current_prompt": "38fe48d06ebce31b728bc628807e57341d0f63f90274636b2d72407ecbe98e2d"
+    },
+    {
+      "path": "evals/main_agent_search/research_is_not_started_as_part_of_matching.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "932d028555e370a140746a006d5cb50b13fd4acff88e4360204f62e57d40aabe",
+      "current_prompt": "33990ef5c8063467a6b29c9c3a276545ffaaaf15e5a69c4b186ca8269a7c5cd7"
+    },
+    {
+      "path": "evals/main_agent_search/saved_jd_body_drives_the_next_read_step.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7",
+      "current_prompt": "63aedcc812e4259976611ee9a7da7414c1d3e1e7cc0abb0a10f4041d8b024e9b"
+    },
+    {
+      "path": "evals/main_agent_search/saved_jd_body_without_language_requirement_finishes.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7",
+      "current_prompt": "63aedcc812e4259976611ee9a7da7414c1d3e1e7cc0abb0a10f4041d8b024e9b"
+    },
+    {
+      "path": "evals/main_agent_search/stated_intent_is_proposed_before_it_is_recorded.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "d094b52aeeb24bf6c7604bbf710bde257bc5f0d16d7853d348c7cf2b7de6af45",
+      "current_prompt": "251828ffaac857646df65af3010f0f103660f36d8c6c47f2b9c2d789713a0f0a"
+    },
+    {
+      "path": "evals/main_agent_search/submitted_resume_questionnaire_continues_tailoring.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "7bf4a78e7e4a1b2bf4e3f572b3bcfa4d28b0b133be00446a477dc18421fa823e",
+      "current_prompt": "102055646457f74bdb672349c32124b916ae6e3ba29291f6fe32e85893394dbe"
+    },
+    {
+      "path": "evals/main_agent_search/tool_selection_combines_job_analysis_and_resume_match.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "1af3bc11afa72a3cf56513e56afc3d253cf4d8362b6ee1e0f85fb4273fb46b77",
+      "current_prompt": "92f50f08bcfb4d242fb75bc057dea547fa7c9552918f9ace3ea3c2d7e1e113ed"
+    },
+    {
+      "path": "evals/main_agent_search/tool_selection_switches_from_resume_to_job_research.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_search/weak_match_routes_to_resume_tailoring.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8eace026cbb8afd566a982815c85b087db97e74806be3f940dc0ebfe32f6a11f",
+      "current_prompt": "407c4af2952c59cce1404ebef0e60560aa87bd0057be99dc93dddecac4db437f"
+    },
+    {
+      "path": "evals/main_agent_search/working_notes_never_choose_or_rank_a_job.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "1d032bc45a190f15d6f60dac28a0f37685e00aab021a3de7b4f9b72843b6fd87",
+      "current_prompt": "7db4c2c1ee6a0744d392507178fd73a4ff0f943d7b4354a6d2a3c56ed71eb246"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_bare_confirmation_expires_after_the_adjacent_turn.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "05c4b66d5a4152d90df20a0f0bf64f2040eeb94d234f86eb3dccdff1f7b2f2bd",
+      "current_prompt": "4630cbfb3895718035cda97bc67fe08059e77cd75fd6c57fef17ad23d89e542d"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_calendar_write_is_never_executed_in_the_turn_that_prepared_it.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "7bb6e884e0ac65440cc5eefcdf64d55516e906537b27f358f2a26ea6ba3bc21c",
+      "current_prompt": "0082a2baec7181d60ac2cb1e567375cba81cd624b590f9bb1a460dffa3878568"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_card_backed_report_is_answered_without_reproducing_it.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_compacted_fact_is_paged_in_rather_than_guessed.json",
+      "reason": null,
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_core_request_routes_before_job_analysis.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "fd8957399acfb7084ae0ec5f8ffa49230d20c0dc2cfc47a8199e337feb1d2000",
+      "current_prompt": "6a9a8be8aab504ff4d61a9f0f6d6f2b43b7b8b3f3aa0b15bd5401a4a47643044"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_fact_still_in_the_window_is_answered_without_page_in.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "c106fa321706307ad63e4803804e5c46c26e8e814f58ac8018998a1b599007f8"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_long_compacted_history_is_searched_in_one_page_in_call.json",
+      "reason": null,
+      "stored_prompt": "714162ca6a862bf5374845b2ffb3deb12359ab3c0b82f1b66851bd5c95694121",
+      "current_prompt": "714162ca6a862bf5374845b2ffb3deb12359ab3c0b82f1b66851bd5c95694121"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_missing_city_is_asked_for_not_guessed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "b7230fc5b64460402cd1d0224af43ce8883e50741a8b0df4c5a20a2f069da24a"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_nonretryable_read_failure_is_not_reissued.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f",
+      "current_prompt": "ad8babe2658166dd736b4ecf3eae55c16a8da4e928ccdba9a1e8b9175cf3a7f2"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_note_derived_filter_is_confirmed_with_the_user.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "1836662633963b742a924b4bf7207b61bd6743930cebcb17f0cb7085b4070c5f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_questionnaire_answer_is_proposed_with_user_input_provenance.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "341beb8320f32fda677f3c15ace658310f986bba64c27d65c0abf2c26acdfcc2",
+      "current_prompt": "1536259f973a5e42d11a7610568e66a8ae9e6c2be5db4229ae3b65a33845e60c"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_repeated_call_is_not_reissued_after_an_observation.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "14e59a389b6b5e59b886576df602a3146786b6a933f9382096106c6b21c58d82",
+      "current_prompt": "09383ef3c4954f8d7044f51600e05908ee2c8aea77eec433cc4b9058510963ae"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_report_made_this_turn_is_read_back_by_its_index.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_report_made_this_turn_without_an_index_cannot_be_named.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_report_older_than_the_window_is_still_read_back.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "152184a2bce74cbc002b8837328930eb005d737a430655d2d8d76801c342042d",
+      "current_prompt": "03eca0f0a7c9f315d478fce904d3753a08b7d507561a97d61d08a4c29d826887"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_report_that_scrolled_out_of_the_catalogue_is_not_faked.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "cacff6db701bd5080a273c63c346c52c2f093916971fdf40e4e06ff97c1018d5",
+      "current_prompt": "c91c5e4a626bde79331a5950f7b544532557dd041ea4f705547dc01e17013a97"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_resume_critique_loads_its_skill.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "699de04d30227db368ac05b8eda655cbb78e9c0aa78f7f883ada4eaf3208cc6b",
+      "current_prompt": "46fb4623b28228242dda42f01666f466e3c8585b634340a563c7e8e16f2b3e70"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_retryable_read_failure_does_not_change_the_user_intent.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8ad0a2d75e54ec77c884c32d6aa163c53331a07b29d222a8c45789f44c20e39f",
+      "current_prompt": "ad8babe2658166dd736b4ecf3eae55c16a8da4e928ccdba9a1e8b9175cf3a7f2"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_returned_span_body_is_used_not_the_window_decoy.json",
+      "reason": null,
+      "stored_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c",
+      "current_prompt": "2b29b4ae6ed3334ad7ce0c0cc003e55104c2071df5699d0afce176cc95e9152c"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_stale_note_is_reviewed_before_reuse.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "2656d5430331e99582dd6fff3fef71f22155bef996b6b5b3532f0b49e7bcc0d3",
+      "current_prompt": "8ebe10fda006b82815806b8936f4bbca19d8931564a7ce68e62a8ee26d28ba97"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_stale_working_note_is_merged_not_overwritten.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "0afbecd4ba9b920cabf512ceae5d91e3c1fb28a4da89d5cfc8cf7ae3c1437afc",
+      "current_prompt": "185d170e3d3015b9e6bc8b7782494c944797690ef7edbc8b660feb3454681910"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/a_stored_report_is_read_back_rather_than_recalled.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "a88fbee81fc5ff1b78319e1e49066f154141f1f8aaf529c06a47bb8373389e82",
+      "current_prompt": "b69f3e807e7b565280c8c7c14a8543b9cab20f03c21c000dc895d0660893c54c"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_approved_calendar_proposal_is_executed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "dca1ca45f2c2f52764cefd9c08bdb562da2be6d2bf3719f7ca4923a5ef16a426",
+      "current_prompt": "4f2b3fbbb32c08849adb776c2eba1f9fd1a2fbb08cda7d038fadd151554d2841"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_authorization_refusal_is_explained_not_bypassed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "a8c3f4606ad525fc23a4e3b9b8a66c307d96156fac8c570a344a1f24aa1afb9f",
+      "current_prompt": "c2150d4d040cab44b42a139538ec38bba403cd63501ec11fd76e521c2f0e1eac"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_empty_conversation_span_is_not_filled_from_the_window.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "a331e59211246e6c7daf6f1b96a597090b2e67f043fce8e7d7133865385679ff",
+      "current_prompt": "083ac60b0c83d05ed06b46f6f2f4eed0cc427308537baa47bdd7f67d3c6850e3"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_invalid_selection_is_not_reconstructed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "67662d51e0825fb2e0c5d6fe594244ece0ab71cd5cda3141ac6d56903318e523",
+      "current_prompt": "d505f696147623e451b89357202500dc60b2f69cd80b08af1602db76e98b7121"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_owner_rule_that_stopped_an_action_is_not_proposed_away.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "7c923170dd3ad34a5f214e296da62503cdb8ca25101062917e56a809a3388e59",
+      "current_prompt": "afe64a92f4fff9af4abc55d762ca1008b73e562b2c718d3a6c1df78a03e11aae"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_unavailable_span_does_not_supply_an_unmentioned_company.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8",
+      "current_prompt": "bd55a24023b849a9dfa611524a991c3c26b91e36c178d105c897078834f3ba60"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_uncertain_calendar_write_is_not_reissued_or_claimed.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "ff055b834960fc29c2adad1a170ed85cde97e7ab43d700a5dba402b312305c46",
+      "current_prompt": "a925df99902ccd506edc8082a18248bc487d878b646606303c8ec0258e48010f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_unmentioned_company_without_compaction_is_not_invented.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8eb119390eca262b8a72b05a439ce13f6beeabc2279f21f31d61341c269233b8",
+      "current_prompt": "bd55a24023b849a9dfa611524a991c3c26b91e36c178d105c897078834f3ba60"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/an_unseen_result_is_delivered_rather_than_characterized.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "142fa81cd96edcbe454f7b3c618d9a04d4c4fa4ce9ebddc55bbe47de4a7f36d3",
+      "current_prompt": "963b13717a29b611472ae3e1c86518cd5746f781e33a83d6a8b85e4e504b8e04"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/cached_research_routes_to_an_explicit_new_focus.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "794fee4ad3281301f3bda99142586d76ea9c5afa3e0ecfdbc8c119ff63416ba6",
+      "current_prompt": "2e74fcbda3e03a4317ee842c991d2bb5887add2d4d6e838d3646e8dc9da8f86b"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/clear_brief_finishes_without_opening_the_action_list.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd",
+      "current_prompt": "df54d2f2e0fe43dd61f644665324fda9380cefc8c5f284fecfa0378c079bd6fa"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/five_missing_resume_facts_use_one_questionnaire.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "f1cd706b1f6db80c09871342fd7e3aa977ce6933f3f575a138af9c5b756f4160",
+      "current_prompt": "740e5e17378c0365d2bd781bfd5ccb401afcf1d55ebf68f020af57c36fff8a99"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/intent_is_not_inferred_from_a_job_the_user_liked.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "f8058926ccbc4a692a89d09eadda86f8a0c0b2d1e53e2cd211bc258192d67f4e",
+      "current_prompt": "14eb39dfc617a6f3dc8d1303400ac174e3a868f5373524ee5327cf3bf47ec1f2"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/interview_completion_is_not_inferred_from_the_clock.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "baa579320a74cbcd30db63338cfef67c8d05f297dbc961dc21d4afd74b3b5353",
+      "current_prompt": "25a12130fc2561cd8a7fa3c9f75dd7e91b61af0ff7a9886748b305ec77288993"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/overdue_brief_routes_to_the_action_list.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "df3cffc717c8073abbe82fb2a4f2851a6b84f1ea0d36361bcb08fe35701ec5fd",
+      "current_prompt": "df54d2f2e0fe43dd61f644665324fda9380cefc8c5f284fecfa0378c079bd6fa"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/planning_to_apply_does_not_create_an_application.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "da31282fa90291b4f0c8e5b6f3ab693f23277471f87df0741c941656c55d42b2",
+      "current_prompt": "38fe48d06ebce31b728bc628807e57341d0f63f90274636b2d72407ecbe98e2d"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/research_is_not_started_as_part_of_matching.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "932d028555e370a140746a006d5cb50b13fd4acff88e4360204f62e57d40aabe",
+      "current_prompt": "33990ef5c8063467a6b29c9c3a276545ffaaaf15e5a69c4b186ca8269a7c5cd7"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/saved_jd_body_drives_the_next_read_step.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7",
+      "current_prompt": "63aedcc812e4259976611ee9a7da7414c1d3e1e7cc0abb0a10f4041d8b024e9b"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/saved_jd_body_without_language_requirement_finishes.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "b0d03a7b8216c23bb458dc14cc1cef91ad2b39420d52b0ddd1375d33467d35e7",
+      "current_prompt": "63aedcc812e4259976611ee9a7da7414c1d3e1e7cc0abb0a10f4041d8b024e9b"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/stated_intent_is_proposed_before_it_is_recorded.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "d094b52aeeb24bf6c7604bbf710bde257bc5f0d16d7853d348c7cf2b7de6af45",
+      "current_prompt": "251828ffaac857646df65af3010f0f103660f36d8c6c47f2b9c2d789713a0f0a"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/submitted_resume_questionnaire_continues_tailoring.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "7bf4a78e7e4a1b2bf4e3f572b3bcfa4d28b0b133be00446a477dc18421fa823e",
+      "current_prompt": "102055646457f74bdb672349c32124b916ae6e3ba29291f6fe32e85893394dbe"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/tool_selection_combines_job_analysis_and_resume_match.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "1af3bc11afa72a3cf56513e56afc3d253cf4d8362b6ee1e0f85fb4273fb46b77",
+      "current_prompt": "92f50f08bcfb4d242fb75bc057dea547fa7c9552918f9ace3ea3c2d7e1e113ed"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/tool_selection_switches_from_resume_to_job_research.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "45929e36668b3998f834d560cbf670cda1e82961dca4a0ab361dc382526bdc53",
+      "current_prompt": "481198fb3eb81ed3ca0905c6ad4ad13edb5f13c41835873e7d965cd61147890f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/weak_match_routes_to_resume_tailoring.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "8eace026cbb8afd566a982815c85b087db97e74806be3f940dc0ebfe32f6a11f",
+      "current_prompt": "407c4af2952c59cce1404ebef0e60560aa87bd0057be99dc93dddecac4db437f"
+    },
+    {
+      "path": "evals/main_agent_deepseek_search/working_notes_never_choose_or_rank_a_job.json",
+      "reason": "search prompt or schema changed; re-record it",
+      "stored_prompt": "1d032bc45a190f15d6f60dac28a0f37685e00aab021a3de7b4f9b72843b6fd87",
+      "current_prompt": "7db4c2c1ee6a0744d392507178fd73a4ff0f943d7b4354a6d2a3c56ed71eb246"
+    }
+  ],
+  "rerecord_attempt": {
+    "model": "deepseek-flash",
+    "completed": false,
+    "restricted_environment": "DNS resolution failed",
+    "network_enabled_environment": "httpx ConnectError, including trust_env=False; endpoint unavailable",
+    "cassette_files_changed": false,
+    "qwen_configuration": "not configured as current MAIN_AGENT model"
+  }
+}

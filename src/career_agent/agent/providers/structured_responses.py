@@ -36,6 +36,7 @@ from pydantic import BaseModel
 
 from career_agent.agent.providers.openai_client import AgentWorkerError
 from career_agent.agent.providers.structured_response_retry import retry_invalid_response
+from career_agent.harness.observability import ModelCallCategory
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -170,6 +171,8 @@ def structured_response(
     include_validation_feedback: bool = False,
     protocol: str = "responses",
     schema: dict[str, Any] | None = None,
+    model_call_category: ModelCallCategory = "capability_agent",
+    reasoning_effort: str | None = None,
 ) -> T:
     """Ask for one JSON-schema-shaped answer, or raise a classified failure.
 
@@ -239,6 +242,8 @@ def structured_response(
                     },
                     max_output_tokens=max_output_tokens,
                     timeout=timeout_seconds,
+                    **({"reasoning": {"effort": reasoning_effort}}
+                       if reasoning_effort is not None else {}),
                 )
         except RateLimitError as error:
             raise AgentWorkerError(
@@ -279,7 +284,9 @@ def structured_response(
                 detail=repair_detail,
             ) from error
 
-    return retry_invalid_response(request_once, code_prefix=code_prefix)
+    return retry_invalid_response(
+        request_once, code_prefix=code_prefix, model_call_category=model_call_category,
+    )
 
 
 def _empty_response_shape(response: object) -> str:

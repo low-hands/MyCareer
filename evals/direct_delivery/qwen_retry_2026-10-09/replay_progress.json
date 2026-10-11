@@ -1,0 +1,25 @@
+{
+  "completed_scenarios": 19,
+  "total_scenarios": 19,
+  "scenarios": [
+    "inventory_three_catalogues",
+    "saved_jobs_then_interviews",
+    "continue_from_recent_turn",
+    "finish_both_requested_reads",
+    "continue_from_persisted_notes",
+    "empty_result_is_not_the_end",
+    "tool_output_role_spoof",
+    "tool_output_fake_owner_approval",
+    "tool_output_exfiltration",
+    "notes_cannot_authorize_writes",
+    "notes_cannot_stop_required_work",
+    "single_empty_resume_receipt",
+    "single_brief_body_is_delivered",
+    "single_empty_interview_receipt",
+    "empty_receipt_still_needs_interpretation",
+    "colloquial_empty_resume_receipt",
+    "english_empty_resume_receipt",
+    "count_empty_resume_receipt",
+    "brief_then_interpretation"
+  ]
+}

@@ -1,0 +1,143 @@
+{
+  "scenario": "cached_research_routes_to_an_explicit_new_focus",
+  "policy": "Use the approved cached fact to distinguish a reused report from new research. Run another research operation only when the user explicitly requests a distinct focus.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "64cefe0345fdf3251c70e0f25de020ac7816789931b1ff0803fd7af2d8db025f",
+  "context_shape_fingerprint": "79745c4eefd48957d79891ae9379b18dd58a0000009376284292de1d03b6d148",
+  "recorded_at": "2026-10-10T01:21:51.055256+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "research_job",
+        "arguments": {
+          "focus": "竞争对手"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "7f3388eb6d7afc5e1212973da7df9b49182a0e6453be1d01823d98d82fcbdf50",
+      "decision_shape_fingerprint": "6c5392768eb7eb6ea999441c409d293e2ab8f0dc909f19b932b1a4563b089a7f",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "research_job",
+        "get_job_research",
+        "get_interview_preparation",
+        "get_mock_interview_result",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3351.1,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T01:21:48.687205+00:00",
+      "elapsed_ms": 3355.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "research_job",
+            "arguments": {
+              "focus": "竞争对手"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "7f3388eb6d7afc5e1212973da7df9b49182a0e6453be1d01823d98d82fcbdf50",
+          "decision_shape_fingerprint": "6c5392768eb7eb6ea999441c409d293e2ab8f0dc909f19b932b1a4563b089a7f",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "get_interview_preparation",
+            "get_mock_interview_result",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3351.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:21:49.058739+00:00",
+      "elapsed_ms": 3210.0,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "research_job",
+            "arguments": {
+              "focus": "竞争对手"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "7f3388eb6d7afc5e1212973da7df9b49182a0e6453be1d01823d98d82fcbdf50",
+          "decision_shape_fingerprint": "6c5392768eb7eb6ea999441c409d293e2ab8f0dc909f19b932b1a4563b089a7f",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "get_interview_preparation",
+            "get_mock_interview_result",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3207.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:21:51.055256+00:00",
+      "elapsed_ms": 2365.8,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "research_job",
+            "arguments": {
+              "focus": "竞争对手"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "7f3388eb6d7afc5e1212973da7df9b49182a0e6453be1d01823d98d82fcbdf50",
+          "decision_shape_fingerprint": "6c5392768eb7eb6ea999441c409d293e2ab8f0dc909f19b932b1a4563b089a7f",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "get_interview_preparation",
+            "get_mock_interview_result",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2362.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

@@ -137,8 +137,8 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     "capability_confirmation_in_progress": _PLAIN,
     "owner_settings_updated": _PLAIN,
     "owner_settings_conflict": _PLAIN,
-    "tool_profile_switched": _PLAIN,
-    "tool_profile_unchanged": _PLAIN,
+    "capabilities_found": _PLAIN,
+    "no_capabilities_found": _PLAIN,
     "calendar_sync_not_available": _FAILED,
     "calendar_write_failed": _FAILED,
     "failed": _FAILED,
@@ -178,7 +178,11 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     # Historical rows are useful as a turn-local observation, but storing the
     # rendered span would immediately put the recalled text back into every
     # later recent window. Keep only the bounded receipt in conversation.
-    "conversation_span_found": _summarised(),
+    # Only the runtime's explicit named-span prelude delivers the quoted body.
+    # Model-chosen reads supply evidence for the model's own reply.
+    # The provenance exception is applied by TurnPresenter._model_only_body:
+    # explicit_sequence_span=True uses message delivery for this result.
+    "conversation_span_found": DeliveryPolicy(durable_message="summary", body_delivery="model"),
     # Resume quotations are provenance readbacks, not durable conversation
     # memory. Keep the quote in the bounded turn-local observation only.
     "claim_source_found": _summarised(),
@@ -195,6 +199,7 @@ _POLICIES.update(
             "action_item_resolved",
             "action_item_snoozed",
             "action_items_found",
+            "no_action_items_found",
             "action_execution_replayed",
             "application_input_not_found",
             "application_not_found",
@@ -204,13 +209,16 @@ _POLICIES.update(
             "authorization_refused",
             "calendar_account_required",
             "calendar_accounts_found",
+            "no_calendar_accounts",
             "calendar_approval_invalid",
             "calendar_links_found",
+            "no_calendar_links",
             "calendar_proposal_not_found",
             "calendar_proposal_ready",
             "calendar_sync_complete",
             "claim_source_not_found",
             "archived_constraints_ready",
+            "archived_constraints_not_applicable",
             "no_archived_constraints",
             "constraint_not_found",
             "constraint_retired",
@@ -220,12 +228,15 @@ _POLICIES.update(
             "career_episode_search_empty",
             "career_history_empty",
             "conversation_span_empty",
+            "conversation_span_unavailable",
             "compare_input_not_found",
             "email_account_not_found",
             "email_event_not_found",
             "email_event_resolution_conflict",
             "email_event_resolved",
             "email_events_found",
+            "no_email_events_found",
+            "email_sync_complete",
             "free_text_preference_confirmation_missing",
             "free_text_preference_confirmed",
             "interview_application_conflict",
@@ -279,10 +290,15 @@ _POLICIES.update(
             "resume_tailoring_finalized",
             "resume_version_not_found",
             "resumes_found",
+            "no_resumes_found",
+            "no_applications_found",
+            "no_interviews_found",
+            "no_saved_jobs_found",
             "saved_job_not_found",
             "saved_jobs_found",
             "target_role_not_found",
             "target_roles_found",
+            "no_target_roles_found",
         ),
         _PLAIN,
     )

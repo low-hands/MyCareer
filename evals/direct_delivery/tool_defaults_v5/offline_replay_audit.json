@@ -1,0 +1,24 @@
+[
+  {
+    "suite": "runtime",
+    "samples": 57,
+    "same_report": true,
+    "current_source_matches_preregistration": true,
+    "embedding_initializations": 0,
+    "pass3": {
+      "passed": 17,
+      "total": 19
+    }
+  },
+  {
+    "suite": "holdout",
+    "samples": 42,
+    "same_report": true,
+    "current_source_matches_preregistration": true,
+    "embedding_initializations": 0,
+    "pass3": {
+      "passed": 11,
+      "total": 14
+    }
+  }
+]

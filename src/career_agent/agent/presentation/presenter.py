@@ -42,7 +42,7 @@ class TurnPresenter:
 
         if result.state == "saved_job_ready" and result.resource_ref is not None:
             return result.message
-        if policy_for(result.state).body_delivery == "model":
+        if self._model_only_body(result):
             return result.message
         screen = self._assistant_message(result)
         if result.disposition != "failed":
@@ -110,7 +110,7 @@ class TurnPresenter:
             policy = policy_for(result.state)
             if (
                 not policy.condensed_message
-                or policy.body_delivery == "model"
+                or self._model_only_body(result)
                 or self.has_backed_card(result)
             ):
                 continue
@@ -118,6 +118,16 @@ class TurnPresenter:
             if rendered and rendered not in bodies:
                 bodies.append(rendered)
         return "\n\n".join(bodies)
+
+    @staticmethod
+    def _model_only_body(result: MainAgentToolOutput) -> bool:
+        return (
+            policy_for(result.state).body_delivery == "model"
+            and not (
+                result.state == "conversation_span_found"
+                and result.explicit_sequence_span
+            )
+        )
 
     def delivered_bodies(
         self,

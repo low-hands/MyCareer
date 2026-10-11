@@ -13,7 +13,7 @@ from deepagents import (
     create_deep_agent,
     register_harness_profile,
 )
-from deepagents.backends import FilesystemBackend
+from deepagents.backends import CompositeBackend, FilesystemBackend, StateBackend
 from langchain.agents.structured_output import ProviderStrategy, StructuredOutputError
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage
@@ -53,6 +53,7 @@ class ResearchCheckpointer(Protocol):
 
 
 DeepAgentFactory = Callable[..., ResearchAgent]
+JOB_RESEARCH_SKILL = "job-research"
 
 
 def _base_url(endpoint: str) -> str:
@@ -236,7 +237,20 @@ class DeepAgentJobResearchWorker(JobResearchWorker):
                 "team projects, organization, staffing, or hiring process."
             ),
             skills=["/"],
-            backend=FilesystemBackend(root_dir=self._skills_root, virtual_mode=True),
+            # Mount only this agent's skill directory. Skill discovery lists
+            # every directory under the source, and file tools can read the
+            # whole backend, so a shared skills root would expose the other
+            # workflows' skills. Reference files added under job-research/
+            # stay readable on demand.
+            backend=CompositeBackend(
+                default=StateBackend(),
+                routes={
+                    f"/{JOB_RESEARCH_SKILL}/": FilesystemBackend(
+                        root_dir=self._skills_root / JOB_RESEARCH_SKILL,
+                        virtual_mode=True,
+                    ),
+                },
+            ),
             permissions=[
                 FilesystemPermission(
                     operations=["write"],
@@ -280,7 +294,7 @@ class DeepAgentJobResearchWorker(JobResearchWorker):
 
     @staticmethod
     def _validate_skill_source(skills_root: Path) -> None:
-        skill_file = skills_root / "job-research" / "SKILL.md"
+        skill_file = skills_root / JOB_RESEARCH_SKILL / "SKILL.md"
         if not skills_root.is_dir() or not skill_file.is_file():
             raise ValueError(
                 "Job research skill is missing; expected "

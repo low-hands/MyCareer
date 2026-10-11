@@ -1,0 +1,139 @@
+{
+  "scenario": "a_stale_working_note_is_merged_not_overwritten",
+  "policy": "Always pass the revision from the current working_notes projection; after working_notes_stale, merge the current note before retrying and never overwrite it directly.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "1414214562788855691096f9711a0236d7b7b4e7088151be0b69c2e81d8a38ae",
+  "context_shape_fingerprint": "0cfdc22cccc7021027b33b750ce32018aa2830cce3bebf30c3b9fe5066e95ddc",
+  "recorded_at": "2026-10-10T01:20:03.296725+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "update_working_notes",
+        "arguments": {
+          "expected_revision": "aaaaaaaaaaaa",
+          "markdown": "- 对方会话保留的关键片段\n- 面试后记得发感谢邮件"
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "edeb076551a3ab72019293c6ef178720e4a83e3d933fb172776693c240736fdb",
+      "decision_shape_fingerprint": "ebe8ef13336c89fc2aeba6f74ef71469f66eaf115862ee7d84c11c77bce9c10b",
+      "offered_tools": [
+        "load_skill",
+        "update_working_notes",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "sync_application_emails",
+        "list_email_events",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2955.3,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T01:20:00.681820+00:00",
+      "elapsed_ms": 2956.4,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "update_working_notes",
+            "arguments": {
+              "expected_revision": "aaaaaaaaaaaa",
+              "markdown": "- 对方会话保留的关键片段\n- 面试后记得发感谢邮件"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "edeb076551a3ab72019293c6ef178720e4a83e3d933fb172776693c240736fdb",
+          "decision_shape_fingerprint": "ebe8ef13336c89fc2aeba6f74ef71469f66eaf115862ee7d84c11c77bce9c10b",
+          "offered_tools": [
+            "load_skill",
+            "update_working_notes",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "sync_application_emails",
+            "list_email_events",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2955.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:20:01.317025+00:00",
+      "elapsed_ms": 2964.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "update_working_notes",
+            "arguments": {
+              "expected_revision": "aaaaaaaaaaaa",
+              "markdown": "- 对方会话保留的关键片段\n- 面试后记得发感谢邮件"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "edeb076551a3ab72019293c6ef178720e4a83e3d933fb172776693c240736fdb",
+          "decision_shape_fingerprint": "ebe8ef13336c89fc2aeba6f74ef71469f66eaf115862ee7d84c11c77bce9c10b",
+          "offered_tools": [
+            "load_skill",
+            "update_working_notes",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "sync_application_emails",
+            "list_email_events",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2963.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:20:03.296725+00:00",
+      "elapsed_ms": 2614.2,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "update_working_notes",
+            "arguments": {
+              "expected_revision": "aaaaaaaaaaaa",
+              "markdown": "- 对方会话保留的关键片段\n- 面试后记得发感谢邮件"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "edeb076551a3ab72019293c6ef178720e4a83e3d933fb172776693c240736fdb",
+          "decision_shape_fingerprint": "ebe8ef13336c89fc2aeba6f74ef71469f66eaf115862ee7d84c11c77bce9c10b",
+          "offered_tools": [
+            "load_skill",
+            "update_working_notes",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "sync_application_emails",
+            "list_email_events",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2611.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

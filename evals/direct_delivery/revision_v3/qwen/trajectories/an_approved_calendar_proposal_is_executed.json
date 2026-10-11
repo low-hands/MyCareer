@@ -1,0 +1,131 @@
+{
+  "scenario": "an_approved_calendar_proposal_is_executed",
+  "policy": "A request to execute a displayed calendar proposal may read the proposal or request execution through the runtime's bound approval gate. Natural-language approval alone never authorizes the write.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "be6f2fd753c7f37b761ce9637fab91cc02f38a7051293f0a40f244ad83628dec",
+  "context_shape_fingerprint": "3fbe0877d42a4588c2eea0087a5acc2da3a44ae67008c1e07b4e645ac32c2ab5",
+  "recorded_at": "2026-10-10T00:52:19.053160+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "execute_calendar_proposal",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "9269214297f1f1cc49e7cc296bf21a4871d0d31edca9ab1ef4423dccf2571d9a",
+      "decision_shape_fingerprint": "fd5a9b58cb9e3795ce03a3a6dcf8e99a1387dc3317b957b688dba39580d025cb",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_interview",
+        "prepare_interview_calendar_sync",
+        "get_calendar_proposal",
+        "execute_calendar_proposal",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 25031.7,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T00:52:36.435231+00:00",
+      "elapsed_ms": 25035.8,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "execute_calendar_proposal",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9269214297f1f1cc49e7cc296bf21a4871d0d31edca9ab1ef4423dccf2571d9a",
+          "decision_shape_fingerprint": "fd5a9b58cb9e3795ce03a3a6dcf8e99a1387dc3317b957b688dba39580d025cb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "prepare_interview_calendar_sync",
+            "get_calendar_proposal",
+            "execute_calendar_proposal",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 25031.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:52:15.458409+00:00",
+      "elapsed_ms": 2711.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "execute_calendar_proposal",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9269214297f1f1cc49e7cc296bf21a4871d0d31edca9ab1ef4423dccf2571d9a",
+          "decision_shape_fingerprint": "fd5a9b58cb9e3795ce03a3a6dcf8e99a1387dc3317b957b688dba39580d025cb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "prepare_interview_calendar_sync",
+            "get_calendar_proposal",
+            "execute_calendar_proposal",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2708.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:52:19.053160+00:00",
+      "elapsed_ms": 6118.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_calendar_proposal",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "9269214297f1f1cc49e7cc296bf21a4871d0d31edca9ab1ef4423dccf2571d9a",
+          "decision_shape_fingerprint": "fd5a9b58cb9e3795ce03a3a6dcf8e99a1387dc3317b957b688dba39580d025cb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "prepare_interview_calendar_sync",
+            "get_calendar_proposal",
+            "execute_calendar_proposal",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6115.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

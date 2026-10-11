@@ -1,0 +1,127 @@
+{
+  "scenario": "weak_match_routes_to_resume_tailoring",
+  "policy": "The bounded observation message may carry an explicitly stated overall fit. Follow the user's conditional instruction from that value without inventing unseen match details.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "ce1d106610ca476454d245ca6f88f67bc1cfb413cc0fb3a8c011a94b47701847",
+  "context_shape_fingerprint": "2f70d47ec1d54c1b45974be462857d0f524a5fcb59ba35c3785886c086684fce",
+  "recorded_at": "2026-10-10T01:21:22.415818+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "draft_resume_tailoring",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "971802b5cb0ded1f1e969dc836c9a5f22e1f2abc9847e9761aa6a26a3b9e3aab",
+      "decision_shape_fingerprint": "2de1a83a9707a114a817b435078eb44c1f8d8a9e1f7fb6455511fc55c9cc31cd",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "get_resume_job_match",
+        "draft_resume_tailoring",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3118.5,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T01:21:19.705943+00:00",
+      "elapsed_ms": 3122.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "draft_resume_tailoring",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "971802b5cb0ded1f1e969dc836c9a5f22e1f2abc9847e9761aa6a26a3b9e3aab",
+          "decision_shape_fingerprint": "2de1a83a9707a114a817b435078eb44c1f8d8a9e1f7fb6455511fc55c9cc31cd",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "get_resume_job_match",
+            "draft_resume_tailoring",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3118.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:21:21.906932+00:00",
+      "elapsed_ms": 3835.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "draft_resume_tailoring",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "971802b5cb0ded1f1e969dc836c9a5f22e1f2abc9847e9761aa6a26a3b9e3aab",
+          "decision_shape_fingerprint": "2de1a83a9707a114a817b435078eb44c1f8d8a9e1f7fb6455511fc55c9cc31cd",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "get_resume_job_match",
+            "draft_resume_tailoring",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3831.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:21:22.415818+00:00",
+      "elapsed_ms": 2707.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "draft_resume_tailoring",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "971802b5cb0ded1f1e969dc836c9a5f22e1f2abc9847e9761aa6a26a3b9e3aab",
+          "decision_shape_fingerprint": "2de1a83a9707a114a817b435078eb44c1f8d8a9e1f7fb6455511fc55c9cc31cd",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "get_resume_job_match",
+            "draft_resume_tailoring",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2702.6,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

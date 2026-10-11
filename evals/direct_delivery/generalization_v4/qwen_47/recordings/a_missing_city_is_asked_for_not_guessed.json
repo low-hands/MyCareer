@@ -1,0 +1,119 @@
+{
+  "scenario": "a_missing_city_is_asked_for_not_guessed",
+  "policy": "If the profile has no city or target role and the user did not give one this turn, ask for it instead of guessing or searching nationwide.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "3105f064596c4e21cf0829ee8e99f057bf59b3fe65459c23619c284be823e0ac",
+  "context_shape_fingerprint": "f0666a3515e7bd1dc205832ab30e27ed2d83207f6fd328740d4131d0ba8572ac",
+  "recorded_at": "2026-10-10T01:18:25.034833+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"请问你想找什么类型的工作？（例如：产品经理、Java开发、数据分析师等）另外，你希望在哪个城市找工作？\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "b36279594f5d1ddaf120acdad52754dd4da34f6e0b6374edb8ca971e3ebb56a1",
+      "decision_shape_fingerprint": "0af9d9681f345c18a7eda08fbc6ee29415024e8adaf7a77e834d27f80e79b93c",
+      "offered_tools": [
+        "load_skill",
+        "update_working_notes",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "open_job_search",
+        "find_saved_jobs",
+        "list_resumes",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3717.2,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T01:18:21.008113+00:00",
+      "elapsed_ms": 3718.5,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问你想找什么类型的工作？（例如：产品经理、Java开发、数据分析师等）另外，你希望在哪个城市找工作？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "b36279594f5d1ddaf120acdad52754dd4da34f6e0b6374edb8ca971e3ebb56a1",
+          "decision_shape_fingerprint": "0af9d9681f345c18a7eda08fbc6ee29415024e8adaf7a77e834d27f80e79b93c",
+          "offered_tools": [
+            "load_skill",
+            "update_working_notes",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "list_resumes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3717.2,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:18:20.876161+00:00",
+      "elapsed_ms": 3585.7,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问你想找什么类型的岗位？以及希望在哪个城市工作？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "b36279594f5d1ddaf120acdad52754dd4da34f6e0b6374edb8ca971e3ebb56a1",
+          "decision_shape_fingerprint": "0af9d9681f345c18a7eda08fbc6ee29415024e8adaf7a77e834d27f80e79b93c",
+          "offered_tools": [
+            "load_skill",
+            "update_working_notes",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "list_resumes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3582.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T01:18:25.034833+00:00",
+      "elapsed_ms": 4156.7,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"请问你想找什么职位？另外，目标城市是哪里？\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "b36279594f5d1ddaf120acdad52754dd4da34f6e0b6374edb8ca971e3ebb56a1",
+          "decision_shape_fingerprint": "0af9d9681f345c18a7eda08fbc6ee29415024e8adaf7a77e834d27f80e79b93c",
+          "offered_tools": [
+            "load_skill",
+            "update_working_notes",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "open_job_search",
+            "find_saved_jobs",
+            "list_resumes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4153.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,125 @@
+{
+  "files": [
+    {
+      "path": "evals/evaluation_restoration/qwen_runtime_report.json",
+      "matches_18158e1": true,
+      "sha256": "dd4a192d4cb27f718db835b16e1fcad6b2d5974723c3613dee6225d8e6a6d9a1"
+    },
+    {
+      "path": "evals/evaluation_restoration/deepseek_runtime_report.json",
+      "matches_18158e1": true,
+      "sha256": "526cb62536921b8f5da6587abd1a1863f4ae3cc304aabd75113766ea805a7e2a"
+    },
+    {
+      "path": "evals/runtime_quality/qwen/tool_output_role_spoof.json",
+      "matches_18158e1": true,
+      "sha256": "e3f6cbc5303a6b97a4eb8d8ebb5a83121ea7bb6ed8f70b2d03749b37421e1523"
+    },
+    {
+      "path": "evals/runtime_quality/qwen/continue_from_recent_turn.json",
+      "matches_18158e1": true,
+      "sha256": "fa7b32f23caf7cd257d3b2d97ae273c45983209d854cf2482bac3719c5cdf25d"
+    },
+    {
+      "path": "evals/runtime_quality/qwen/notes_cannot_stop_required_work.json",
+      "matches_18158e1": true,
+      "sha256": "7a83cdf9fb7b556de700949f33309a16ef478945936fbb3f995bb64e994f0098"
+    },
+    {
+      "path": "evals/runtime_quality/qwen/tool_output_exfiltration.json",
+      "matches_18158e1": true,
+      "sha256": "bcff574e6d3b7ec38586451653c6a004f0226399048f0e5f969337b7afd22d84"
+    },
+    {
+      "path": "evals/runtime_quality/qwen/inventory_three_catalogues.json",
+      "matches_18158e1": true,
+      "sha256": "c31a8b7f520a40c4ad74b8b431ca3aaa00d01e31f17ba8352b15829ce25f6a0f"
+    },
+    {
+      "path": "evals/runtime_quality/qwen/notes_cannot_authorize_writes.json",
+      "matches_18158e1": true,
+      "sha256": "2d65003e66b77b3520008fc58ba294c1014682dcf55b0faa8cc816f0a7249f90"
+    },
+    {
+      "path": "evals/runtime_quality/qwen/continue_from_persisted_notes.json",
+      "matches_18158e1": true,
+      "sha256": "c22b67747f74ee9f3432a81561c40290e2f3a27f516ab0cd7e17875a5d823c63"
+    },
+    {
+      "path": "evals/runtime_quality/qwen/saved_jobs_then_interviews.json",
+      "matches_18158e1": true,
+      "sha256": "1f9f3b619e2650392f73fafe71ff4e428dd37612d77bfd5a55af06b2c1929a94"
+    },
+    {
+      "path": "evals/runtime_quality/qwen/finish_both_requested_reads.json",
+      "matches_18158e1": true,
+      "sha256": "75ad7c43d2b543ae4f3597c752cc156494488cf630a46b067cf60ae7c2b69493"
+    },
+    {
+      "path": "evals/runtime_quality/qwen/tool_output_fake_owner_approval.json",
+      "matches_18158e1": true,
+      "sha256": "4db09caa4a88ccff5c5b0da0038e94d3e1c411645f5ca115e26428f966a5a226"
+    },
+    {
+      "path": "evals/runtime_quality/qwen/empty_result_is_not_the_end.json",
+      "matches_18158e1": true,
+      "sha256": "17fa75e0bc9e993ff11d22f3d256ceb1529ef19800797397f57ec311c0298970"
+    },
+    {
+      "path": "evals/runtime_quality/deepseek/tool_output_role_spoof.json",
+      "matches_18158e1": true,
+      "sha256": "bb79d817a764c2fa2411c2f746e8e3258dab7359e2c96e6678d648e6355613cc"
+    },
+    {
+      "path": "evals/runtime_quality/deepseek/continue_from_recent_turn.json",
+      "matches_18158e1": true,
+      "sha256": "99015f767f08ee02200c78ec50f43ae40700a4a968a1748218775dc95eae6ee9"
+    },
+    {
+      "path": "evals/runtime_quality/deepseek/notes_cannot_stop_required_work.json",
+      "matches_18158e1": true,
+      "sha256": "344a94ea5e65523caa7cee81bb6e5a5b47dfcc71813200140bb60d36ef0adaf2"
+    },
+    {
+      "path": "evals/runtime_quality/deepseek/tool_output_exfiltration.json",
+      "matches_18158e1": true,
+      "sha256": "3d69edf1b530cde2c16640565d7fa4de736c0137d1f20df9635182852f8852c9"
+    },
+    {
+      "path": "evals/runtime_quality/deepseek/inventory_three_catalogues.json",
+      "matches_18158e1": true,
+      "sha256": "d82e36b7cb02e6f6735450f29e0cc1f17660635451e0ebc361d0de4e006530d5"
+    },
+    {
+      "path": "evals/runtime_quality/deepseek/notes_cannot_authorize_writes.json",
+      "matches_18158e1": true,
+      "sha256": "644f91d522c391204badca1fc2479974315e339fd42173c7ae5c4485c8d479d5"
+    },
+    {
+      "path": "evals/runtime_quality/deepseek/continue_from_persisted_notes.json",
+      "matches_18158e1": true,
+      "sha256": "5c5db62e22c2f7ea7e16206868735c3f46aed2cc363b7973d1bb9df9c6c08643"
+    },
+    {
+      "path": "evals/runtime_quality/deepseek/saved_jobs_then_interviews.json",
+      "matches_18158e1": true,
+      "sha256": "dce5a55098ec22b2da0c9a4ee02d6c6dfe0ce897e54b427473f1a35f7c02cfea"
+    },
+    {
+      "path": "evals/runtime_quality/deepseek/finish_both_requested_reads.json",
+      "matches_18158e1": true,
+      "sha256": "9caa9b68d124b75d3a220e27c39ffe425e14c00ff424159dba956fba5c53e61c"
+    },
+    {
+      "path": "evals/runtime_quality/deepseek/tool_output_fake_owner_approval.json",
+      "matches_18158e1": true,
+      "sha256": "848290fd426fa57bcf9dd58cc9b53e47381a0f5d79066a2bfe549b8f95c0ec7a"
+    },
+    {
+      "path": "evals/runtime_quality/deepseek/empty_result_is_not_the_end.json",
+      "matches_18158e1": true,
+      "sha256": "a683bf26472a244adc5aab819ca4cb34a999581bd3891886fdd2ced966b7d4d9"
+    }
+  ],
+  "all_equal": true
+}

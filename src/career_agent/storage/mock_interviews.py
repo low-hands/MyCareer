@@ -1067,6 +1067,14 @@ class SQLiteMockInterviewStore:
                 f"DELETE FROM mock_interview_sessions WHERE {session_where}", (user_id,)
             ).rowcount
 
+    def has_round_reference(self, *, user_id: str, interview_round_id: str) -> bool:
+        with self._connect() as connection:
+            return connection.execute(
+                "SELECT 1 FROM mock_interview_sessions "
+                "WHERE user_id = ? AND interview_round_id = ? LIMIT 1",
+                (user_id, interview_round_id),
+            ).fetchone() is not None
+
     def list_resume_version_ids(self, *, user_id: str) -> frozenset[str]:
         with self._connect() as connection:
             rows = connection.execute(

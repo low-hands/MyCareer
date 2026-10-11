@@ -290,7 +290,7 @@ def test_runtime_blocks_guarded_handler_but_executes_an_unguarded_read(
         decision_maker=_NeverDecisionMaker(),
         tools=registry,
     )
-    context = _context(task=ConversationTaskState(tool_profile="job"))
+    context = _context(task=ConversationTaskState())
     blocked_state = {
         "context": context,
         "decision": AgentDecision(
@@ -299,7 +299,8 @@ def test_runtime_blocks_guarded_handler_but_executes_an_unguarded_read(
                 name="find_saved_jobs", arguments={"query": "Rust"}
             ),
         ),
-        "control": {},
+        # As decide records them: execution is limited to the offered schemas.
+        "control": {"offered_tool_names": ("find_saved_jobs", "get_saved_job")},
         "pending": {},
     }
 
@@ -328,7 +329,6 @@ def test_runtime_blocks_guarded_handler_but_executes_an_unguarded_read(
 
 _REMEMBERED = "按你记得的我的偏好，这两个岗位直接推荐一个。"
 _TWO_JOBS = ConversationTaskState(
-    tool_profile="job",
     saved_job_candidates=(
         SavedJobCandidateContextItem(
             job_posting_id="job-1", title="算法工程师", company_name="甲"
@@ -515,7 +515,7 @@ def test_runtime_refuses_a_comparison_asked_for_by_remembered_preference(
                 arguments={"selection_indexes": [1, 2]},
             ),
         ),
-        "control": {},
+        "control": {"offered_tool_names": ("compare_saved_jobs",)},
         "pending": {},
     }
 

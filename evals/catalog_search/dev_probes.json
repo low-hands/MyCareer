@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "review_context": "2026-10-08 review of step 2: generic action verbs must not replace subject evidence. These are review-proposed development probes, not blind tests or holdout cases.",
+  "cases": [
+    {"id":"probe_confirm_without_object","split":"dev","probe_kind":"regression","query":"帮我确认一下","expected_tools":[],"required_k":5,"forbidden_effects":["WRITE"],"forbid_action_tools":true},
+    {"id":"probe_start_before_read_resume","split":"dev","probe_kind":"regression","query":"开始之前先看看我的简历","expected_tools":["list_resumes"],"required_k":5,"forbidden_effects":["WRITE"],"forbid_action_tools":true},
+    {"id":"probe_search_experience","split":"dev","probe_kind":"regression","query":"搜索一下我的经历","expected_tools":["search_career_memory"],"required_k":5,"forbidden_effects":["WRITE"],"forbid_action_tools":true},
+    {"id":"probe_open_application_records","split":"dev","probe_kind":"regression","query":"打开我的投递记录","expected_tools":["list_applications"],"required_k":5,"forbidden_effects":["WRITE"],"forbid_action_tools":true},
+    {"id":"probe_completed_interview_question","split":"dev","probe_kind":"observation","query":"我已经完成面试了吗","expected_tools":[],"required_k":5,"forbidden_effects":[],"note":"Known substring limitation: completion question can contain both action and subject. Record exposure without a pass/fail contract."},
+    {"id":"probe_negated_delete_experience","split":"dev","probe_kind":"observation","query":"不要删除这条经历","expected_tools":[],"required_k":5,"forbidden_effects":[],"note":"Known substring limitation: negated delete still contains action and subject. Record exposure without a pass/fail contract."},
+    {"id":"probe_check_resume","split":"dev","probe_kind":"observation","query":"检查一下我的简历","expected_tools":[],"required_k":5,"forbidden_effects":[],"note":"Review tool has both its own check action and resume subject; record this ambiguous exposure without claiming intent is understood."}
+  ]
+}

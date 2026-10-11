@@ -1,0 +1,1442 @@
+[
+  {
+    "scenario": "resume_list",
+    "sample": 1,
+    "turn": 1,
+    "message": "简历给我列一下",
+    "assistant": "当前没有找到任何简历。如果您需要创建或导入简历，请告诉我您希望如何开始。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_list",
+    "sample": 2,
+    "turn": 1,
+    "message": "简历给我列一下",
+    "assistant": "当前没有找到任何简历。如果你需要创建或上传简历，请告诉我具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_list",
+    "sample": 3,
+    "turn": 1,
+    "message": "简历给我列一下",
+    "assistant": "当前没有找到任何简历。您需要先创建或上传简历，之后才能在这里列出和管理。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_list",
+    "sample": 4,
+    "turn": 1,
+    "message": "简历给我列一下",
+    "assistant": "当前没有找到任何简历。如果您需要创建或导入简历，请告诉我您的具体需求，例如目标岗位、工作经验等信息，我可以协助您进行下一步操作。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_list",
+    "sample": 5,
+    "turn": 1,
+    "message": "简历给我列一下",
+    "assistant": "当前没有找到任何简历。如果您需要创建或导入简历，请告诉我具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_list",
+    "sample": 6,
+    "turn": 1,
+    "message": "简历给我列一下",
+    "assistant": "当前没有找到任何简历。如果你需要创建或上传简历，请告诉我具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_list",
+    "sample": 7,
+    "turn": 1,
+    "message": "简历给我列一下",
+    "assistant": "当前没有找到任何简历。您需要先创建或上传简历，我才能为您列出和管理。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_list",
+    "sample": 8,
+    "turn": 1,
+    "message": "简历给我列一下",
+    "assistant": "当前没有找到任何简历。您需要先创建或上传简历，之后才能在这里列出和管理。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_list",
+    "sample": 9,
+    "turn": 1,
+    "message": "简历给我列一下",
+    "assistant": "当前没有找到任何简历。您可以先创建或上传一份简历，之后我可以帮您列出和管理。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_list",
+    "sample": 10,
+    "turn": 1,
+    "message": "简历给我列一下",
+    "assistant": "当前没有找到任何简历。如果您需要创建或导入简历，请告诉我具体需求，我可以帮您搜索相关能力。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_inventory",
+    "sample": 1,
+    "turn": 1,
+    "message": "手头存着的那些履历，给我过一眼。",
+    "assistant": "当前没有找到任何简历。如果您需要，可以上传或创建新的简历。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_inventory",
+    "sample": 2,
+    "turn": 1,
+    "message": "手头存着的那些履历，给我过一眼。",
+    "assistant": "目前没有找到任何已保存的简历。如果您需要，我可以帮您了解如何创建或导入第一份简历。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_inventory",
+    "sample": 3,
+    "turn": 1,
+    "message": "手头存着的那些履历，给我过一眼。",
+    "assistant": "目前没有找到任何简历。如果您需要创建或导入简历，请告诉我具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_inventory",
+    "sample": 4,
+    "turn": 1,
+    "message": "手头存着的那些履历，给我过一眼。",
+    "assistant": "目前没有找到任何简历。如果您需要创建或上传简历，请告诉我具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_inventory",
+    "sample": 5,
+    "turn": 1,
+    "message": "手头存着的那些履历，给我过一眼。",
+    "assistant": "目前没有保存任何简历。你可以上传或创建一份新的简历，或者告诉我你希望针对什么岗位方向准备简历，我可以帮你开始。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_inventory",
+    "sample": 6,
+    "turn": 1,
+    "message": "手头存着的那些履历，给我过一眼。",
+    "assistant": "目前没有找到任何简历。如果您需要创建或导入简历，请告诉我具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_inventory",
+    "sample": 7,
+    "turn": 1,
+    "message": "手头存着的那些履历，给我过一眼。",
+    "assistant": "当前没有找到任何简历。如果您需要创建或导入简历，请告诉我具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_inventory",
+    "sample": 8,
+    "turn": 1,
+    "message": "手头存着的那些履历，给我过一眼。",
+    "assistant": "目前没有存储任何简历。你可以上传或创建一份新的简历，我会帮你管理和定制。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_inventory",
+    "sample": 9,
+    "turn": 1,
+    "message": "手头存着的那些履历，给我过一眼。",
+    "assistant": "目前没有找到任何简历记录。如果您需要创建或上传简历，请告诉我具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_inventory",
+    "sample": 10,
+    "turn": 1,
+    "message": "手头存着的那些履历，给我过一眼。",
+    "assistant": "目前没有找到任何简历。如果您需要，我可以帮您创建或导入一份新的简历。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "interview_inventory",
+    "sample": 1,
+    "turn": 1,
+    "message": "我现在有哪些面试",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_inventory",
+    "sample": 2,
+    "turn": 1,
+    "message": "我现在有哪些面试",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_inventory",
+    "sample": 3,
+    "turn": 1,
+    "message": "我现在有哪些面试",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_inventory",
+    "sample": 4,
+    "turn": 1,
+    "message": "我现在有哪些面试",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_inventory",
+    "sample": 5,
+    "turn": 1,
+    "message": "我现在有哪些面试",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_inventory",
+    "sample": 6,
+    "turn": 1,
+    "message": "我现在有哪些面试",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_inventory",
+    "sample": 7,
+    "turn": 1,
+    "message": "我现在有哪些面试",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_inventory",
+    "sample": 8,
+    "turn": 1,
+    "message": "我现在有哪些面试",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_inventory",
+    "sample": 9,
+    "turn": 1,
+    "message": "我现在有哪些面试",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_inventory",
+    "sample": 10,
+    "turn": 1,
+    "message": "我现在有哪些面试",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_schedule",
+    "sample": 1,
+    "turn": 1,
+    "message": "面试日程给我调出来。",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_schedule",
+    "sample": 2,
+    "turn": 1,
+    "message": "面试日程给我调出来。",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_schedule",
+    "sample": 3,
+    "turn": 1,
+    "message": "面试日程给我调出来。",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_schedule",
+    "sample": 4,
+    "turn": 1,
+    "message": "面试日程给我调出来。",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_schedule",
+    "sample": 5,
+    "turn": 1,
+    "message": "面试日程给我调出来。",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_schedule",
+    "sample": 6,
+    "turn": 1,
+    "message": "面试日程给我调出来。",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_schedule",
+    "sample": 7,
+    "turn": 1,
+    "message": "面试日程给我调出来。",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_schedule",
+    "sample": 8,
+    "turn": 1,
+    "message": "面试日程给我调出来。",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_schedule",
+    "sample": 9,
+    "turn": 1,
+    "message": "面试日程给我调出来。",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_schedule",
+    "sample": 10,
+    "turn": 1,
+    "message": "面试日程给我调出来。",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_today",
+    "sample": 1,
+    "turn": 1,
+    "message": "看下今天的简报",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_today",
+    "sample": 2,
+    "turn": 1,
+    "message": "看下今天的简报",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_today",
+    "sample": 3,
+    "turn": 1,
+    "message": "看下今天的简报",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_today",
+    "sample": 4,
+    "turn": 1,
+    "message": "看下今天的简报",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_today",
+    "sample": 5,
+    "turn": 1,
+    "message": "看下今天的简报",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_today",
+    "sample": 6,
+    "turn": 1,
+    "message": "看下今天的简报",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_today",
+    "sample": 7,
+    "turn": 1,
+    "message": "看下今天的简报",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_today",
+    "sample": 8,
+    "turn": 1,
+    "message": "看下今天的简报",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_today",
+    "sample": 9,
+    "turn": 1,
+    "message": "看下今天的简报",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_today",
+    "sample": 10,
+    "turn": 1,
+    "message": "看下今天的简报",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_retrieve",
+    "sample": 1,
+    "turn": 1,
+    "message": "把本日职业简报拿给我。",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_retrieve",
+    "sample": 2,
+    "turn": 1,
+    "message": "把本日职业简报拿给我。",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_retrieve",
+    "sample": 3,
+    "turn": 1,
+    "message": "把本日职业简报拿给我。",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_retrieve",
+    "sample": 4,
+    "turn": 1,
+    "message": "把本日职业简报拿给我。",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_retrieve",
+    "sample": 5,
+    "turn": 1,
+    "message": "把本日职业简报拿给我。",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_retrieve",
+    "sample": 6,
+    "turn": 1,
+    "message": "把本日职业简报拿给我。",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_retrieve",
+    "sample": 7,
+    "turn": 1,
+    "message": "把本日职业简报拿给我。",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_retrieve",
+    "sample": 8,
+    "turn": 1,
+    "message": "把本日职业简报拿给我。",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_retrieve",
+    "sample": 9,
+    "turn": 1,
+    "message": "把本日职业简报拿给我。",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_retrieve",
+    "sample": 10,
+    "turn": 1,
+    "message": "把本日职业简报拿给我。",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "resume_english",
+    "sample": 1,
+    "turn": 1,
+    "message": "Could you pull up the CVs I have on file?",
+    "assistant": "目前系统中没有找到任何简历。如果您需要创建或上传简历，请告诉我您希望如何开始。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_english",
+    "sample": 2,
+    "turn": 1,
+    "message": "Could you pull up the CVs I have on file?",
+    "assistant": "当前没有找到任何简历记录。如果您需要创建或上传简历，请告诉我具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_english",
+    "sample": 3,
+    "turn": 1,
+    "message": "Could you pull up the CVs I have on file?",
+    "assistant": "目前没有找到任何简历。您需要先上传或创建一份简历，我才能帮您查看和管理。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_english",
+    "sample": 4,
+    "turn": 1,
+    "message": "Could you pull up the CVs I have on file?",
+    "assistant": "目前没有找到任何已保存的简历。如果您需要创建或上传简历，请告诉我您希望如何开始。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_english",
+    "sample": 5,
+    "turn": 1,
+    "message": "Could you pull up the CVs I have on file?",
+    "assistant": "目前没有找到任何简历。您还没有上传或创建过简历文件。如果您需要，我可以帮您了解如何开始创建简历。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_english",
+    "sample": 6,
+    "turn": 1,
+    "message": "Could you pull up the CVs I have on file?",
+    "assistant": "当前没有找到任何简历。如果您需要创建或上传简历，请告诉我具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_english",
+    "sample": 7,
+    "turn": 1,
+    "message": "Could you pull up the CVs I have on file?",
+    "assistant": "目前没有检索到任何简历。如果您需要上传或创建简历，请告诉我具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_english",
+    "sample": 8,
+    "turn": 1,
+    "message": "Could you pull up the CVs I have on file?",
+    "assistant": "目前没有找到任何已保存的简历。如果您需要上传或创建简历，请告诉我您的具体需求，我可以帮您搜索相关能力或指导您如何添加简历。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_english",
+    "sample": 9,
+    "turn": 1,
+    "message": "Could you pull up the CVs I have on file?",
+    "assistant": "当前没有找到任何已保存的简历。如果您需要创建或上传简历，请告诉我您的具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_english",
+    "sample": 10,
+    "turn": 1,
+    "message": "Could you pull up the CVs I have on file?",
+    "assistant": "目前没有找到任何简历文件。如果您需要创建或上传简历，请告诉我您的具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "interview_english",
+    "sample": 1,
+    "turn": 1,
+    "message": "Bring up my interview schedule, please.",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_english",
+    "sample": 2,
+    "turn": 1,
+    "message": "Bring up my interview schedule, please.",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_english",
+    "sample": 3,
+    "turn": 1,
+    "message": "Bring up my interview schedule, please.",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_english",
+    "sample": 4,
+    "turn": 1,
+    "message": "Bring up my interview schedule, please.",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_english",
+    "sample": 5,
+    "turn": 1,
+    "message": "Bring up my interview schedule, please.",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_english",
+    "sample": 6,
+    "turn": 1,
+    "message": "Bring up my interview schedule, please.",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_english",
+    "sample": 7,
+    "turn": 1,
+    "message": "Bring up my interview schedule, please.",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_english",
+    "sample": 8,
+    "turn": 1,
+    "message": "Bring up my interview schedule, please.",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_english",
+    "sample": 9,
+    "turn": 1,
+    "message": "Bring up my interview schedule, please.",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_english",
+    "sample": 10,
+    "turn": 1,
+    "message": "Bring up my interview schedule, please.",
+    "assistant": "没有找到面试安排。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "three_sources",
+    "sample": 1,
+    "turn": 1,
+    "message": "简历、投递和面试分别查一遍，最后给我一份总览。",
+    "assistant": "总览如下：\n\n- **简历**：当前没有已记录的简历。\n- **投递记录**：当前没有追踪的投递申请。\n- **面试安排**：当前没有已安排的面试。\n\n如果你需要开始建立求职档案，可以先上传或创建简历，或者告诉我你想关注的岗位方向，我可以帮你进一步规划。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "three_sources",
+    "sample": 2,
+    "turn": 1,
+    "message": "简历、投递和面试分别查一遍，最后给我一份总览。",
+    "assistant": "已为您查询简历、投递和面试情况，总览如下：\n\n- **简历**：当前没有保存的简历。\n- **投递记录**：当前没有跟踪的岗位投递。\n- **面试安排**：当前没有安排的面试。\n\n如果您需要开始求职流程，可以先创建简历、搜索并收藏岗位，或开始跟踪投递记录。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "three_sources",
+    "sample": 3,
+    "turn": 1,
+    "message": "简历、投递和面试分别查一遍，最后给我一份总览。",
+    "assistant": "以下是当前求职进度的总览：\n\n**简历库**\n- 没有找到匹配的简历。\n\n**投递记录**\n- 没有找到投递记录。\n\n**面试安排**\n- 没有找到面试安排。\n\n目前系统中暂无相关数据。如果您需要开始建立求职档案，可以上传简历、添加目标岗位或创建投递记录。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "three_sources",
+    "sample": 4,
+    "turn": 1,
+    "message": "简历、投递和面试分别查一遍，最后给我一份总览。",
+    "assistant": "当前总览如下：\n\n- **简历**：没有找到匹配的简历。\n- **投递记录**：没有找到投递记录。\n- **面试安排**：没有找到面试安排。\n\n目前系统中暂无相关数据。如需开始求职流程，可以先创建简历、收藏岗位或记录投递信息。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "three_sources",
+    "sample": 5,
+    "turn": 1,
+    "message": "简历、投递和面试分别查一遍，最后给我一份总览。",
+    "assistant": "已查询简历、投递记录和面试安排，目前总览如下：\n\n- **简历**：没有找到匹配的简历。\n- **投递记录**：没有找到投递记录。\n- **面试安排**：没有找到面试安排。\n\n当前系统中暂无相关记录。如需开始求职流程，可以先创建简历或添加目标岗位。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "three_sources",
+    "sample": 6,
+    "turn": 1,
+    "message": "简历、投递和面试分别查一遍，最后给我一份总览。",
+    "assistant": "已为您完成简历、投递和面试的总览查询，结果如下：\n\n- **简历**：当前没有匹配的简历记录。\n- **投递记录**：当前没有任何投递记录。\n- **面试安排**：当前没有面试安排。\n\n如果您需要开始求职流程，可以先创建或上传简历，然后进行岗位搜索和投递。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "three_sources",
+    "sample": 7,
+    "turn": 1,
+    "message": "简历、投递和面试分别查一遍，最后给我一份总览。",
+    "assistant": "根据查询结果，目前的总览如下：\n\n- **简历**：暂无已记录的简历。\n- **投递记录**：暂无已跟踪的岗位投递。\n- **面试安排**：暂无已安排的面试轮次。\n\n如果你希望开始建立求职档案，可以告诉我你的目标岗位方向，或者提供一份简历进行导入。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "three_sources",
+    "sample": 8,
+    "turn": 1,
+    "message": "简历、投递和面试分别查一遍，最后给我一份总览。",
+    "assistant": "已为您完成简历、投递和面试的查询，总览如下：\n\n- **简历**：当前没有保存的简历。\n- **投递记录**：没有找到任何投递记录。\n- **面试安排**：目前没有安排的面试。\n\n如果您需要开始求职流程，建议先准备一份简历，或者告诉我您想申请的岗位方向，我可以协助您进行搜索或跟踪。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "three_sources",
+    "sample": 9,
+    "turn": 1,
+    "message": "简历、投递和面试分别查一遍，最后给我一份总览。",
+    "assistant": "已完成简历、投递和面试的查询，总览如下：\n\n- **简历**：当前没有已记录的简历。\n- **投递记录**：当前没有跟踪中的投递申请。\n- **面试安排**：当前没有已安排的面试轮次。\n\n如果您需要开始求职流程，建议先准备一份简历并设定目标岗位方向。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "three_sources",
+    "sample": 10,
+    "turn": 1,
+    "message": "简历、投递和面试分别查一遍，最后给我一份总览。",
+    "assistant": "当前求职状态总览：\n\n- **简历**：没有找到匹配的简历。\n- **投递记录**：没有找到投递记录。\n- **面试安排**：没有找到面试安排。\n\n目前系统中暂无任何简历、投递或面试数据。如需开始跟踪求职进展，可以先创建简历、收藏岗位或记录投递信息。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "two_sources",
+    "sample": 1,
+    "turn": 1,
+    "message": "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。",
+    "assistant": "已完成统一检查，结论如下：\n\n1. **已收藏岗位**：当前没有保存任何岗位。\n2. **简历库**：当前没有上传或记录任何简历。\n3. **投递记录**：当前没有任何求职投递记录。\n\n目前您的职业档案中暂无活跃的目标岗位、硬约束或自由文本偏好。如果您希望开始求职流程，建议先明确目标岗位方向并上传简历，或者通过搜索功能寻找感兴趣的岗位进行收藏。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "two_sources",
+    "sample": 2,
+    "turn": 1,
+    "message": "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。",
+    "assistant": "已按您的要求依次检查：\n\n1. **已收藏岗位**：当前没有保存任何岗位。\n2. **简历**：当前没有上传或创建任何简历。\n\n**结论**：目前系统中暂无已收藏岗位和简历记录。如需继续求职流程，建议先添加目标岗位或上传/创建简历。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "two_sources",
+    "sample": 3,
+    "turn": 1,
+    "message": "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。",
+    "assistant": "已按你的要求检查完毕：\n\n1. **已收藏岗位**：当前没有任何已保存的岗位记录。\n2. **简历库**：当前也没有任何已上传或记录的简历版本。\n\n**结论**：目前系统中暂无历史数据可供回顾。如果你希望开始新的求职流程，可以先上传简历或搜索并收藏感兴趣的岗位。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "two_sources",
+    "sample": 4,
+    "turn": 1,
+    "message": "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。",
+    "assistant": "已按你的要求依次检查：\n\n1. **已收藏岗位**：没有找到任何已保存的岗位记录。\n2. **简历**：没有找到任何简历版本。\n3. **投递记录**：没有找到任何投递记录。\n\n**结论**：当前系统中没有已收藏的岗位、简历或投递记录。如需开始求职流程，建议先创建或导入简历，然后搜索并收藏感兴趣的岗位。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "two_sources",
+    "sample": 5,
+    "turn": 1,
+    "message": "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。",
+    "assistant": "已按你的要求依次检查：\n\n- **已收藏岗位**：当前没有已保存的岗位记录。\n- **简历**：当前没有已上传或记录的简历版本。\n- **投递记录**：当前没有追踪中的求职申请。\n\n目前系统中暂无任何职业相关数据。如需开始求职流程，建议先明确目标岗位方向并上传简历，或告知我你希望搜索的岗位类型，我可以帮你打开招聘网站进行搜索。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "two_sources",
+    "sample": 6,
+    "turn": 1,
+    "message": "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。",
+    "assistant": "已按你的要求依次检查：\n\n- **已收藏岗位**：当前没有任何已保存的岗位记录。\n- **简历**：当前也没有任何已上传或记录的简历版本。\n\n结论：目前系统中既无收藏岗位，也无可用简历。如需继续求职流程，建议先添加目标岗位或上传简历。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "two_sources",
+    "sample": 7,
+    "turn": 1,
+    "message": "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。",
+    "assistant": "已完成检查：\n\n1. **已收藏岗位**：没有找到任何已保存的岗位记录。\n2. **简历**：没有找到任何简历版本。\n\n**结论**：当前系统中既没有已收藏的岗位，也没有可用的简历。如需开始求职流程，建议先创建或导入简历，然后通过搜索功能收藏感兴趣的岗位。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "two_sources",
+    "sample": 8,
+    "turn": 1,
+    "message": "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。",
+    "assistant": "已完成检查：\n\n1. **已收藏岗位**：没有找到任何已保存的岗位。\n2. **简历**：没有找到任何简历。\n3. **投递记录**：没有找到任何投递记录。\n\n**结论**：当前系统中没有任何已收藏岗位、简历或投递记录。如需开始求职流程，建议先创建简历并搜索/收藏目标岗位。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "two_sources",
+    "sample": 9,
+    "turn": 1,
+    "message": "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。",
+    "assistant": "已按你的要求依次检查：\n\n- **已收藏岗位**：当前没有任何已保存的岗位记录。\n- **简历**：当前也没有任何已上传或保存的简历。\n\n**结论**：目前系统中没有已收藏的岗位和简历数据。如需继续求职流程，建议先添加目标岗位或上传简历。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "two_sources",
+    "sample": 10,
+    "turn": 1,
+    "message": "别查完一个就停：先看已收藏岗位，再看简历，末尾统一给结论。",
+    "assistant": "已按你的要求依次检查：\n\n1. **已收藏岗位**：当前没有任何已保存的岗位记录。\n2. **简历**：当前也没有任何已记录的简历版本。\n\n结论：目前系统中没有已收藏的岗位，也没有可用的简历。如果你需要开始求职流程，可以先添加目标岗位方向、收藏感兴趣的职位，或上传/创建简历版本。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "brief_advice",
+    "sample": 1,
+    "turn": 1,
+    "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+    "assistant": "今日职业简报显示，目前没有任何待办事项。\n\n这意味着你今天没有需要跟进的投递、面试或简历定制任务。你可以根据个人计划自由安排时间，例如：\n\n- **主动求职**：浏览招聘网站，寻找新的目标岗位并收藏。\n- **技能提升**：学习与目标职位相关的技术或业务知识。\n- **简历优化**：如果有目标方向，可以提前准备或更新通用版简历。\n- **休息调整**：保持良好状态，为接下来的求职活动做准备。\n\n如果你希望开始新的求职任务（如搜索岗位、创建投递记录或准备面试），请告诉我你的具体需求。\n\n# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "brief_advice",
+    "sample": 2,
+    "turn": 1,
+    "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+    "assistant": "今日职业简报显示今天没有待办事项。\n\n根据这份简报，您今天的安排可以这样规划：\n\n1. **主动推进求职**：既然系统没有自动生成的待办，您可以主动检查是否有需要跟进的投递、面试或简历定制工作。\n\n2. **探索机会**：可以考虑浏览招聘网站，寻找新的岗位机会，或者查看已收藏的岗位是否有更新。\n\n3. **完善材料**：如果没有紧急事项，可以利用时间优化简历、准备面试材料，或记录您的求职目标和偏好。\n\n4. **休息与调整**：如果近期求职节奏较快，今天也可以适当放松，为后续的申请做准备。\n\n如果您希望我帮您查看具体的投递记录、面试安排或已收藏的岗位，请告诉我您想从哪个方面开始。\n\n# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "brief_advice",
+    "sample": 3,
+    "turn": 1,
+    "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+    "assistant": "根据今日职业简报，今天没有待办事项。这意味着您目前没有需要跟进的投递、面试或简历定制任务。\n\n您可以考虑：\n1. 主动寻找新的工作机会\n2. 更新或优化您的简历\n3. 设定求职目标\n\n请问您希望我帮您做些什么？例如搜索岗位、准备简历或设定求职方向？\n\n# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "brief_advice",
+    "sample": 4,
+    "turn": 1,
+    "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_advice",
+    "sample": 5,
+    "turn": 1,
+    "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+    "assistant": "今天的职业简报显示目前没有任何待办事项。这意味着你今天没有预定的面试、需要跟进的投递记录，也没有待处理的简历定制任务。\n\n基于这个状态，你的一天可以这样安排：\n\n1. **主动求职**：既然没有既定任务，你可以利用这段时间主动寻找新的工作机会。我可以帮你打开招聘网站进行搜索，或者查看你之前收藏的岗位。\n\n2. **完善资料**：检查并更新你的简历和目标岗位方向，确保求职材料保持最新状态。\n\n3. **技能提升**：如果没有紧急的求职任务，可以考虑学习新技能或准备面试常见问题。\n\n4. **休息调整**：如果近期求职压力较大，今天也可以适当放松，为接下来的求职活动储备精力。\n\n你想从哪个方向开始？比如搜索新岗位、查看已收藏的职位，或者其他安排？\n\n# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "brief_advice",
+    "sample": 6,
+    "turn": 1,
+    "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+    "assistant": "根据今日职业简报，今天没有待办事项。这意味着您目前没有被系统追踪的投递、面试或简历定制任务。\n\n您可以考虑：\n1. 如果有目标岗位，可以开始搜索并收藏感兴趣的职位\n2. 如果需要更新简历，可以准备简历版本\n3. 如果已有投递但未被追踪，可以同步相关邮件事件\n\n请问您今天希望进行哪方面的求职活动？\n\n# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "brief_advice",
+    "sample": 7,
+    "turn": 1,
+    "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_advice",
+    "sample": 8,
+    "turn": 1,
+    "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_advice",
+    "sample": 9,
+    "turn": 1,
+    "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+    "assistant": "# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "brief_advice",
+    "sample": 10,
+    "turn": 1,
+    "message": "拿到职业简报后，再根据内容说说我这一天怎么安排。",
+    "assistant": "今天的职业简报显示目前没有任何待办事项。这意味着你今天没有需要立即跟进的投递、面试或简历定制任务。\n\n建议你利用这段空闲时间：\n1. **明确求职方向**：目前系统中没有记录活跃的目标岗位，你可以思考并确认自己想申请的城市和职位类型。\n2. **准备简历**：如果还没有准备好通用简历，可以开始整理基础信息。\n3. **主动搜索**：如果你有明确的意向，可以告诉我你想看哪类岗位，我可以帮你打开招聘网站进行搜索。\n\n你希望先从哪一步开始？或者你有其他具体的求职计划吗？\n\n# 今日职业简报\n\n今天没有待办事项。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "interview_advice",
+    "sample": 1,
+    "turn": 1,
+    "message": "查一下我的面试安排，然后帮我规划下一步准备；没有安排也要给建议。",
+    "assistant": "为了给你更有针对性的建议，请回答以下问题：",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_advice",
+    "sample": 2,
+    "turn": 1,
+    "message": "查一下我的面试安排，然后帮我规划下一步准备；没有安排也要给建议。",
+    "assistant": "目前没有查到任何面试安排。\n\n既然没有待进行的面试，我为你提供以下求职准备建议：\n\n**1. 简历优化**\n- 检查简历是否针对目标岗位进行了定制\n- 确保突出与岗位要求匹配的核心技能和项目经验\n\n**2. 目标岗位梳理**\n- 明确你的求职方向和期望城市\n- 收藏感兴趣的岗位，便于后续分析和投递\n\n**3. 面试通用准备**\n- 准备自我介绍（1分钟/3分钟版本）\n- 梳理核心项目经历，用STAR法则整理\n- 练习常见行为面试题\n\n**4. 技能提升**\n- 根据目标岗位要求，补充相关技术或业务知识\n- 了解行业趋势和目标公司动态\n\n你希望我从哪个方面开始帮助你？比如：\n- 帮你查看和筛选已收藏的岗位\n- 协助优化简历\n- 或者你有具体的面试需要记录？",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "interview_advice",
+    "sample": 3,
+    "turn": 1,
+    "message": "查一下我的面试安排，然后帮我规划下一步准备；没有安排也要给建议。",
+    "assistant": "请回答以下问题，以便我为你提供更精准的面试准备建议：",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_advice",
+    "sample": 4,
+    "turn": 1,
+    "message": "查一下我的面试安排，然后帮我规划下一步准备；没有安排也要给建议。",
+    "assistant": "请告诉我以下信息，以便为你规划求职准备方向",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_advice",
+    "sample": 5,
+    "turn": 1,
+    "message": "查一下我的面试安排，然后帮我规划下一步准备；没有安排也要给建议。",
+    "assistant": "为了给您提供合适的求职准备建议，请回答以下问题：",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_advice",
+    "sample": 6,
+    "turn": 1,
+    "message": "查一下我的面试安排，然后帮我规划下一步准备；没有安排也要给建议。",
+    "assistant": "目前没有发现任何面试安排。\n\n**通用准备建议：**\n1. 更新和完善简历，确保内容最新且突出核心技能\n2. 明确求职目标和意向岗位方向\n3. 准备常见面试问题的回答（自我介绍、项目经历、职业规划等）\n4. 研究目标行业和公司的背景信息\n5. 针对目标岗位所需的专业能力进行复习和练习\n\n如果你希望获得更有针对性的帮助，可以告诉我你的求职方向、目标岗位或具体需求，我可以协助你进行简历优化、岗位分析或面试准备等工作。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "interview_advice",
+    "sample": 7,
+    "turn": 1,
+    "message": "查一下我的面试安排，然后帮我规划下一步准备；没有安排也要给建议。",
+    "assistant": "目前没有面试安排。\n\n**建议下一步：**\n\n1. **明确求职方向**：确定目标岗位、行业和城市，建立清晰的求职意向。\n\n2. **准备简历**：如果有目标岗位，可以定制简历以提高匹配度。\n\n3. **主动投递**：通过招聘网站搜索并收藏感兴趣的岗位，然后创建投递记录。\n\n4. **模拟面试练习**：即使没有实际面试，也可以启动模拟面试来提前准备常见问题和回答技巧。\n\n5. **研究目标公司**：对感兴趣的公司进行调研，了解其业务、文化和岗位要求。\n\n您希望从哪一步开始？我可以帮您：\n- 列出目标岗位方向\n- 查找已收藏的岗位\n- 启动模拟面试练习\n- 或其他您需要的帮助",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "interview_advice",
+    "sample": 8,
+    "turn": 1,
+    "message": "查一下我的面试安排，然后帮我规划下一步准备；没有安排也要给建议。",
+    "assistant": "目前没有查询到任何面试安排。\n\n由于没有具体的面试需要准备，我建议你：\n\n1. **主动寻找机会**：如果你有目标岗位或公司，可以告诉我，我可以帮你搜索相关职位或分析岗位要求。\n\n2. **准备通用面试材料**：\n   - 更新和完善你的简历\n   - 准备常见的面试问题回答（自我介绍、项目经验、职业规划等）\n   - 练习技术或专业相关的知识点\n\n3. **建立求职追踪**：当你开始投递简历后，可以创建投递记录，这样后续收到面试通知时能更好地跟踪和管理。\n\n如果你有以下需求，请告诉我：\n- 想要搜索特定岗位或公司\n- 需要帮助完善简历\n- 想了解某个岗位的职位要求\n- 有其他具体的求职问题\n\n我会根据你的具体情况提供更有针对性的建议。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "interview_advice",
+    "sample": 9,
+    "turn": 1,
+    "message": "查一下我的面试安排，然后帮我规划下一步准备；没有安排也要给建议。",
+    "assistant": "请告诉我以下信息，以便为你制定求职准备计划：",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "interview_advice",
+    "sample": 10,
+    "turn": 1,
+    "message": "查一下我的面试安排，然后帮我规划下一步准备；没有安排也要给建议。",
+    "assistant": "当前没有面试安排。\n\n在没有具体面试的情况下，建议从以下方向开始准备：\n\n1. **明确求职目标**：确定想投递的行业、岗位和城市，这有助于后续精准准备。\n2. **完善简历**：检查简历是否针对目标岗位进行了优化，确保核心技能和项目经验清晰呈现。\n3. **通用面试准备**：\n   - 准备自我介绍（1-3分钟版本）\n   - 梳理常见行为面试题（如\"最大的挑战\"\"团队协作案例\"等）\n   - 复习目标岗位的核心技术或业务知识\n4. **模拟练习**：可以进行模拟面试来检验准备效果，发现薄弱环节。\n\n如果你已经有明确的求职方向或心仪的岗位，可以告诉我，我可以帮你进一步定制准备计划。或者，如果你想开始模拟面试练习，也可以直接告诉我。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 1,
+    "turn": 1,
+    "message": "先让我看一下已存的简历。",
+    "assistant": "当前没有找到任何已保存的简历。如果你需要创建或导入简历，可以告诉我你的求职方向、目标岗位或相关经历，我可以帮你开始准备。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 1,
+    "turn": 2,
+    "message": "另外面试也给我查一下。",
+    "assistant": "目前没有找到任何面试安排。如果你需要创建或查看面试信息，可以告诉我具体的公司、岗位或面试时间，我可以帮你记录或准备相关材料。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 2,
+    "turn": 1,
+    "message": "先让我看一下已存的简历。",
+    "assistant": "当前没有找到已存的简历。您可以上传或创建一份新的简历，或者告诉我您希望针对什么岗位方向准备简历，我可以协助您进行后续操作。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 2,
+    "turn": 2,
+    "message": "另外面试也给我查一下。",
+    "assistant": "目前没有找到已存的简历，也没有任何面试安排。\n\n如果您需要开始准备求职，可以：\n1. 上传或创建一份新的简历\n2. 告诉我您希望针对什么岗位方向准备简历\n3. 如果有具体的面试安排，可以提供相关信息以便我帮您记录和准备",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 3,
+    "turn": 1,
+    "message": "先让我看一下已存的简历。",
+    "assistant": "当前没有找到已存的简历。如果你需要创建或导入简历，可以告诉我你的求职方向、目标岗位以及工作经历等信息，我可以帮你开始准备。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 3,
+    "turn": 2,
+    "message": "另外面试也给我查一下。",
+    "assistant": "目前没有找到已存的简历，也没有面试安排。如果你需要创建简历或准备面试，可以告诉我你的求职方向、目标岗位以及工作经历等信息，我可以帮你开始准备。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 4,
+    "turn": 1,
+    "message": "先让我看一下已存的简历。",
+    "assistant": "当前没有找到已保存的简历。\n\n如果你需要创建或上传简历，可以告诉我你的目标岗位方向、工作经验和技能背景，我可以帮你准备简历内容。或者如果你有现成的简历文件，也可以告诉我如何获取它。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 4,
+    "turn": 2,
+    "message": "另外面试也给我查一下。",
+    "assistant": "目前没有已保存的简历，也没有面试安排。\n\n如果你需要创建简历，可以告诉我你的目标岗位方向、工作经验和技能背景，我可以帮你准备简历内容。或者如果你有现成的简历文件，也可以上传或提供相关信息。\n\n关于面试，目前没有任何面试记录。如果你有即将进行的面试，可以告诉我公司名称、岗位、面试时间等信息，我可以帮你记录并准备面试材料。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 5,
+    "turn": 1,
+    "message": "先让我看一下已存的简历。",
+    "assistant": "当前没有找到已存的简历。\n\n你可以：\n- 上传或创建一份新简历\n- 如果需要，我可以帮你搜索相关能力来了解如何导入或管理简历\n\n请问你希望下一步做什么？",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 5,
+    "turn": 2,
+    "message": "另外面试也给我查一下。",
+    "assistant": "已查询完成：\n\n**简历情况：** 当前没有找到已存的简历。\n\n**面试安排：** 当前没有面试安排。\n\n如果你需要创建简历、添加面试记录或进行其他操作，请告诉我具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 6,
+    "turn": 1,
+    "message": "先让我看一下已存的简历。",
+    "assistant": "没有找到匹配的简历。",
+    "error": null,
+    "model_summary_delivered": false
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 6,
+    "turn": 2,
+    "message": "另外面试也给我查一下。",
+    "assistant": "已为您查询，目前系统中没有保存的简历，也没有安排的面试。\n\n如果您需要创建简历或安排面试，请告诉我具体需求，我可以协助您进行下一步操作。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 7,
+    "turn": 1,
+    "message": "先让我看一下已存的简历。",
+    "assistant": "目前没有找到已保存的简历。您需要先创建或上传一份简历吗？",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 7,
+    "turn": 2,
+    "message": "另外面试也给我查一下。",
+    "assistant": "已为您查询：\n\n1. **简历**：目前没有已保存的简历。您需要先创建或上传一份简历。\n2. **面试**：没有找到任何面试安排。\n\n如果您需要开始求职流程，建议先上传或创建一份简历，然后我们可以帮您进行岗位搜索、简历定制等操作。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 8,
+    "turn": 1,
+    "message": "先让我看一下已存的简历。",
+    "assistant": "当前没有找到已存的简历。如果您需要创建或上传简历，请告诉我具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 8,
+    "turn": 2,
+    "message": "另外面试也给我查一下。",
+    "assistant": "目前没有找到已存的简历，也没有面试安排。如果您需要创建简历或添加面试信息，请告诉我具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 9,
+    "turn": 1,
+    "message": "先让我看一下已存的简历。",
+    "assistant": "当前没有找到已存的简历。您需要先创建或上传一份简历，之后才能在这里查看和管理。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 9,
+    "turn": 2,
+    "message": "另外面试也给我查一下。",
+    "assistant": "已为您查询：\n\n1. **简历**：当前没有找到已存的简历。您需要先创建或上传一份简历，之后才能在这里查看和管理。\n2. **面试**：目前没有找到任何面试安排。\n\n如果您需要创建简历、添加面试记录或进行其他操作，请告诉我您的具体需求。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 10,
+    "turn": 1,
+    "message": "先让我看一下已存的简历。",
+    "assistant": "当前没有找到已存的简历。您需要先创建或导入一份简历，之后才能进行查看、定制或投递等操作。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "resume_then_interview",
+    "sample": 10,
+    "turn": 2,
+    "message": "另外面试也给我查一下。",
+    "assistant": "已为您查询：\n\n1. **简历**：当前没有找到已存的简历。您需要先创建或导入一份简历，之后才能进行查看、定制或投递等操作。\n2. **面试**：没有找到任何面试安排。\n\n如果您需要开始求职流程，建议先从创建或上传简历开始。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 1,
+    "turn": 1,
+    "message": "先把简历找出来。",
+    "assistant": "当前没有找到任何简历。请问您是想上传一份新简历，还是之前有保存过简历但我这边没有显示？",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 1,
+    "turn": 2,
+    "message": "接着把投递和面试都查到，再用一段话概括这两项。",
+    "assistant": "目前系统中没有找到任何简历、投递记录或面试安排。您需要先上传简历或创建投递记录，才能进行后续的查询和管理。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 2,
+    "turn": 1,
+    "message": "先把简历找出来。",
+    "assistant": "当前没有找到任何简历。您需要先创建或导入一份简历，然后才能进行后续操作。请问您希望如何添加简历？",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 2,
+    "turn": 2,
+    "message": "接着把投递和面试都查到，再用一段话概括这两项。",
+    "assistant": "当前没有找到任何简历、投递记录或面试安排。您需要先创建或导入一份简历，然后才能进行后续的投递和面试跟踪操作。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 3,
+    "turn": 1,
+    "message": "先把简历找出来。",
+    "assistant": "当前没有找到任何简历。请问您是想上传一份新简历，还是之前保存的简历可能使用了其他名称或标签？如果有具体名称，我可以再次尝试查找。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 3,
+    "turn": 2,
+    "message": "接着把投递和面试都查到，再用一段话概括这两项。",
+    "assistant": "经过查询，目前系统中没有保存任何简历、投递记录或面试安排。如果您希望开始求职跟踪，建议先上传一份简历，或者告诉我您感兴趣的岗位方向，我可以帮您搜索并创建相应的投递记录。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 4,
+    "turn": 1,
+    "message": "先把简历找出来。",
+    "assistant": "当前没有找到任何简历。您需要先创建或上传一份简历，我才能帮您进行后续的求职操作。请问您是否有现成的简历文件需要导入，或者需要我指导您如何创建新的简历？",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 4,
+    "turn": 2,
+    "message": "接着把投递和面试都查到，再用一段话概括这两项。",
+    "assistant": "目前系统中没有找到任何简历、投递记录或面试安排。您需要先创建或导入简历，然后才能进行后续的求职操作，包括投递简历和安排面试。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 5,
+    "turn": 1,
+    "message": "先把简历找出来。",
+    "assistant": "当前没有找到任何简历。您需要先创建或上传一份简历，之后才能进行后续的匹配、定制或导出操作。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 5,
+    "turn": 2,
+    "message": "接着把投递和面试都查到，再用一段话概括这两项。",
+    "assistant": "目前没有找到任何投递记录和面试安排。您需要先创建简历并投递岗位，之后才会有相关的投递和面试信息。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 6,
+    "turn": 1,
+    "message": "先把简历找出来。",
+    "assistant": "当前没有找到任何简历。您需要先创建或上传一份简历，之后我才能帮您列出和管理。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 6,
+    "turn": 2,
+    "message": "接着把投递和面试都查到，再用一段话概括这两项。",
+    "assistant": "目前没有找到任何简历、投递记录或面试安排。您需要先创建或上传简历，并开始投递岗位后，才能查看相关的投递和面试信息。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 7,
+    "turn": 1,
+    "message": "先把简历找出来。",
+    "assistant": "当前没有找到任何简历。请问您是想上传一份新简历，还是有其他需要我协助的事项？",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 7,
+    "turn": 2,
+    "message": "接着把投递和面试都查到，再用一段话概括这两项。",
+    "assistant": "目前系统中没有找到任何简历、投递记录或面试安排。如果您需要开始求职流程，建议先上传一份简历，或者告诉我您想申请的岗位方向，我可以协助您进行后续的准备工作。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 8,
+    "turn": 1,
+    "message": "先把简历找出来。",
+    "assistant": "当前没有找到任何简历。您需要先创建或上传一份简历，我才能帮您进行后续操作。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 8,
+    "turn": 2,
+    "message": "接着把投递和面试都查到，再用一段话概括这两项。",
+    "assistant": "目前没有找到任何简历、投递记录或面试安排。您需要先创建或上传简历，并开始投递岗位后，才能查看相关的投递和面试信息。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 9,
+    "turn": 1,
+    "message": "先把简历找出来。",
+    "assistant": "当前没有找到任何简历。您需要先创建或上传一份简历，才能继续后续的求职操作。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 9,
+    "turn": 2,
+    "message": "接着把投递和面试都查到，再用一段话概括这两项。",
+    "assistant": "目前系统中没有找到任何简历、投递记录或面试安排。您需要先创建或上传简历，然后才能进行后续的求职操作，包括投递简历和安排面试。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 10,
+    "turn": 1,
+    "message": "先把简历找出来。",
+    "assistant": "当前没有找到任何简历。您需要先创建或上传简历，才能进行后续操作。",
+    "error": null,
+    "model_summary_delivered": true
+  },
+  {
+    "scenario": "continue_multiple",
+    "sample": 10,
+    "turn": 2,
+    "message": "接着把投递和面试都查到，再用一段话概括这两项。",
+    "assistant": "当前系统中没有找到任何简历、投递记录或面试安排。您需要先创建或上传简历，然后才能进行岗位投递和面试跟踪等操作。",
+    "error": null,
+    "model_summary_delivered": true
+  }
+]

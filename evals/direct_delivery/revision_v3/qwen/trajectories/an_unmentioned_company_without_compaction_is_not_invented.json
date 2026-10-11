@@ -1,0 +1,145 @@
+{
+  "scenario": "an_unmentioned_company_without_compaction_is_not_invented",
+  "policy": "Decide exactly one next action using only the supplied context. Never invent a proper name that was not shown to you.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "f4d8aeafb38cd19034849164f10815de9114fc08e6d446a00c0aa1b970f23cb2",
+  "context_shape_fingerprint": "50fe34d484f6fd66869bc1ab8ded0fe6df1901306ded2c5eea550a3075bba81a",
+  "recorded_at": "2026-10-10T00:54:23.300746+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "list_target_roles",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "4c3d83a5303414cc6244fed3ff11a7ad7ce30eb21501910af6a1faceac1f729d",
+      "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "list_target_roles",
+        "propose_job_intent",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 6554.0,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "根据当前对话记录，你刚才提到的是\"美团\"这份JD，但系统中并没有记录你明确设定的目标公司信息。\n\n从对话历史来看：\n- 你在第1条消息中提到\"刚才窗口里这份 美团的 JD 看起来怎么样？\"\n- 我在第2条回复中说\"这份 美团 JD 只是对照，你还没告诉我目标公司\"\n\n目前你的职业档案中显示\"No active targets\"（没有活跃的目标），也没有确认的目标岗位方向。\n\n你是想确认美团是否是你的目标公司，还是有其他目标公司需要设定？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T00:54:23.953573+00:00",
+      "elapsed_ms": 6556.0,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "4c3d83a5303414cc6244fed3ff11a7ad7ce30eb21501910af6a1faceac1f729d",
+          "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 6554.0,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "根据当前对话记录，你刚才提到的是\"美团\"这份JD，但系统中并没有记录你明确设定的目标公司信息。\n\n从对话历史来看：\n- 你在第1条消息中提到\"刚才窗口里这份 美团的 JD 看起来怎么样？\"\n- 我在第2条回复中说\"这份 美团 JD 只是对照，你还没告诉我目标公司\"\n\n目前你的职业档案中显示\"No active targets\"（没有活跃的目标），也没有确认的目标岗位方向。\n\n你是想确认美团是否是你的目标公司，还是有其他目标公司需要设定？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:54:22.211925+00:00",
+      "elapsed_ms": 2887.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "4c3d83a5303414cc6244fed3ff11a7ad7ce30eb21501910af6a1faceac1f729d",
+          "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2883.1,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:54:23.300746+00:00",
+      "elapsed_ms": 2593.4,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "list_target_roles",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "4c3d83a5303414cc6244fed3ff11a7ad7ce30eb21501910af6a1faceac1f729d",
+          "decision_shape_fingerprint": "c7f4cdb0f3aaa77856f81f7f2d95ce91b1158b9eb87356717e83bdc62d2436eb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "list_target_roles",
+            "propose_job_intent",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2589.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

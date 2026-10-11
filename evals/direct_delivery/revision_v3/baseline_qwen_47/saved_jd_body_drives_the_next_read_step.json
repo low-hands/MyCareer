@@ -1,0 +1,127 @@
+{
+  "scenario": "saved_jd_body_drives_the_next_read_step",
+  "policy": "A bounded observation body is approved presenter text from the read result. Use an explicit requirement stated in that body to choose the user's requested next operation without guessing from the receipt.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "63aedcc812e4259976611ee9a7da7414c1d3e1e7cc0abb0a10f4041d8b024e9b",
+  "context_shape_fingerprint": "55820bf48f6f2198d501a39f4f7141c3382fd8eb4342d7e462a4e8514f57b864",
+  "recorded_at": "2026-10-09T18:17:24.620344+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "analyze_job",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
+      "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_saved_job",
+        "analyze_job",
+        "create_interview",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2643.9,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-09T18:17:24.338155+00:00",
+      "elapsed_ms": 2648.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
+          "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2643.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-09T18:17:25.603381+00:00",
+      "elapsed_ms": 3860.4,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
+          "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3858.4,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-09T18:17:24.620344+00:00",
+      "elapsed_ms": 2811.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "analyze_job",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "34296b5fa285a7debb54d01320904ce6ec8c7fe16c5c204fce7968f211963b59",
+          "decision_shape_fingerprint": "e09a7da070982521b0e00241f9fadbcbff7f1b327bb68ecc5477625b735457b8",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "analyze_job",
+            "create_interview",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2809.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

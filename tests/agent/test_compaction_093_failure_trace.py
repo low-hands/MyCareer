@@ -41,7 +41,7 @@ def test_failed_summary_trace_preserves_safe_metadata_without_changing_backoff(
         context = writer.load_for_turn(user_id="u", conversation_id="c", user_message="synthetic")
         writer.commit_turn(context=context, task=ConversationTaskState(), assistant_message="ack")
     manager = ContextManager(store, summary_worker=RejectedSummary())
-    manager.configure_request_token_estimator(lambda context: (16000, 32000))
+    manager.configure_request_token_estimator(lambda context: (25000, 32000))
     recorder = InMemoryTraceRecorder()
     token = ACTIVE_TRACE_CONTEXT.set((recorder, "synthetic-failure"))
     try:

@@ -32,6 +32,8 @@ def config() -> OpenAICompatibleAgentConfig:
 
 def summary_object() -> dict[str, object]:
     return {
+        "new_facts": [{"fact": "Use SQLite", "source_sequence": 1}],
+        "superseded_fact_ids": [],
         "user_goals": ["Track synthetic applications"],
         "confirmed_decisions": ["Use SQLite"],
         "unresolved_questions": [],

@@ -1,0 +1,143 @@
+{
+  "scenario": "interview_completion_is_not_inferred_from_the_clock",
+  "policy": "Use complete_interview only after the user explicitly confirms attendance; never infer completion from elapsed time.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "0f857965d76004ceb103408b49de16efd0817b71b8b697de76267bb017d1d553",
+  "context_shape_fingerprint": "3985e1cdce22a81b9b85794d61632c752e81f3ba2b1045740b4198ff15bc3733",
+  "recorded_at": "2026-10-10T00:52:21.969888+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "get_interview",
+        "arguments": {
+          "selection_index": 1
+        }
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "eb7b6c501ae20613e64cbf5dc6af7772cb1a9635f4ea4f65512f8e121c639e1d",
+      "decision_shape_fingerprint": "e4aea689a93fc321282d52574405a0e404774741816a44fcef21704a9946f2dc",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_interview",
+        "update_interview",
+        "complete_interview",
+        "get_interview_preparation",
+        "get_mock_interview_result",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 3585.8,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T00:52:19.049702+00:00",
+      "elapsed_ms": 3589.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_interview",
+            "arguments": {
+              "selection_index": 1
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "eb7b6c501ae20613e64cbf5dc6af7772cb1a9635f4ea4f65512f8e121c639e1d",
+          "decision_shape_fingerprint": "e4aea689a93fc321282d52574405a0e404774741816a44fcef21704a9946f2dc",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "update_interview",
+            "complete_interview",
+            "get_interview_preparation",
+            "get_mock_interview_result",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3585.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:52:22.579581+00:00",
+      "elapsed_ms": 3524.7,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_interview",
+            "arguments": {
+              "selection_index": 1
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "eb7b6c501ae20613e64cbf5dc6af7772cb1a9635f4ea4f65512f8e121c639e1d",
+          "decision_shape_fingerprint": "e4aea689a93fc321282d52574405a0e404774741816a44fcef21704a9946f2dc",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "update_interview",
+            "complete_interview",
+            "get_interview_preparation",
+            "get_mock_interview_result",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3522.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:52:21.969888+00:00",
+      "elapsed_ms": 2908.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_interview",
+            "arguments": {
+              "selection_index": 1
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "eb7b6c501ae20613e64cbf5dc6af7772cb1a9635f4ea4f65512f8e121c639e1d",
+          "decision_shape_fingerprint": "e4aea689a93fc321282d52574405a0e404774741816a44fcef21704a9946f2dc",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_interview",
+            "update_interview",
+            "complete_interview",
+            "get_interview_preparation",
+            "get_mock_interview_result",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2906.7,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

@@ -39,6 +39,10 @@ _TOOLS_SOURCE = Path(inspect.getsourcefile(MainAgentToolRegistry))
 # Individual emissions may omit a fact that does not apply, such as
 # ``status_changed_at`` for a current claim.
 DECLARED_FACTS = {
+    "conversation_span_unavailable": {
+        "keys": {"through_sequence"},
+        "reason": "新会话没有压缩历史，水位结构化说明不可读取的原因",
+    },
     "daily_brief_ready": {
         "keys": {"overdue", "due_today", "waiting"},
         "reason": "收据只能给出总数；分桶写进一句话就成了报告本身",
@@ -86,7 +90,7 @@ DECLARED_FACTS = {
 def _fact_keys_by_state() -> dict[str, set[str]]:
     """Every literal fact key, including keys hidden in conditional spreads."""
 
-    tree = ast.parse(_TOOLS_SOURCE.read_text())
+    tree = ast.parse(_TOOLS_SOURCE.read_text(encoding="utf-8"))
     builders: dict[str, ast.expr] = {}
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -173,6 +177,7 @@ def test_capabilities_only_emit_declared_fact_keys() -> None:
 def test_every_declared_fact_reaches_the_model_with_its_declared_keys() -> None:
     """Declaring a fact is not enough; it has to survive to the observation."""
     payloads = {
+        "conversation_span_unavailable": {},
         "daily_brief_ready": {},
         "job_research_ready": {},
         "claim_source_found": {},
@@ -249,7 +254,7 @@ def test_no_capability_hands_the_model_an_enum_where_prose_was_meant() -> None:
         # is operator-facing English prose.
         if "mock_interview" in str(source) or source.name == "cli.py":
             continue
-        for node in ast.walk(ast.parse(source.read_text())):
+        for node in ast.walk(ast.parse(source.read_text(encoding="utf-8"))):
             if not isinstance(node, ast.Call):
                 continue
             for keyword in node.keywords:

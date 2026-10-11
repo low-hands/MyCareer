@@ -185,6 +185,26 @@ class ActionCenterService:
             status="dismissed",
         )
 
+    def restore_dismissed_action(self, *, user_id: str, action_item_id: str) -> ActionItem:
+        """Compatibility entry point for the original restore endpoint."""
+        return self.restore_action(user_id=user_id, action_item_id=action_item_id)
+
+    def restore_action(self, *, user_id: str, action_item_id: str) -> ActionItem:
+        item = self._store.get(user_id=user_id, action_item_id=action_item_id)
+        if item is None:
+            raise ActionItemNotFoundError(action_item_id)
+        if item.status not in {"dismissed", "completed", "snoozed"}:
+            raise InvalidActionTransitionError("only dismissed, completed or snoozed actions can be restored")
+        restored = self._store.transition(
+            user_id=user_id, action_item_id=action_item_id, status="open",
+            expected_status=item.status,
+        )
+        if restored is None:
+            raise InvalidActionTransitionError("action changed before it could be restored")
+        if restored.status != "open":
+            raise InvalidActionTransitionError("action changed before it could be restored")
+        return restored
+
     def complete_source_action(
         self,
         *,
@@ -227,6 +247,8 @@ class ActionCenterService:
         )
         if item is None:
             raise ActionItemNotFoundError(action_item_id)
+        if item.status != "snoozed":
+            raise InvalidActionTransitionError("a resolved action cannot be snoozed")
         return item
 
     def _transition(

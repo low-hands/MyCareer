@@ -1,0 +1,290 @@
+{
+  "scenario": "a_repeated_call_is_not_reissued_after_an_observation",
+  "policy": "After receiving an observation, choose the next action or ask a state-grounded question unless another distinct tool call is genuinely required; never repeat an identical tool call.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "8fc83174a4fb07718864193bd89a7d34223b5e7f34ba75b4e3849b3eec111d90",
+  "context_shape_fingerprint": "35be590b42294ef652d531ab0aa3febf15a1b0304fbdf362ae3d9ac30b1f24a7",
+  "recorded_at": "2026-10-11T07:47:26.170097+00:00",
+  "steps": [
+    {
+      "tool_call": {
+        "name": "find_saved_jobs",
+        "arguments": {}
+      },
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "2f7dae4d8617ace7ded12a639f942d8ed5f105aa60a1944312f2d87a6ccd3391",
+      "decision_shape_fingerprint": "dcdb8c5478b14850ea82b0e7b80bfa9e6b60cb534b9a5434a746464052b2cdc6",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "find_saved_jobs",
+        "list_target_roles",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 2923.3,
+      "model_request_count": 1,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    },
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"你已保存了 1 个岗位：\\n\\n1. 算法工程师 - 示例科技（上海），薪资 30-50K\\n\\n你想查看这个岗位的详细信息，还是想比较多个岗位？\",\"questions\":[]}",
+      "scenario_step": 1,
+      "selected_schema_fingerprint": "a2ff54be09500402284492385bc26cdb6765af71d0f3e82e07d8df1abcf34d9a",
+      "decision_shape_fingerprint": "b68a08385c4c7492ec3ee985c7448084a372cfb48081fe0f4b9527734c1df9ff",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "find_saved_jobs",
+        "get_saved_job",
+        "compare_saved_jobs",
+        "list_target_roles",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 10703.0,
+      "model_request_count": 3,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "您目前保存了1个岗位：\n\n1. **算法工程师** - 示例科技（上海，30-50K）\n\n如果您想查看这个岗位的详细信息，我可以为您读取完整的职位描述。或者如果您有多个岗位想要比较，也可以告诉我。",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        },
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": true,
+          "raw_output": {
+            "content": "找到了 1 个已保存岗位：\n\n1. **算法工程师** - 示例科技（上海，30-50K）\n\n需要我读取这个岗位的详细信息吗？",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-11T07:47:24.713125+00:00",
+      "elapsed_ms": 13631.9,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "find_saved_jobs",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "2f7dae4d8617ace7ded12a639f942d8ed5f105aa60a1944312f2d87a6ccd3391",
+          "decision_shape_fingerprint": "dcdb8c5478b14850ea82b0e7b80bfa9e6b60cb534b9a5434a746464052b2cdc6",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2923.3,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"你已保存了 1 个岗位：\\n\\n1. 算法工程师 - 示例科技（上海），薪资 30-50K\\n\\n你想查看这个岗位的详细信息，还是想比较多个岗位？\",\"questions\":[]}",
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "a2ff54be09500402284492385bc26cdb6765af71d0f3e82e07d8df1abcf34d9a",
+          "decision_shape_fingerprint": "b68a08385c4c7492ec3ee985c7448084a372cfb48081fe0f4b9527734c1df9ff",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "get_saved_job",
+            "compare_saved_jobs",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 10703.0,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "您目前保存了1个岗位：\n\n1. **算法工程师** - 示例科技（上海，30-50K）\n\n如果您想查看这个岗位的详细信息，我可以为您读取完整的职位描述。或者如果您有多个岗位想要比较，也可以告诉我。",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "找到了 1 个已保存岗位：\n\n1. **算法工程师** - 示例科技（上海，30-50K）\n\n需要我读取这个岗位的详细信息吗？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:47:25.276706+00:00",
+      "elapsed_ms": 13229.5,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "find_saved_jobs",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "2f7dae4d8617ace7ded12a639f942d8ed5f105aa60a1944312f2d87a6ccd3391",
+          "decision_shape_fingerprint": "dcdb8c5478b14850ea82b0e7b80bfa9e6b60cb534b9a5434a746464052b2cdc6",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3068.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "content": "{\"action\":\"final\",\"message\":\"已找到 1 个已保存岗位：\\n\\n1. 算法工程师 - 示例科技（上海），薪资 30-50K\\n\\n如需查看该岗位的详细信息，请告诉我。\",\"questions\":[]}",
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "a2ff54be09500402284492385bc26cdb6765af71d0f3e82e07d8df1abcf34d9a",
+          "decision_shape_fingerprint": "b68a08385c4c7492ec3ee985c7448084a372cfb48081fe0f4b9527734c1df9ff",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "get_saved_job",
+            "compare_saved_jobs",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 10151.6,
+          "model_request_count": 3,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "找到了 1 个已保存岗位：\n\n1. 算法工程师 - 示例科技（上海，30-50K）\n\n需要查看该岗位的详细信息吗？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": true,
+              "raw_output": {
+                "content": "已找到 1 个已保存岗位：\n\n1. **算法工程师** - 示例科技（上海），薪资 30-50K\n\n需要查看该岗位的详细信息吗？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:47:26.170097+00:00",
+      "elapsed_ms": 13978.0,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "find_saved_jobs",
+            "arguments": {}
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "2f7dae4d8617ace7ded12a639f942d8ed5f105aa60a1944312f2d87a6ccd3391",
+          "decision_shape_fingerprint": "dcdb8c5478b14850ea82b0e7b80bfa9e6b60cb534b9a5434a746464052b2cdc6",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3332.0,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "get_saved_job",
+            "arguments": {
+              "selection_index": 1
+            }
+          },
+          "scenario_step": 1,
+          "selected_schema_fingerprint": "a2ff54be09500402284492385bc26cdb6765af71d0f3e82e07d8df1abcf34d9a",
+          "decision_shape_fingerprint": "b68a08385c4c7492ec3ee985c7448084a372cfb48081fe0f4b9527734c1df9ff",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "get_saved_job",
+            "compare_saved_jobs",
+            "list_target_roles",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 10640.7,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "找到了 1 个已保存岗位：\n\n1. **算法工程师** - 示例科技（上海），薪资 30-50K\n\n需要查看这个岗位的详细信息吗？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

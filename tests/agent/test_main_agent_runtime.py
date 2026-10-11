@@ -57,7 +57,7 @@ from career_agent.agent.contracts.resources import (
     ConversationMessageContext,
     ConversationResourceReference,
 )
-from career_agent.agent.runtime.main_agent_runtime import InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, ReplayedTurn, RuntimeAction, TurnInProgressError, keyword_tool_profile
+from career_agent.agent.runtime.main_agent_runtime import InteractionReceipt, MainAgentTurnResult, MainAgentRuntime, ModelDecision, ReplayedTurn, RuntimeAction, TurnInProgressError
 from career_agent.agent.runtime.ports import RuntimePorts
 from career_agent.agent.runtime.observation_reducer import tool_observation
 from career_agent.agent.runtime.observability import RuntimeObservability
@@ -92,38 +92,33 @@ from career_agent.storage.action_executions import (
 from career_agent.storage.turn_receipts import SQLiteTurnReceiptStore
 from career_agent.storage.checkpoints import SQLiteCheckpointOwner
 from career_agent.harness.streaming import ClientActionEvent, InteractionRequiredEvent, InteractionResponse, JobResourceReadyEvent, TurnCompletedEvent, TurnFailedEvent
-from conftest import enter_tool_profile
+from agent_test_support import CatalogSchemaRegistry, load_capability_family
+from career_agent.agent.capabilities.catalog import CAPABILITIES
 
 
 class DecisionMaker:
-    def __init__(self, decision: AgentDecision) -> None:
+    """Returns one decision; by default pins the bare registry's two schemas.
+
+    Pass ``offered=None`` with a catalogue-schema registry: the check is then
+    that the decided tool was among the schemas actually offered.
+    """
+
+    def __init__(
+        self,
+        decision: AgentDecision,
+        *,
+        offered: tuple[str, ...] | None = None,
+    ) -> None:
         self.decision = decision
+        self.offered = offered
 
     def decide(self, context, tool_names):
-        assert tuple(spec["function"]["name"] for spec in tool_names) == ("route_to_capability", "open_job_search")
+        names = tuple(spec["function"]["name"] for spec in tool_names)
+        if self.offered is not None:
+            assert names == self.offered
+        elif self.decision.tool_call is not None and self.decision.tool_call.name in CAPABILITIES:
+            assert self.decision.tool_call.name in names
         return self.decision
-
-
-@pytest.mark.parametrize(
-    ("message", "expected"),
-    [
-        ("我有个字节的面试，帮我准备", "interview"),
-        ("开始模拟面试", "interview"),
-        # Named outright; the other domain words only describe the request.
-        ("我想做一场自由模拟面试，不针对具体投递", "interview"),
-        ("用我的简历做一场模拟面试", "interview"),
-        # Two topical domains and no named capability stay a model decision.
-        ("我投递的岗位有面试安排了", None),
-        ("看看我的投递进度", "application"),
-        ("帮我优化一下简历", "resume"),
-        ("找上海的 AIGC 实习", "job"),
-        ("分析这个 JD", "job"),
-        ("最近有点焦虑，聊聊吧", None),
-        ("记住我更喜欢小团队", None),
-    ],
-)
-def test_high_confidence_keyword_profile_routing(message, expected) -> None:
-    assert keyword_tool_profile(message) == expected
 
 
 class SequenceDecisionMaker:
@@ -167,27 +162,6 @@ def build_runtime(tmp_path, decision: AgentDecision):
     manager.upsert_profile(CareerProfileContext(user_id="u1", default_city="Shanghai"))
     tools = CountingRegistry()
     return MainAgentRuntime(context_manager=manager, decision_maker=DecisionMaker(decision), tools=tools), tools, manager
-
-
-def test_keyword_route_skips_the_core_profile_decision(tmp_path) -> None:
-    manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
-    manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    decisions = SequenceDecisionMaker(AgentDecision(action="final", message="请告诉我面试时间。"))
-    runtime = MainAgentRuntime(
-        context_manager=manager,
-        decision_maker=decisions,
-        tools=MainAgentToolRegistry(),
-    )
-
-    runtime.run_turn(
-        user_id="u1",
-        conversation_id="c1",
-        user_message="我有个字节的面试，帮我准备",
-    )
-
-    assert len(decisions.contexts) == 1
-    assert decisions.contexts[0].task.tool_profile == "interview"
-    assert manager.get_task(user_id="u1", conversation_id="c1").tool_profile == "interview"
 
 
 def _never_called_decision_maker():
@@ -344,7 +318,7 @@ def test_settled_main_graph_checkpoint_is_deleted_before_runtime_restart(
 def test_create_application_reuses_a_succeeded_request_slot_without_reinvoking(
     tmp_path,
 ) -> None:
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self):
             super().__init__()
             self.calls = 0
@@ -379,7 +353,7 @@ def test_create_application_reuses_a_succeeded_request_slot_without_reinvoking(
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     registry = Registry()
     ledger = SQLiteActionExecutionStore(tmp_path / "context.sqlite3")
 
@@ -438,7 +412,7 @@ def test_create_application_reuses_a_succeeded_request_slot_without_reinvoking(
 def test_manual_settlement_repairs_task_state_on_request_replay(tmp_path) -> None:
     """A CLI finding becomes a reducer receipt, not arbitrary audit payload."""
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self):
             super().__init__()
             self.calls = 0
@@ -455,7 +429,7 @@ def test_manual_settlement_repairs_task_state_on_request_replay(tmp_path) -> Non
     database = tmp_path / "context.sqlite3"
     manager = ContextManager(CareerContextStore(database))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     ledger = SQLiteActionExecutionStore(database)
     projected_arguments = {"user_id": "u1"}
     fingerprint = hashlib.sha256(
@@ -539,7 +513,7 @@ def test_manual_settlement_repairs_task_state_on_request_replay(tmp_path) -> Non
 def test_a_declared_execution_outcome_settles_the_ledger_over_the_state(
     tmp_path, state, execution_outcome, expected_status
 ) -> None:
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -556,7 +530,7 @@ def test_a_declared_execution_outcome_settles_the_ledger_over_the_state(
     database = tmp_path / f"{state}-{execution_outcome}.sqlite3"
     manager = ContextManager(CareerContextStore(database))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     ledger = SQLiteActionExecutionStore(database)
     Runtime(
         context_manager=manager,
@@ -583,7 +557,7 @@ def test_a_declared_execution_outcome_settles_the_ledger_over_the_state(
 
 
 def test_an_undeclared_write_outcome_fails_loudly_and_stays_pending(tmp_path) -> None:
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -599,7 +573,7 @@ def test_an_undeclared_write_outcome_fails_loudly_and_stays_pending(tmp_path) ->
     database = tmp_path / "undeclared.sqlite3"
     manager = ContextManager(CareerContextStore(database))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     ledger = SQLiteActionExecutionStore(database)
 
     with pytest.raises(ValueError, match="returned without execution_outcome"):
@@ -660,7 +634,7 @@ def test_accountability_is_derived_from_the_origin_and_cannot_be_stated(origin) 
 
 
 def test_multiple_write_budget_uses_distinct_durable_write_slots(tmp_path) -> None:
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -678,7 +652,7 @@ def test_multiple_write_budget_uses_distinct_durable_write_slots(tmp_path) -> No
     database = tmp_path / "context.sqlite3"
     manager = ContextManager(CareerContextStore(database))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     ledger = SQLiteActionExecutionStore(database)
     Runtime(
         context_manager=manager,
@@ -781,7 +755,7 @@ def test_a_mid_turn_reload_keeps_a_clipped_message_whole_in_storage(
         "具备鑫龘饕餮等生僻字处理经验；" * 800
     )[:32_000]
 
-    class NoteWritingRegistry(MainAgentToolRegistry):
+    class NoteWritingRegistry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -842,7 +816,7 @@ def test_a_turns_first_estimate_pairs_with_its_first_provider_count(
     """
     from career_agent.storage.run_events import SQLiteTraceRecorder
 
-    class NoteWritingRegistry(MainAgentToolRegistry):
+    class NoteWritingRegistry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -935,12 +909,12 @@ def test_navigation_only_job_search_opens_boss_without_discovery_gateway(
     )
 
     assert tools.workflow_names == ()
-    assert tools.atomic_tool_names == ("route_to_capability", "open_job_search")
+    assert tools.atomic_tool_names == ("search_capabilities", "open_job_search")
     assert [spec["function"]["name"] for spec in tools.schemas()] == [
-        "route_to_capability",
         "open_job_search",
+        "search_capabilities",
     ]
-    description = tools.schemas()[1]["function"]["description"]
+    description = tools.schemas()[0]["function"]["description"]
     assert "ask for the city instead of guessing or searching nationwide" in description
     assert result.tool_results[0].state == "job_search_page_ready"
     action = next(event for event in events if isinstance(event, ClientActionEvent))
@@ -1004,7 +978,7 @@ def test_registry_classifies_workflows_and_atomic_tools(tmp_path) -> None:
     tools = MainAgentToolRegistry(job_repository=repository)
 
     assert tools.workflow_names == ()
-    assert tools.atomic_tool_names == ("route_to_capability", "open_job_search", "find_saved_jobs", "get_saved_job")
+    assert tools.atomic_tool_names == ("search_capabilities", "open_job_search", "find_saved_jobs", "get_saved_job")
     assert tools.capability_kind("open_job_search") == "atomic_tool"
     assert tools.capability_kind("find_saved_jobs") == "atomic_tool"
 
@@ -1211,7 +1185,7 @@ def test_capability_steps_and_a_long_tool_call_are_announced_as_progress(
 ) -> None:
     from career_agent.harness.capability_steps import notify_capability_step
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -1234,7 +1208,7 @@ def test_capability_steps_and_a_long_tool_call_are_announced_as_progress(
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "resume")
+    load_capability_family(manager, "resume")
     agent = Runtime(
         context_manager=manager,
         decision_maker=SequenceDecisionMaker(
@@ -1475,7 +1449,7 @@ def _crashed_process_runtime(tmp_path, *decisions, profile="application"):
     before ``fail_orphaned_running`` runs as it would at startup.
     """
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self) -> None:
             super().__init__()
             self.calls = 0
@@ -1504,7 +1478,7 @@ def _crashed_process_runtime(tmp_path, *decisions, profile="application"):
     database = tmp_path / "context.sqlite3"
     manager = ContextManager(CareerContextStore(database))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, profile)
+    load_capability_family(manager, profile)
     receipts = SQLiteTurnReceiptStore(database)
     ledger = SQLiteActionExecutionStore(database)
     registry = Registry()
@@ -1739,6 +1713,7 @@ def test_tool_observation_returns_to_model_before_final_answer(tmp_path) -> None
         # The projected form is not shown: it carries what the handler needs,
         # including the ids the projection boundary keeps from the model.
         "arguments": {"keyword": "AI Engineer"},
+        "evidence": {"body_status": "receipt_only", "readback_status": "unavailable"},
     }
     serialized = str(observation)
     assert "zhipin.com" not in serialized
@@ -1750,10 +1725,10 @@ def test_conversation_span_is_turn_local_observation_not_recent_history(
     store = CareerContextStore(tmp_path / "context.sqlite3")
     manager = ContextManager(
         store,
-        recent_message_limit=2,
+        recent_message_limit=2048,
         summary_batch_size=2,
         summary_worker=StaticSummaryWorker(),
-        max_recent_context_chars=60,
+        max_recent_context_tokens=22,
         compact_occupancy_threshold=0.7,
     )
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
@@ -1768,6 +1743,8 @@ def test_conversation_span_is_turn_local_observation_not_recent_history(
             task=ConversationTaskState(),
             assistant_message=f"private-old-assistant-{index}",
         )
+    # The seeded watermark is the fixture; the exercised turn has normal caps.
+    manager = ContextManager(store, summary_worker=StaticSummaryWorker())
     decisions = SequenceDecisionMaker(
         AgentDecision(
             action="tool_call",
@@ -1785,7 +1762,7 @@ def test_conversation_span_is_turn_local_observation_not_recent_history(
         tools=tools,
     )
 
-    agent.run_turn(
+    result = agent.run_turn(
         user_id="u1", conversation_id="c1", user_message="回看缺失的开头。"
     )
 
@@ -1794,9 +1771,9 @@ def test_conversation_span_is_turn_local_observation_not_recent_history(
     observation = decisions.contexts[1].tool_observations[-1]
     assert observation.facts == {
         "from_sequence": 1,
-        "through_sequence": 2,
-        "returned": 2,
-        "total": 2,
+        "through_sequence": 4,
+        "returned": 4,
+        "total": 4,
         "body_clipped": False,
         "content_clipped": False,
             "resource_ref_count": 0,
@@ -1805,21 +1782,19 @@ def test_conversation_span_is_turn_local_observation_not_recent_history(
     assert observation.body is not None
     assert "private-old-user-0" in observation.body
     assert "private-old-assistant-0" in observation.body
-    assert tools.calls == [
-        (
-            "read_conversation_span",
-            {
-                "user_id": "u1",
-                "conversation_id": "c1",
-                "from_sequence": 1,
-                "through_sequence": 2,
-            },
-        )
-    ]
+    assert result.assistant_message == "我已根据那段历史继续处理。"
+    assert len(tools.calls) == 1
+    assert tools.calls[0][0] == "read_conversation_span"
+    assert tools.calls[0][1]["user_id"] == "u1"
+    assert tools.calls[0][1]["conversation_id"] == "c1"
+    assert "from_sequence" not in tools.calls[0][1]
+    assert "through_sequence" not in tools.calls[0][1]
     recent = manager.load_for_turn(
         user_id="u1", conversation_id="c1", user_message="next"
     ).recent_messages
     assert [message.content for message in recent] == [
+        "private-old-user-2",
+        "private-old-assistant-2",
         "回看缺失的开头。",
         "我已根据那段历史继续处理。",
     ]
@@ -2285,6 +2260,8 @@ def test_saved_job_exposes_only_the_bounded_presenter_body_not_internal_payload(
     assert observation.model_dump() == {
         "tool_name": "get_saved_job",
         "state": "saved_job_ready",
+        "disposition": "completed",
+        "execution_outcome": None,
         "message": "已读取已保存岗位。",
         "body": sentinel,
         "facts": {},
@@ -2544,7 +2521,7 @@ def test_observation_count_and_character_budgets_fit_the_declared_worst_shape() 
         MAX_DECISION_OBSERVATION_BODIES * DECISION_OBSERVATION_BODY_LIMIT
         + MAX_DECISION_OBSERVATIONS * DECISION_OBSERVATION_RECEIPT_LIMIT
     ) == 12_600
-    assert decision_observation_chars(observations) == 18_367
+    assert decision_observation_chars(observations) == 19_231
     assert decision_observation_chars(observations) <= (
         MAX_DECISION_OBSERVATION_CHARS
     )
@@ -2617,13 +2594,11 @@ def test_the_cards_shown_live_are_the_references_the_transcript_keeps(
     regression impossible to reintroduce quietly.
     """
 
-    class TwoReportRegistry(MainAgentToolRegistry):
+    class TwoReportRegistry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
         def invoke_atomic_tool(self, name, arguments):
-            if name == "route_to_capability":
-                return super().invoke_atomic_tool(name, arguments)
             kinds = {
                 "get_job_research": ("job_research_report", "report-1"),
                 "get_resume_job_match": ("resume_job_match", "match-1"),
@@ -2659,17 +2634,11 @@ def test_the_cards_shown_live_are_the_references_the_transcript_keeps(
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "job")
+    load_capability_family(manager, "job")
     decisions = SequenceDecisionMaker(
         AgentDecision(
             action="tool_call",
             tool_call=ToolCall(name="get_job_research", arguments={}),
-        ),
-        AgentDecision(
-            action="tool_call",
-            tool_call=ToolCall(
-                name="route_to_capability", arguments={"domain": "resume"}
-            ),
         ),
         AgentDecision(
             action="tool_call",
@@ -2711,7 +2680,7 @@ def _interrupted_turn_runtime(tmp_path, *, first_tool: str):
     path, not a synthetic error.
     """
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -2736,7 +2705,7 @@ def _interrupted_turn_runtime(tmp_path, *, first_tool: str):
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     runtime = DirectRuntime(
         context_manager=manager,
         decision_maker=SequenceDecisionMaker(
@@ -2882,7 +2851,7 @@ def test_a_write_that_failed_is_not_reported_as_written(tmp_path) -> None:
     to look up something ``result.disposition`` already answered.
     """
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -2984,13 +2953,11 @@ def test_a_mixed_turn_streams_the_card_less_body_and_keeps_the_whole_reply(
     jd_body = "职业记忆\n\n" + "负责端到端的检索系统。" * 60
     reply = "先说记忆：" + "这个岗位要求的是检索与排序的工程能力。" * 40
 
-    class MixedRegistry(MainAgentToolRegistry):
+    class MixedRegistry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
         def invoke_atomic_tool(self, name, arguments):
-            if name == "route_to_capability":
-                return super().invoke_atomic_tool(name, arguments)
             if name == "get_career_memory_detail":
                 return ToolResult(
                     tool_name=name,
@@ -3022,19 +2989,13 @@ def test_a_mixed_turn_streams_the_card_less_body_and_keeps_the_whole_reply(
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "memory")
+    load_capability_family(manager, "memory")
     runtime = DirectRuntime(
         context_manager=manager,
         decision_maker=SequenceDecisionMaker(
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(name="get_career_memory_detail", arguments={}),
-            ),
-            AgentDecision(
-                action="tool_call",
-                tool_call=ToolCall(
-                    name="route_to_capability", arguments={"domain": "job"}
-                ),
             ),
             AgentDecision(
                 action="tool_call",
@@ -3356,7 +3317,7 @@ def test_runtime_adds_safe_error_code_only_to_the_user_receipt() -> None:
 
 
 def test_failed_capability_cannot_turn_into_a_user_question(tmp_path) -> None:
-    class FailingRegistry(CountingRegistry):
+    class FailingRegistry(CatalogSchemaRegistry, CountingRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -3400,6 +3361,7 @@ def test_questionnaire_restores_and_submits_once_to_one_continuation(tmp_path) -
     decisions = SequenceDecisionMaker(
         AgentDecision(
             action="questionnaire", message="请补充五项信息。",
+            continuation_capability="list_resumes",
             questions=(
                 UserQuestion(
                     question_id="q1", prompt="用过哪种数据库？", kind="single",
@@ -3422,7 +3384,11 @@ def test_questionnaire_restores_and_submits_once_to_one_continuation(tmp_path) -
     interaction = next(event for event in first_events if event.type == "interaction_required")
     assert interaction.kind == "questionnaire" and len(interaction.questions) == 5
     assert first_events[-1].type == "turn_suspended"
-    assert manager.get_task(user_id="u1", conversation_id="c1").pending_questionnaire is not None
+    pending = manager.get_task(user_id="u1", conversation_id="c1").pending_questionnaire
+    assert pending is not None
+    # The fixture registry offered no tools, so a model-declared continuation
+    # is not bound to this questionnaire.
+    assert pending.continuation_capability is None
     graph_config = {
         "configurable": {
             "thread_id": main_graph_thread_id(
@@ -3446,6 +3412,7 @@ def test_questionnaire_restores_and_submits_once_to_one_continuation(tmp_path) -
     assert result.assistant_message == "收到这五项补充，继续当前任务。"
     assert second_events[-1].type == "turn_completed"
     assert len(decisions.contexts) == 2
+    assert decisions.contexts[1].turn_continuation_capability is None
     assert "内部检索平台" in decisions.contexts[1].user_message
     assert "泛泛的技能回答不能扩写成项目" in decisions.contexts[1].user_message
     assert "propose_career_fact" in decisions.contexts[1].user_message
@@ -3622,7 +3589,7 @@ def test_questionnaire_resource_removed_before_submit_fails_closed(tmp_path, res
     assert len(decisions.contexts) == 1
 
 
-@pytest.mark.parametrize("failure", ("expired", "binding_changed"))
+@pytest.mark.parametrize("failure", ("expired", "binding_changed", "match_binding_changed"))
 def test_questionnaire_preflight_failure_is_visible_without_continuation(tmp_path, failure) -> None:
     store = CareerContextStore(tmp_path / "context.sqlite3")
     manager = ContextManager(store)
@@ -3654,8 +3621,14 @@ def test_questionnaire_preflight_failure_is_visible_without_continuation(tmp_pat
         )
         expected = "QUESTIONNAIRE_EXPIRED"
         message_part = "已过期"
-    else:
+    elif failure == "binding_changed":
         task = task.update_resume_context(active_version_id="other-resume")
+        expected = "QUESTIONNAIRE_RESOURCE_BINDING_CHANGED"
+        message_part = "已变化"
+    else:
+        task = task.with_pending_questionnaire(
+            pending.model_copy(update={"resume_job_match_id": "old-match"})
+        ).update_resume_context(active_job_match_id="new-match")
         expected = "QUESTIONNAIRE_RESOURCE_BINDING_CHANGED"
         message_part = "已变化"
     store.upsert_task(user_id="u1", conversation_id="c1", task=task)
@@ -3858,7 +3831,7 @@ def test_saved_job_tools_are_registered_and_find_returns_only_summaries(tmp_path
 
     result = agent.run_turn(user_id="u1", conversation_id="c1", user_message="找一下我以前看过的 RAG 岗位")
 
-    assert tuple(spec["function"]["name"] for spec in tools.schemas()) == ("route_to_capability", "open_job_search", "find_saved_jobs", "get_saved_job")
+    assert tuple(spec["function"]["name"] for spec in tools.schemas()) == ("open_job_search", "find_saved_jobs", "get_saved_job", "search_capabilities")
     assert all("user_id" not in spec["function"]["parameters"].get("properties", {}) for spec in tools.schemas())
     observation = decisions.contexts[1].tool_observations[0]
     tool_result = result.tool_results[0]
@@ -3947,7 +3920,7 @@ def test_ask_user_after_listing_does_not_leak_options_into_a_fact_question(tmp_p
 def _saved_job_runtime(tmp_path, repository, *decisions):
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "job")
+    load_capability_family(manager, "job")
     maker = SequenceDecisionMaker(*decisions)
     return maker, MainAgentRuntime(
         context_manager=manager,
@@ -3956,8 +3929,8 @@ def _saved_job_runtime(tmp_path, repository, *decisions):
     )
 
 
-def test_the_jd_card_follows_the_prose_and_the_prose_never_holds_the_jd(tmp_path) -> None:
-    """Scenario: the JD is not in the reply body; the card comes after it."""
+def test_the_jd_card_precedes_the_final_decision_and_never_leaks_into_prose(tmp_path) -> None:
+    """Scenario: the durable JD card is available while the model writes prose."""
     repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
     job_posting_id = _seed_saved_job(repository)
     _, agent = _saved_job_runtime(
@@ -3979,7 +3952,10 @@ def test_the_jd_card_follows_the_prose_and_the_prose_never_holds_the_jd(tmp_path
     assert card.job_posting_id == job_posting_id
     assert card.title == "Acme｜RAG Engineer"
     last_delta = max(index for index, event in enumerate(events) if event.type == "content_delta")
-    assert events.index(card) > last_delta
+    assert events.index(card) < last_delta
+    assert len([e for e in events if isinstance(e, JobResourceReadyEvent)]) == 1
+    deciding = [i for i, e in enumerate(events) if e.type == "progress" and e.stage == "deciding"]
+    assert events.index(card) < deciding[-1]
     assert isinstance(events[-1], TurnCompletedEvent)
     stored = CareerContextStore(tmp_path / "context.sqlite3").list_messages("u1", "c1", limit=10)[-1]
     assert "PRIVATE SAVED JD" not in stored.content
@@ -4073,7 +4049,7 @@ def test_a_new_conversation_does_not_inherit_this_job(tmp_path) -> None:
 def test_get_saved_job_injects_user_scope_and_returns_complete_jd(tmp_path) -> None:
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "job")
+    load_capability_family(manager, "job")
     repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
     job_posting_id = _seed_saved_job(repository)
     decisions = SequenceDecisionMaker(
@@ -4119,7 +4095,7 @@ def test_get_saved_job_injects_user_scope_and_returns_complete_jd(tmp_path) -> N
 def test_saved_job_tools_reject_model_supplied_user_id(tmp_path, tool_name, arguments) -> None:
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "job")
+    load_capability_family(manager, "job")
     repository = SQLiteJobPostingRepository(tmp_path / "jobs.sqlite3")
     agent = MainAgentRuntime(
         context_manager=manager,
@@ -4689,7 +4665,7 @@ def test_an_unsettled_write_blocks_a_different_one_without_killing_the_turn(
     is also why the action id stays out of the reply — it is a runtime-generated
     internal identifier.
     """
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self) -> None:
             super().__init__()
             self.calls = 0
@@ -4705,7 +4681,7 @@ def test_an_unsettled_write_blocks_a_different_one_without_killing_the_turn(
 
     manager = ContextManager(CareerContextStore(tmp_path / "context.sqlite3"))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     ledger = SQLiteActionExecutionStore(tmp_path / "context.sqlite3")
     # What a crash between preparation and settlement leaves behind.
     stranded, _ = ledger.prepare(
@@ -4757,7 +4733,7 @@ def test_an_unsettled_write_is_only_reissued_when_something_downstream_dedupes(
     ``create_application`` is replay-safe. ``create_interview`` still has a
     durable PENDING row but cannot be reissued without reconciliation.
     """
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self, tool: str) -> None:
             super().__init__()
             self.tool = tool
@@ -4785,7 +4761,7 @@ def test_an_unsettled_write_is_only_reissued_when_something_downstream_dedupes(
     ):
         manager = ContextManager(CareerContextStore(tmp_path / f"{tool}.sqlite3"))
         manager.upsert_profile(CareerProfileContext(user_id="u1"))
-        enter_tool_profile(manager, profile)
+        load_capability_family(manager, profile)
         ledger = SQLiteActionExecutionStore(tmp_path / f"{tool}.sqlite3")
         # A crash between preparation and settlement, with the same arguments:
         # the fingerprint matches, so this is a replay rather than a conflict.
@@ -4838,7 +4814,7 @@ def test_an_interrupted_turn_separates_confirmed_writes_from_unconfirmed_ones(
     Conflating the two either invites a duplicate (treating unknown as done) or
     hides a real effect (treating done as nothing happened).
     """
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def capability_kind(self, name):
             return "atomic_tool"
 
@@ -4961,7 +4937,7 @@ def test_an_owner_rule_gates_a_capability_before_it_runs(
 ) -> None:
     """``review`` stops the action before any side effect and seals it."""
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self) -> None:
             super().__init__()
             self.calls = 0
@@ -4984,7 +4960,7 @@ def test_an_owner_rule_gates_a_capability_before_it_runs(
     store = CareerContextStore(tmp_path / "context.sqlite3")
     manager = ContextManager(store)
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     store.upsert_preferences(
         "u1", AgentPreferencesContext(application_confirmation=preference)
     )
@@ -5026,7 +5002,7 @@ def test_an_owner_rule_can_be_satisfied_across_a_restart_and_runs_once(tmp_path)
 
     database = tmp_path / "context.sqlite3"
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         calls: list[dict] = []
 
         def capability_kind(self, name):
@@ -5055,7 +5031,7 @@ def test_an_owner_rule_can_be_satisfied_across_a_restart_and_runs_once(tmp_path)
     Registry.calls = []
     manager = ContextManager(CareerContextStore(database))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
 
     # 1. The owner sets the rule, through the surface the model cannot reach.
     manager.upsert_preferences(
@@ -5132,13 +5108,13 @@ def test_declining_a_sealed_action_settles_it_without_running_it(tmp_path) -> No
     store = SQLiteCapabilityConfirmationStore(database)
     manager = ContextManager(CareerContextStore(database))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     manager.upsert_preferences(
         user_id="u1",
         preferences=AgentPreferencesContext(application_confirmation="always_ask"),
     )
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         calls: list[dict] = []
 
         def capability_kind(self, name):
@@ -5215,7 +5191,7 @@ def test_default_owner_rule_does_not_expand_the_model_context() -> None:
 def test_bound_owner_confirmation_executes_once_and_uses_a_durable_action_anchor(
     tmp_path,
 ) -> None:
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self) -> None:
             super().__init__()
             self.calls = 0
@@ -5239,7 +5215,7 @@ def test_bound_owner_confirmation_executes_once_and_uses_a_durable_action_anchor
     context_store = CareerContextStore(path)
     manager = ContextManager(context_store)
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     manager.upsert_preferences(
         user_id="u1",
         preferences=AgentPreferencesContext(application_confirmation="always_ask"),
@@ -5253,7 +5229,8 @@ def test_bound_owner_confirmation_executes_once_and_uses_a_durable_action_anchor
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(name="create_application", arguments={}),
-            )
+            ),
+            offered=None,
         ),
         tools=registry,
         capability_confirmation_store=confirmations,
@@ -5299,7 +5276,7 @@ def test_bound_owner_confirmation_executes_once_and_uses_a_durable_action_anchor
 
 
 def test_a_policy_change_invalidates_the_exact_action_waiting_for_approval(tmp_path):
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self):
             super().__init__()
             self.calls = 0
@@ -5325,7 +5302,7 @@ def test_a_policy_change_invalidates_the_exact_action_waiting_for_approval(tmp_p
     store = CareerContextStore(path)
     manager = ContextManager(store)
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     initial = manager.preferences(user_id="u1")
     guarded = manager.update_owner_settings(
         user_id="u1",
@@ -5345,7 +5322,8 @@ def test_a_policy_change_invalidates_the_exact_action_waiting_for_approval(tmp_p
     runtime = Runtime(
         context_manager=manager,
         decision_maker=DecisionMaker(
-            AgentDecision(action="tool_call", tool_call=ToolCall(name="create_application", arguments={}))
+            AgentDecision(action="tool_call", tool_call=ToolCall(name="create_application", arguments={})),
+            offered=None,
         ),
         tools=registry,
         capability_confirmation_store=confirmations,
@@ -5505,7 +5483,7 @@ def test_confirm_before_is_a_canonical_set_of_declared_write_capabilities() -> N
 def test_confirm_before_gates_the_named_capability_and_is_shown_to_the_model(
     tmp_path,
 ) -> None:
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self) -> None:
             super().__init__()
             self.calls: list[str] = []
@@ -5529,7 +5507,7 @@ def test_confirm_before_gates_the_named_capability_and_is_shown_to_the_model(
     store = CareerContextStore(path)
     manager = ContextManager(store)
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "interview")
+    load_capability_family(manager, "interview")
     initial = manager.preferences(user_id="u1")
     manager.update_owner_settings(
         user_id="u1",
@@ -5584,7 +5562,7 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
     still refuses internal writes and never borrows the external slot.
     """
 
-    class Registry(MainAgentToolRegistry):
+    class Registry(CatalogSchemaRegistry):
         def __init__(self) -> None:
             super().__init__()
             self.calls: list[str] = []
@@ -5593,8 +5571,6 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
             return "atomic_tool"
 
         def invoke_atomic_tool(self, name, arguments):
-            if name == "route_to_capability":
-                return super().invoke_atomic_tool(name, arguments)
             self.calls.append(name)
             return ToolObservation(
                 tool_name=name,
@@ -5608,10 +5584,6 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
 
     def Runtime(**kwargs):
         def project(context, name, arguments):
-            if name == "route_to_capability":
-                return default_ports.project_atomic_tool_arguments(
-                    context, name, arguments
-                )
             return {"user_id": context.profile.user_id, **arguments}
 
         return MainAgentRuntime(
@@ -5622,7 +5594,7 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
     path = tmp_path / "context.sqlite3"
     manager = ContextManager(CareerContextStore(path))
     manager.upsert_profile(CareerProfileContext(user_id="u1"))
-    enter_tool_profile(manager, "application")
+    load_capability_family(manager, "application")
     registry = Registry()
 
     result = Runtime(
@@ -5635,12 +5607,6 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
             AgentDecision(
                 action="tool_call",
                 tool_call=ToolCall(name="update_application_status", arguments={}),
-            ),
-            AgentDecision(
-                action="tool_call",
-                tool_call=ToolCall(
-                    name="route_to_capability", arguments={"domain": "interview"}
-                ),
             ),
             AgentDecision(
                 action="tool_call",
@@ -5659,7 +5625,6 @@ def test_internal_and_external_writes_draw_on_separate_budgets(tmp_path) -> None
     assert states == [
         "application_ready",
         "authorization_refused",
-        "tool_profile_switched",
     ]
     assert "本轮 WRITE 委派预算已经用完" in result.context.tool_observations[1].message
     assert result.delegated_write_count == 1

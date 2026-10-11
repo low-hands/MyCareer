@@ -1,0 +1,1125 @@
+{
+  "method": "Agent reviewed complete displayed answers, grouping identical answers only for display. No phrase matching quality classifier.",
+  "reviews": [
+    {
+      "scenario": "resume_list",
+      "sample": 1,
+      "turn": 1,
+      "assistant_sha256": "9a8ffff9eb9343d02f55189ceb153d5835f015b5154a96e06220981b706a44d8",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_list",
+      "sample": 2,
+      "turn": 1,
+      "assistant_sha256": "0619efa199506fe776b1c92131dd5b0d7978efb8dc2029fdf8a921af37749a73",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_list",
+      "sample": 3,
+      "turn": 1,
+      "assistant_sha256": "307aa79dd7706708305c826d35320cb38df0811a46c4aa14c1df9547e75a376f",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_list",
+      "sample": 4,
+      "turn": 1,
+      "assistant_sha256": "701dd601af3ee9b62ca02905013c58eb289b404d9d187f61633e90d147ea244c",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_list",
+      "sample": 5,
+      "turn": 1,
+      "assistant_sha256": "2fda6019222987c7d62e77bd710e2159470f1aef5edfe81995495b79b246f858",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_list",
+      "sample": 6,
+      "turn": 1,
+      "assistant_sha256": "0619efa199506fe776b1c92131dd5b0d7978efb8dc2029fdf8a921af37749a73",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_list",
+      "sample": 7,
+      "turn": 1,
+      "assistant_sha256": "2500eacc5b080379bfc5564f3c73addcae06814e3200ca38053e1a78413a59dc",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_list",
+      "sample": 8,
+      "turn": 1,
+      "assistant_sha256": "307aa79dd7706708305c826d35320cb38df0811a46c4aa14c1df9547e75a376f",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_list",
+      "sample": 9,
+      "turn": 1,
+      "assistant_sha256": "2db97c8bc5a81c3aa2fb07a47ba8fec68dfdfe0fc64ca286a5e7e2d0a2de5d01",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_list",
+      "sample": 10,
+      "turn": 1,
+      "assistant_sha256": "042f560f531a268161074c67fa2cc836743d66b1f6e63387ee1f3556711cea00",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_inventory",
+      "sample": 1,
+      "turn": 1,
+      "assistant_sha256": "2cf603a9a9b7e28b37d3bf4fe75395fc0a57f64513f7fdcf92a85fa54c64e8e2",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_inventory",
+      "sample": 2,
+      "turn": 1,
+      "assistant_sha256": "bcbc46a320ef28dddb9021a60c81952f82d41db5855adb742b4f87312f13b2ec",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_inventory",
+      "sample": 3,
+      "turn": 1,
+      "assistant_sha256": "3aa9871f3d3c0f3f6cca81787264db084e370b057df0416fb6b1ca266bcccf12",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_inventory",
+      "sample": 4,
+      "turn": 1,
+      "assistant_sha256": "862668c0c47b7d54dd06e7cbaa0d6ba18b6904efbf6f70342bff7db932aa8fc3",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_inventory",
+      "sample": 5,
+      "turn": 1,
+      "assistant_sha256": "8d9ad71b5a945726324eb076b963689b10f5a4c779eb304f8c3a914d0c6147d3",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_inventory",
+      "sample": 6,
+      "turn": 1,
+      "assistant_sha256": "3aa9871f3d3c0f3f6cca81787264db084e370b057df0416fb6b1ca266bcccf12",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_inventory",
+      "sample": 7,
+      "turn": 1,
+      "assistant_sha256": "2fda6019222987c7d62e77bd710e2159470f1aef5edfe81995495b79b246f858",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_inventory",
+      "sample": 8,
+      "turn": 1,
+      "assistant_sha256": "5dcb0fe0968407fa214f8170153f3f8eb077841e0744f6d0c82941510a61289b",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_inventory",
+      "sample": 9,
+      "turn": 1,
+      "assistant_sha256": "da1b0def877d80b154644bc197450567234d7a4129cc69922e5f7c3e70a629a6",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_inventory",
+      "sample": 10,
+      "turn": 1,
+      "assistant_sha256": "5af0848e56b4d1368d928403105e13d25a33c38a11021c953ea43b6a57249a2d",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_inventory",
+      "sample": 1,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_inventory",
+      "sample": 2,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_inventory",
+      "sample": 3,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_inventory",
+      "sample": 4,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_inventory",
+      "sample": 5,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_inventory",
+      "sample": 6,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_inventory",
+      "sample": 7,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_inventory",
+      "sample": 8,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_inventory",
+      "sample": 9,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_inventory",
+      "sample": 10,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_schedule",
+      "sample": 1,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_schedule",
+      "sample": 2,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_schedule",
+      "sample": 3,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_schedule",
+      "sample": 4,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_schedule",
+      "sample": 5,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_schedule",
+      "sample": 6,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_schedule",
+      "sample": 7,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_schedule",
+      "sample": 8,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_schedule",
+      "sample": 9,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_schedule",
+      "sample": 10,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_today",
+      "sample": 1,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_today",
+      "sample": 2,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_today",
+      "sample": 3,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_today",
+      "sample": 4,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_today",
+      "sample": 5,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_today",
+      "sample": 6,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_today",
+      "sample": 7,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_today",
+      "sample": 8,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_today",
+      "sample": 9,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_today",
+      "sample": 10,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_retrieve",
+      "sample": 1,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_retrieve",
+      "sample": 2,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_retrieve",
+      "sample": 3,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_retrieve",
+      "sample": 4,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_retrieve",
+      "sample": 5,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_retrieve",
+      "sample": 6,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_retrieve",
+      "sample": 7,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_retrieve",
+      "sample": 8,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_retrieve",
+      "sample": 9,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_retrieve",
+      "sample": 10,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_english",
+      "sample": 1,
+      "turn": 1,
+      "assistant_sha256": "cffabe1caa6e70a0deea452dd255ccfe369360fe110845dbf512571ab3212b23",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_english",
+      "sample": 2,
+      "turn": 1,
+      "assistant_sha256": "20473a1d1db60035345af1251050f0cd20fff18ea66fcb99ed6377c2c4ff8fcb",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_english",
+      "sample": 3,
+      "turn": 1,
+      "assistant_sha256": "66f6c455d9973d7832a281efcdcd55b6fbe5c827702114b91de54248073f6941",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_english",
+      "sample": 4,
+      "turn": 1,
+      "assistant_sha256": "bbd7fb70356b4071e089cf86a9faf4660d9ba60f4dc5f4085abe2acbffa9a842",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_english",
+      "sample": 5,
+      "turn": 1,
+      "assistant_sha256": "6222c9d9ec43999f7755e271c5f27ab98740d94006ceb3ec9e67f11ba026ee2f",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_english",
+      "sample": 6,
+      "turn": 1,
+      "assistant_sha256": "69680d7784464f6f286a1244166cf74bbacf8b21870efc301987a668de9ce6d5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_english",
+      "sample": 7,
+      "turn": 1,
+      "assistant_sha256": "609cc137dcbea8e69120b7feee2080ebdfa8411ca192571fd3d486e034cd848d",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_english",
+      "sample": 8,
+      "turn": 1,
+      "assistant_sha256": "9d54cc60305131f3b95d8ae3650b3892c5fa1dade146922549090714d8c63f67",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_english",
+      "sample": 9,
+      "turn": 1,
+      "assistant_sha256": "de235aac3dc42b9ed97a78be318ce86e11f68fa764f094945939a66fcc3625ae",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_english",
+      "sample": 10,
+      "turn": 1,
+      "assistant_sha256": "2d05002b471e7588d4e38e16f46a4eeb7b2d7268b4980c3e9d5d65baeae721f7",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_english",
+      "sample": 1,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_english",
+      "sample": 2,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_english",
+      "sample": 3,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_english",
+      "sample": 4,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_english",
+      "sample": 5,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_english",
+      "sample": 6,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_english",
+      "sample": 7,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_english",
+      "sample": 8,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_english",
+      "sample": 9,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_english",
+      "sample": 10,
+      "turn": 1,
+      "assistant_sha256": "783ddf79ed26f690dd0cdf7b21b46ab6b6c186f4603b271ad15d9127d660fce0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "three_sources",
+      "sample": 1,
+      "turn": 1,
+      "assistant_sha256": "0df946fdd0ccb5cc7571afb92c13863f670a5a789d793f9226e12da1abd50117",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "three_sources",
+      "sample": 2,
+      "turn": 1,
+      "assistant_sha256": "35fc11e5f51cf488669c5e9b89f2010a70084f5001495c798ff4ac71aab1c1ed",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "three_sources",
+      "sample": 3,
+      "turn": 1,
+      "assistant_sha256": "db0d435f74011ecc004f677477e4487e6afff0f3ee87bddf5d9d05093cf0dab3",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "three_sources",
+      "sample": 4,
+      "turn": 1,
+      "assistant_sha256": "3cac35ff2a67799d3e50ad44fb558ae48b70fb359dd3948180791cde792a62b5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "three_sources",
+      "sample": 5,
+      "turn": 1,
+      "assistant_sha256": "f7a3f8ab21c04f3217bf0b0f878d6bc5ce93aa1bd46c82da4896e55a54b61ab3",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "three_sources",
+      "sample": 6,
+      "turn": 1,
+      "assistant_sha256": "049a69f063d94680faa4b879ebaa4829a45b759366f8642254407aa99305c4bc",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "three_sources",
+      "sample": 7,
+      "turn": 1,
+      "assistant_sha256": "e9c31683cc224876ae562cfd532bc7a759d76161f432c8fe27b52cb407c457ac",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "three_sources",
+      "sample": 8,
+      "turn": 1,
+      "assistant_sha256": "5b1d802f7cca09b8d7bf2f329ed87acafe67ab77f9fab47a6fa2ebd3da915e72",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "three_sources",
+      "sample": 9,
+      "turn": 1,
+      "assistant_sha256": "a003a4328a9b8d7911ce878367ee82c1bc9ff3cc1b8cc4492f298d27a84c8f5e",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "three_sources",
+      "sample": 10,
+      "turn": 1,
+      "assistant_sha256": "daea1ade86845b5ec97c00ae2129efda0341cd2cfac0bb1d6f06c7be0c4fbfc4",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "two_sources",
+      "sample": 1,
+      "turn": 1,
+      "assistant_sha256": "c355637e2b1a9570ae543849a1252658bf38e882917e656e2a2c4e395ffe820a",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "two_sources",
+      "sample": 2,
+      "turn": 1,
+      "assistant_sha256": "c3b2f774f912bdf5fe6819d6c1b9242d70d74dbf88c6c985af72c4e904cc8b3b",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "two_sources",
+      "sample": 3,
+      "turn": 1,
+      "assistant_sha256": "3f5f5c5ee95bb7be7647ba4f590acf57984dae035270910c7a0dd1e561839ab0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "two_sources",
+      "sample": 4,
+      "turn": 1,
+      "assistant_sha256": "b3c2d170c5d53fcce9df6df38cd0ca285d091c1f810707b9f84aa839d238479e",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "two_sources",
+      "sample": 5,
+      "turn": 1,
+      "assistant_sha256": "f065c791a67c2d4258491c584a6aa882b368c4a33da171b7e1b0abef96f9219e",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "two_sources",
+      "sample": 6,
+      "turn": 1,
+      "assistant_sha256": "c9b2b4ef909628b724926e6d349af398b3140f025501196a124240ae4a362fc7",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "two_sources",
+      "sample": 7,
+      "turn": 1,
+      "assistant_sha256": "aafafa32dac3b0ddca5ee489bd5b44b66b425936cf1f51a214698fd34bce3449",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "two_sources",
+      "sample": 8,
+      "turn": 1,
+      "assistant_sha256": "6ccbca1c35d86c1150e354c84251cf46f365a2e3db00c9cc52b7264a5dd76d53",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "two_sources",
+      "sample": 9,
+      "turn": 1,
+      "assistant_sha256": "7d8f5921ad7dd4ccfb2edbf2c692658a83e6b8328ca7b9ab106e05fbb94c3570",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "two_sources",
+      "sample": 10,
+      "turn": 1,
+      "assistant_sha256": "7eb867a92af9312a9696d6b1aab60589e7a78c06573afa00fe7808157600fe7f",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_advice",
+      "sample": 1,
+      "turn": 1,
+      "assistant_sha256": "1bf9787b3c9a0224ae628c0145839cf69173ebfc3d6b5721c2dbe0377cfb6850",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_advice",
+      "sample": 2,
+      "turn": 1,
+      "assistant_sha256": "ad9493288609f5d3edea3fc717871477a8e3f0f0cf3d0d450182674bc9ba5d0d",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_advice",
+      "sample": 3,
+      "turn": 1,
+      "assistant_sha256": "35fb3504b7f60dde797241d66840cd68beb721caf34407c1970662af33fcefe0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_advice",
+      "sample": 4,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "missing_requested_advice"
+    },
+    {
+      "scenario": "brief_advice",
+      "sample": 5,
+      "turn": 1,
+      "assistant_sha256": "d887514d7eeff483727c07533ece7c18302f01a90d992424f4aaa9a5f9ad8942",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_advice",
+      "sample": 6,
+      "turn": 1,
+      "assistant_sha256": "b4744abfd9ad475b38ead5fa31804411ed56240500f285309bc97d39e614769a",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "brief_advice",
+      "sample": 7,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "missing_requested_advice"
+    },
+    {
+      "scenario": "brief_advice",
+      "sample": 8,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "missing_requested_advice"
+    },
+    {
+      "scenario": "brief_advice",
+      "sample": 9,
+      "turn": 1,
+      "assistant_sha256": "7901ae37c908d8ce41dc6ca6e727c7b35ff63ba30a97e1aa0b0f7cb2ed0b8ff5",
+      "verdict": "missing_requested_advice"
+    },
+    {
+      "scenario": "brief_advice",
+      "sample": 10,
+      "turn": 1,
+      "assistant_sha256": "d30b9578b261c042c179158e4d96222c6ea07f456004b7d6ce7a28334f3b411a",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_advice",
+      "sample": 1,
+      "turn": 1,
+      "assistant_sha256": "ba18c7648305e577ec51245c402e53e7fc0906ea35a0198ba07db6d1bb5656d9",
+      "verdict": "asked_for_information_instead_of_delivering_requested_advice"
+    },
+    {
+      "scenario": "interview_advice",
+      "sample": 2,
+      "turn": 1,
+      "assistant_sha256": "57c6cf9a78f1090b48de8d2717ac0dc1f0db4de30270f4ba623046db8028f32a",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_advice",
+      "sample": 3,
+      "turn": 1,
+      "assistant_sha256": "a9ae4779ebebeb57091f620234ed18b1ef2bc31dce372d409e9611da4a13380e",
+      "verdict": "asked_for_information_instead_of_delivering_requested_advice"
+    },
+    {
+      "scenario": "interview_advice",
+      "sample": 4,
+      "turn": 1,
+      "assistant_sha256": "f3fbc0eb2418603c682d2a331a032386a954b043670cdeae005b98e7cd8e447a",
+      "verdict": "asked_for_information_instead_of_delivering_requested_advice"
+    },
+    {
+      "scenario": "interview_advice",
+      "sample": 5,
+      "turn": 1,
+      "assistant_sha256": "70980d7e85e3139a2da6d64f06efd10d4e2a8b2e9ec41b7adc233cc1c8ad124d",
+      "verdict": "asked_for_information_instead_of_delivering_requested_advice"
+    },
+    {
+      "scenario": "interview_advice",
+      "sample": 6,
+      "turn": 1,
+      "assistant_sha256": "143c07b1b96bc9f62c7608ef5d290ec1a641f0344bd053694aac1f6c0c2d17dc",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_advice",
+      "sample": 7,
+      "turn": 1,
+      "assistant_sha256": "8b5bc8e90bf3e88862f2a063b9defdf413ae96ab4bfb93f7e625eabc367d254d",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_advice",
+      "sample": 8,
+      "turn": 1,
+      "assistant_sha256": "44776b606739031a0a598b087bc1fc6f44f2e43b014f6775b59c41ce8d44f5e1",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "interview_advice",
+      "sample": 9,
+      "turn": 1,
+      "assistant_sha256": "96a17d7a444abd5889326f95b6e453c2d744755d6c9d9930e202c41154e3633d",
+      "verdict": "asked_for_information_instead_of_delivering_requested_advice"
+    },
+    {
+      "scenario": "interview_advice",
+      "sample": 10,
+      "turn": 1,
+      "assistant_sha256": "7dfca8db8a9d90e9187cf019086ee3b3c4a9da8a225fc11429769a434e5d0398",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 1,
+      "turn": 1,
+      "assistant_sha256": "5154216a51ed347eb393c863d25a1753a1f5e756eafe068764b400e6a56b28a9",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 1,
+      "turn": 2,
+      "assistant_sha256": "d87ca2b7898a0cca9b173891540b57f523de9187224e5b30c0f5c3afb178464b",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 2,
+      "turn": 1,
+      "assistant_sha256": "45d39ac892d26ae310bfc646f36ad8bf368837f5a437c96c5473258581e751df",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 2,
+      "turn": 2,
+      "assistant_sha256": "3649cd21b904cda34104ee963d5f85841f18649081ceeea3ab90a653eb5d42f6",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 3,
+      "turn": 1,
+      "assistant_sha256": "94160f95f5075a8baeefb97b0abdb3cf97d8b766b186690ff2f40040fb899de0",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 3,
+      "turn": 2,
+      "assistant_sha256": "cf6950d2d3be9797d5914a58ca25fc63e4d7c82ccfe982a9c4312f30325cceca",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 4,
+      "turn": 1,
+      "assistant_sha256": "4d0f6105c1c7105485005a33caba990c477bc682d2b274efe4ff78a95418edc8",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 4,
+      "turn": 2,
+      "assistant_sha256": "61bcb0ba685093f4fd4b730fb91c6fd6cd7920182de7f6b92d7096d97e8a1641",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 5,
+      "turn": 1,
+      "assistant_sha256": "c07672bdb4fe9281fbb2b9c69a8f30f600c722795699a06f08ff47abff79e921",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 5,
+      "turn": 2,
+      "assistant_sha256": "6c0c28afb28f404f5c0673de41125add78b155d40505b3f7bb2af915b17d2417",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 6,
+      "turn": 1,
+      "assistant_sha256": "8b9b0fbee2e38345dab26f6ecf7328c3bd86538dc41ab104b39521c6bf2a1d45",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 6,
+      "turn": 2,
+      "assistant_sha256": "fabdc029004cf80fd698a2d89515d9251ec31e98b588b78a69acfd9a0e347a4f",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 7,
+      "turn": 1,
+      "assistant_sha256": "f9792895b3c0209e9762f9213a9a8ede55fc4747dc34a90a6e5721b5e0be8be5",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 7,
+      "turn": 2,
+      "assistant_sha256": "16ddcedc5aab51fadb4a3f31bf7b309d6e41b34a0811c7261a89692b49a7fd89",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 8,
+      "turn": 1,
+      "assistant_sha256": "61e2f0d7a8f7aacc046d3f898164757a50d33ed0ed534dffa7cbed39f2d9482c",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 8,
+      "turn": 2,
+      "assistant_sha256": "ca32cdeac5123ab667b498d05c9be989de0a7e038d2e9e0da3d3331fe1995921",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 9,
+      "turn": 1,
+      "assistant_sha256": "573ce852f33e05d79a14d3bb8a66010791dc9e9dd6ccc3fef733ebc26fa09e07",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 9,
+      "turn": 2,
+      "assistant_sha256": "82f263dff58e369e5d7952df504dde739033c120ab5080710efec6c3cdc3987b",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 10,
+      "turn": 1,
+      "assistant_sha256": "fe3f5bfcf193edfd49884e5212668151c9b042b5a0ae959435136b8efb629401",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "resume_then_interview",
+      "sample": 10,
+      "turn": 2,
+      "assistant_sha256": "d4257c7b6dffbb3bd0c1ec5c14f7848dfdf440e0fa296eddadbc4c0b56986716",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 1,
+      "turn": 1,
+      "assistant_sha256": "857d303b3fa84792554336fe9ccfcc1dffcf98033d8a40b8198951da68c19047",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 1,
+      "turn": 2,
+      "assistant_sha256": "e1233261eb846c2a90e41d29def8591722ed9873cb8ac7b8d9ec55d7af88aad9",
+      "verdict": "claims_interview_result_without_requested_interview_query"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 2,
+      "turn": 1,
+      "assistant_sha256": "4cf85a7ea10210509cc4898481b1837750e0bd2455d5c278e936457cc7948467",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 2,
+      "turn": 2,
+      "assistant_sha256": "98bee11a7a5c0006c2275bf34a15e8099f11ec9d89098094a215e7945ee5206b",
+      "verdict": "claims_interview_result_without_requested_interview_query"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 3,
+      "turn": 1,
+      "assistant_sha256": "d2f9c84d4a578f313371020cd9277680059efd48127493505c9f0ea0061b0d1e",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 3,
+      "turn": 2,
+      "assistant_sha256": "46b92197eec80156a06395d96ea42f25276761b84c51aa46e3ec68b59283bc09",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 4,
+      "turn": 1,
+      "assistant_sha256": "393fdd4fb11c7c4d0acfc1773cabde2f294ffff63f06e9f64c80611367c7ea0f",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 4,
+      "turn": 2,
+      "assistant_sha256": "30d73c9176e36d42169c5f1b4e42f8ba8bd512b4ce95a47334bfc5fbe2d49d61",
+      "verdict": "claims_interview_result_without_requested_interview_query"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 5,
+      "turn": 1,
+      "assistant_sha256": "dbeeb7862df06ea5bd9db1bea97e7feec821aa0d878f0371d6c6b5b3b2fd14f2",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 5,
+      "turn": 2,
+      "assistant_sha256": "3e502f4416c59a7f795f108a91eb825e736191e5770dae5c1e0070b4432e3d18",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 6,
+      "turn": 1,
+      "assistant_sha256": "b5456e7ed60f7e09170025c41f2a6a3491d8813d730051d5c7b7f0ea6f945a5f",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 6,
+      "turn": 2,
+      "assistant_sha256": "82647e7bd3953d166a0b5fa579ff7c1b579f48e0df08e6acf4d1275cdfb8ef94",
+      "verdict": "claims_interview_result_without_requested_interview_query"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 7,
+      "turn": 1,
+      "assistant_sha256": "97602467df29481e4af52eb1ec8a54d0411c75b18b1fb93409622d8a60b0da99",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 7,
+      "turn": 2,
+      "assistant_sha256": "cbdf1637eacc752fe420bc67a1265de6fbfd5bed305c63329019fedcaf01f7db",
+      "verdict": "claims_interview_result_without_requested_interview_query"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 8,
+      "turn": 1,
+      "assistant_sha256": "15bc8ebdeae3d9a7a82386a16e5604bac09ac88b0543e391ef311b89bf65a0db",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 8,
+      "turn": 2,
+      "assistant_sha256": "82647e7bd3953d166a0b5fa579ff7c1b579f48e0df08e6acf4d1275cdfb8ef94",
+      "verdict": "claims_interview_result_without_requested_interview_query"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 9,
+      "turn": 1,
+      "assistant_sha256": "664ed7889accb4a7c4405553bfd595b720ece6913059a69d8a9a7d2c6979fd78",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 9,
+      "turn": 2,
+      "assistant_sha256": "e7ca1d3ee817309f20c1a559a413b80798af944afd8824b59d7bbe1deb0aeba0",
+      "verdict": "claims_interview_result_without_requested_interview_query"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 10,
+      "turn": 1,
+      "assistant_sha256": "009826fb6333528b424f625051fc5c14977b59bc2f0371d87962aed79b5e1fb4",
+      "verdict": "requested_key_content_present"
+    },
+    {
+      "scenario": "continue_multiple",
+      "sample": 10,
+      "turn": 2,
+      "assistant_sha256": "67245909cbdde214cec2cc2064aa0cd911bfc0650a48f14d712f31dfd93aadb2",
+      "verdict": "claims_interview_result_without_requested_interview_query"
+    }
+  ]
+}

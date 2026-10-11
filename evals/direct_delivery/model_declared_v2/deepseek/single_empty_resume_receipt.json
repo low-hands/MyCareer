@@ -1,0 +1,270 @@
+{
+  "version": 1,
+  "model": "deepseek-flash",
+  "scenario": "single_empty_resume_receipt",
+  "suite_fingerprint": "43dc152f7b3e255546cbad0181e63bb7307ed89cf6cb921dd997363f8f8c0fe3",
+  "recorded_at": "2026-10-09T23:58:55.169675+00:00",
+  "k": 10,
+  "samples": [
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_TRANSPORT_ERROR",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_TRANSPORT_ERROR",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_TRANSPORT_ERROR",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_TRANSPORT_ERROR",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_TRANSPORT_ERROR",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_TRANSPORT_ERROR",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_TRANSPORT_ERROR",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_TRANSPORT_ERROR",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_TRANSPORT_ERROR",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_TRANSPORT_ERROR",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_TRANSPORT_ERROR",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_TRANSPORT_ERROR",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_TRANSPORT_ERROR",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_TRANSPORT_ERROR",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_TRANSPORT_ERROR",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_TRANSPORT_ERROR",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_TRANSPORT_ERROR",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_TRANSPORT_ERROR",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "passed": false,
+      "failures": [
+        "turn 1: runtime error MAIN_AGENT_TRANSPORT_ERROR",
+        "turn 1: required work incomplete: ['list_resumes']",
+        "turn 1: required delivery text missing"
+      ],
+      "turns": [
+        {
+          "message": "查看我的简历",
+          "assistant_message": "",
+          "executed_calls": [],
+          "decisions": [],
+          "error": "MAIN_AGENT_TRANSPORT_ERROR",
+          "missing_calls": [
+            "list_resumes"
+          ],
+          "requires_model_summary": false,
+          "model_summary_delivered": false,
+          "decision_count": 0
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

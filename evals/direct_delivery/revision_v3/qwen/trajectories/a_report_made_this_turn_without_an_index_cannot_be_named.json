@@ -1,0 +1,374 @@
+{
+  "scenario": "a_report_made_this_turn_without_an_index_cannot_be_named",
+  "policy": "Never pass a resource reference the projection did not give you. Do not substitute one of the differently titled visible resource handles; use another grounded selector or explain that the report cannot be reached.",
+  "model": "qwen3.7-plus",
+  "prompt_fingerprint": "eacf723ee6a5ed53a23a954f5e4ac31c8bbcddebac2ea3fd9df45f81947891b4",
+  "context_shape_fingerprint": "8a4b340e6807eb003cdf8571b07c35cb9cbcef6f800885b3c228b31d9ff7605c",
+  "recorded_at": "2026-10-10T00:52:41.325257+00:00",
+  "steps": [
+    {
+      "scenario_step": 0,
+      "recording_error": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+      "model_request_count": 6,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "invalid_tool_arguments",
+          "retried": true,
+          "raw_output": {
+            "content": "",
+            "tool_calls": [
+              {
+                "name": "get_job_research",
+                "arguments": "{\"selection_index\": 1}"
+              }
+            ]
+          },
+          "decision_invocation": 1
+        },
+        {
+          "reason": "invalid_tool_arguments",
+          "retried": false,
+          "raw_output": {
+            "content": "",
+            "tool_calls": [
+              {
+                "name": "get_job_research",
+                "arguments": "{\"selection_index\": 1}"
+              }
+            ]
+          },
+          "decision_invocation": 1
+        },
+        {
+          "reason": "invalid_tool_arguments",
+          "retried": true,
+          "raw_output": {
+            "content": "",
+            "tool_calls": [
+              {
+                "name": "get_job_research",
+                "arguments": "{\"selection_index\": 1}"
+              }
+            ]
+          },
+          "decision_invocation": 2
+        },
+        {
+          "reason": "invalid_tool_arguments",
+          "retried": false,
+          "raw_output": {
+            "content": "",
+            "tool_calls": [
+              {
+                "name": "get_job_research",
+                "arguments": "{\"selection_index\": 1}"
+              }
+            ]
+          },
+          "decision_invocation": 2
+        },
+        {
+          "reason": "invalid_tool_arguments",
+          "retried": true,
+          "raw_output": {
+            "content": "",
+            "tool_calls": [
+              {
+                "name": "get_job_research",
+                "arguments": "{\"selection_index\": 1}"
+              }
+            ]
+          },
+          "decision_invocation": 3
+        },
+        {
+          "reason": "invalid_tool_arguments",
+          "retried": false,
+          "raw_output": {
+            "content": "",
+            "tool_calls": [
+              {
+                "name": "get_job_research",
+                "arguments": "{\"selection_index\": 1}"
+              }
+            ]
+          },
+          "decision_invocation": 3
+        }
+      ],
+      "recording_retry_events": [
+        {
+          "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+          "decision_invocation": 1
+        },
+        {
+          "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+          "decision_invocation": 2
+        }
+      ]
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-10T00:52:51.011314+00:00",
+      "terminal_error": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+      "steps": [
+        {
+          "scenario_step": 0,
+          "recording_error": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+          "model_request_count": 6,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": false,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 2
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": false,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 2
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 3
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": false,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 3
+            }
+          ],
+          "recording_retry_events": [
+            {
+              "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+              "decision_invocation": 1
+            },
+            {
+              "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+              "decision_invocation": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:52:54.281361+00:00",
+      "terminal_error": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+      "steps": [
+        {
+          "scenario_step": 0,
+          "recording_error": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+          "model_request_count": 7,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "根据刚才的调研结果，示例科技的主要竞争对手在报告中未明确列出完整信息。不过另一家科技公司的主要竞争对手是 B 公司。\n\n如果您需要查看示例科技的完整调研报告内容，我可以帮您读取该报告的详细信息。您希望我读取哪份报告的具体内容？",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": false,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 1
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 2
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": false,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 2
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": true,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 3
+            },
+            {
+              "reason": "invalid_tool_arguments",
+              "retried": false,
+              "raw_output": {
+                "content": "",
+                "tool_calls": [
+                  {
+                    "name": "get_job_research",
+                    "arguments": "{\"selection_index\": 1}"
+                  }
+                ]
+              },
+              "decision_invocation": 3
+            }
+          ],
+          "recording_retry_events": [
+            {
+              "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+              "decision_invocation": 1
+            },
+            {
+              "error_code": "MAIN_AGENT_INVALID_TOOL_ARGUMENTS",
+              "decision_invocation": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-10T00:52:41.325257+00:00",
+      "elapsed_ms": 2743.6,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "get_job_research",
+            "arguments": {
+              "reference": "report_662e28"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "b2e8443d212e6048ac5307b58f839d312471ca5cded4b6518c6e0cfd9f6a99ef",
+          "decision_shape_fingerprint": "18634961d0380b3e081e0a89b731d5bb2bbbf168e599d61ac295bf4a40d27edb",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_saved_job",
+            "research_job",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 2740.8,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

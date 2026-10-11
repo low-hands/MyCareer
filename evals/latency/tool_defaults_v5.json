@@ -1,0 +1,2072 @@
+{
+  "version": 2,
+  "generated_at": "2026-10-10T01:55:32.596909+00:00",
+  "selection": {
+    "since": null,
+    "until": null,
+    "min_context_chars": 0,
+    "require_tool_trace": false
+  },
+  "run_count": 24,
+  "excluded_run_count": 0,
+  "event_count": 452,
+  "time_range": {
+    "first": "2026-10-10T01:37:51.887062+00:00",
+    "last": "2026-10-10T01:55:01.010988+00:00"
+  },
+  "terminal_events": {
+    "turn_completed": 24,
+    "run_interrupted": 10
+  },
+  "first_decision_context_chars": {
+    "samples": 24,
+    "total": 237420,
+    "mean": 9892.5,
+    "p50": 9588,
+    "p95": 10666,
+    "max": 10872
+  },
+  "unknown_context_runs": 0,
+  "observed_trace_span_ms": {
+    "samples": 24,
+    "total": 1010629,
+    "mean": 42109.542,
+    "p50": 36981,
+    "p95": 68598,
+    "max": 78337
+  },
+  "post_tool_reply": {
+    "final_reply": {
+      "started_count": 0,
+      "completed_count": 2,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 2
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 2,
+      "operation_duration_ms": {
+        "samples": 2,
+        "total": 22625,
+        "mean": 11312.5,
+        "p50": 10224,
+        "p95": 12401,
+        "max": 12401
+      },
+      "per_run_count": {
+        "samples": 24,
+        "total": 2,
+        "mean": 0.083,
+        "p50": 0,
+        "p95": 1,
+        "max": 1
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 24,
+        "total": 22625,
+        "mean": 942.708,
+        "p50": 0,
+        "p95": 10224,
+        "max": 12401
+      },
+      "successful_duration_ms": {
+        "samples": 2,
+        "total": 22625,
+        "mean": 11312.5,
+        "p50": 10224,
+        "p95": 12401,
+        "max": 12401
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    },
+    "continued_tool_selection": {
+      "started_count": 0,
+      "completed_count": 32,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 32
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 14,
+      "operation_duration_ms": {
+        "samples": 32,
+        "total": 79369,
+        "mean": 2480.281,
+        "p50": 2226,
+        "p95": 4021,
+        "max": 4566
+      },
+      "per_run_count": {
+        "samples": 24,
+        "total": 32,
+        "mean": 1.333,
+        "p50": 1,
+        "p95": 4,
+        "max": 4
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 24,
+        "total": 79369,
+        "mean": 3307.042,
+        "p50": 1860,
+        "p95": 10761,
+        "max": 11131
+      },
+      "successful_duration_ms": {
+        "samples": 32,
+        "total": 79369,
+        "mean": 2480.281,
+        "p50": 2226,
+        "p95": 4021,
+        "max": 4566
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    },
+    "failed_post_tool_decision": {
+      "started_count": 0,
+      "completed_count": 0,
+      "unfinished_model_calls": 0,
+      "outcomes": {},
+      "missing_duration_count": 0,
+      "runs_with_events": 0,
+      "operation_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "per_run_count": {
+        "samples": 24,
+        "total": 0,
+        "mean": 0.0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "successful_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    },
+    "other_post_tool_decision": {
+      "started_count": 0,
+      "completed_count": 10,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 10
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 10,
+      "operation_duration_ms": {
+        "samples": 10,
+        "total": 235217,
+        "mean": 23521.7,
+        "p50": 21496,
+        "p95": 40041,
+        "max": 40041
+      },
+      "per_run_count": {
+        "samples": 24,
+        "total": 10,
+        "mean": 0.417,
+        "p50": 0,
+        "p95": 1,
+        "max": 1
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 24,
+        "total": 235217,
+        "mean": 9800.708,
+        "p50": 0,
+        "p95": 34180,
+        "max": 40041
+      },
+      "successful_duration_ms": {
+        "samples": 10,
+        "total": 235217,
+        "mean": 23521.7,
+        "p50": 21496,
+        "p95": 40041,
+        "max": 40041
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    },
+    "unknown_action_count": 0,
+    "per_completed_run_reply_share": {
+      "samples": 2,
+      "total": 0.939,
+      "mean": 0.469,
+      "p50": 0.4671200203135622,
+      "p95": 0.4717789091940037,
+      "max": 0.4717789091940037
+    },
+    "weighted_reply_share": 0.46921387689308613,
+    "runs": [
+      {
+        "run_id": "009c0d0b53b04334a8b15c3f32285164",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 67618.509,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "04507c34c2c540cbb976115593c45841",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 21205.056,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "1c0cb8544b584e9da486821c61016a67",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 68597.825,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "1e3ff4d1006b46388ea49b709435065d",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 36494.26,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "33fcf011fb15441eb09ce03e26f0ffa2",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 67053.21,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "39660df7d86b45788997e4aa6404edbd",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 34035.934,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "584b2155eeb44135b4ea0e58375e3880",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 36981.359,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "58d91699bd254ac29e20707f414375ef",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 41435.048,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "661796e74f8947ec85c82c00889506e2",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 38039.794,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "66a1bc7590784b07b69ad8f1c95af036",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 66747.917,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "6fbf795c4f1a4cffbdfc43bee032cf70",
+        "completed": true,
+        "post_tool_final_calls": 1,
+        "reply_ms": 10224,
+        "observed_span_ms": 21671.168,
+        "reply_share_of_observed_span": 0.4717789091940037
+      },
+      {
+        "run_id": "7f0160fbb11345f9bcad597c0c2c24c0",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 46113.755,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "849270b3daae4d2396d72519aafb1676",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 37934.825,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "8ab4b9c0d96c4ff8b0439357b54a14ea",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 78337.281,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "941b1e77251c4e5c8847d1e31da4f57a",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 39977.792,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "aae79ad853b44252a8b0f5c2f757832c",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 40246.871,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "b606f497832d4b389c78f5e1464567fe",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 66516.508,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "bb4a48a3d79d45dfb821b58719ec22e5",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 36789.036,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "bca703bee67e4842b55936428377add0",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 24564.122,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "c48b292d8c0b4f61be42d4be5194f48c",
+        "completed": true,
+        "post_tool_final_calls": 1,
+        "reply_ms": 12401,
+        "observed_span_ms": 26547.781,
+        "reply_share_of_observed_span": 0.4671200203135622
+      },
+      {
+        "run_id": "da836c40498a4ab08ddb47947278294d",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 35684.309,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "e90b5fb304df40cd9b49071aabec3d9d",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 27603.428,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "f3f41a063174454f9d9e98f7627c1903",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 24166.561,
+        "reply_share_of_observed_span": null
+      },
+      {
+        "run_id": "f6dcf1948fd44303917fddd200876f29",
+        "completed": true,
+        "post_tool_final_calls": 0,
+        "reply_ms": null,
+        "observed_span_ms": 26265.827,
+        "reply_share_of_observed_span": null
+      }
+    ],
+    "semantics": "Only successful decision_action=final after an executed tool is reply writing. ask_user/questionnaire and further tool selection are separate. Shares use completed runs with known reply timing and the observed trace span, not user-perceived latency; failed runs and absent timings are excluded from shares, retained in counts."
+  },
+  "phases": {
+    "decision": {
+      "started_count": 80,
+      "completed_count": 80,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 80
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 24,
+      "operation_duration_ms": {
+        "samples": 80,
+        "total": 445465,
+        "mean": 5568.312,
+        "p50": 2727,
+        "p95": 30576,
+        "max": 40041
+      },
+      "per_run_count": {
+        "samples": 24,
+        "total": 80,
+        "mean": 3.333,
+        "p50": 3,
+        "p95": 6,
+        "max": 6
+      },
+      "per_run_started_count": {
+        "samples": 24,
+        "total": 80,
+        "mean": 3.333,
+        "p50": 3,
+        "p95": 6,
+        "max": 6
+      },
+      "per_run_duration_ms": {
+        "samples": 24,
+        "total": 445465,
+        "mean": 18561.042,
+        "p50": 16322,
+        "p95": 36915,
+        "max": 45675
+      },
+      "successful_duration_ms": {
+        "samples": 80,
+        "total": 445465,
+        "mean": 5568.312,
+        "p50": 2727,
+        "p95": 30576,
+        "max": 40041
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "provider_request_count": 105,
+      "unknown_request_count_decisions": 0,
+      "per_run_provider_request_count": {
+        "samples": 24,
+        "total": 105,
+        "mean": 4.375,
+        "p50": 3,
+        "p95": 8,
+        "max": 8
+      }
+    },
+    "specialist_worker": {
+      "started_count": 1,
+      "completed_count": 1,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 1
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 1,
+      "operation_duration_ms": {
+        "samples": 1,
+        "total": 4055,
+        "mean": 4055.0,
+        "p50": 4055,
+        "p95": 4055,
+        "max": 4055
+      },
+      "per_run_count": {
+        "samples": 24,
+        "total": 1,
+        "mean": 0.042,
+        "p50": 0,
+        "p95": 0,
+        "max": 1
+      },
+      "per_run_started_count": {
+        "samples": 24,
+        "total": 1,
+        "mean": 0.042,
+        "p50": 0,
+        "p95": 0,
+        "max": 1
+      },
+      "per_run_duration_ms": {
+        "samples": 24,
+        "total": 4055,
+        "mean": 168.958,
+        "p50": 0,
+        "p95": 0,
+        "max": 4055
+      },
+      "successful_duration_ms": {
+        "samples": 1,
+        "total": 4055,
+        "mean": 4055.0,
+        "p50": 4055,
+        "p95": 4055,
+        "max": 4055
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "breakdown": {
+        "job_analysis": {
+          "started_count": 1,
+          "completed_count": 1,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 1
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 1,
+          "operation_duration_ms": {
+            "samples": 1,
+            "total": 4055,
+            "mean": 4055.0,
+            "p50": 4055,
+            "p95": 4055,
+            "max": 4055
+          },
+          "per_run_count": {
+            "samples": 24,
+            "total": 1,
+            "mean": 0.042,
+            "p50": 0,
+            "p95": 0,
+            "max": 1
+          },
+          "per_run_started_count": {
+            "samples": 24,
+            "total": 1,
+            "mean": 0.042,
+            "p50": 0,
+            "p95": 0,
+            "max": 1
+          },
+          "per_run_duration_ms": {
+            "samples": 24,
+            "total": 4055,
+            "mean": 168.958,
+            "p50": 0,
+            "p95": 0,
+            "max": 4055
+          },
+          "successful_duration_ms": {
+            "samples": 1,
+            "total": 4055,
+            "mean": 4055.0,
+            "p50": 4055,
+            "p95": 4055,
+            "max": 4055
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        }
+      }
+    },
+    "embedding": {
+      "started_count": 0,
+      "completed_count": 48,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 48
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 24,
+      "operation_duration_ms": {
+        "samples": 48,
+        "total": 29611,
+        "mean": 616.896,
+        "p50": 642,
+        "p95": 1045,
+        "max": 1262
+      },
+      "per_run_count": {
+        "samples": 24,
+        "total": 48,
+        "mean": 2.0,
+        "p50": 2,
+        "p95": 2,
+        "max": 2
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 24,
+        "total": 29611,
+        "mean": 1233.792,
+        "p50": 1243,
+        "p95": 1816,
+        "max": 1860
+      },
+      "successful_duration_ms": {
+        "samples": 48,
+        "total": 29611,
+        "mean": 616.896,
+        "p50": 642,
+        "p95": 1045,
+        "max": 1262
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    },
+    "tool_execution": {
+      "started_count": 0,
+      "completed_count": 44,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 44
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 18,
+      "operation_duration_ms": {
+        "samples": 44,
+        "total": 4160,
+        "mean": 94.545,
+        "p50": 2,
+        "p95": 8,
+        "max": 4063
+      },
+      "per_run_count": {
+        "samples": 24,
+        "total": 44,
+        "mean": 1.833,
+        "p50": 1,
+        "p95": 5,
+        "max": 5
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 24,
+        "total": 4160,
+        "mean": 173.333,
+        "p50": 5,
+        "p95": 8,
+        "max": 4063
+      },
+      "successful_duration_ms": {
+        "samples": 44,
+        "total": 4160,
+        "mean": 94.545,
+        "p50": 2,
+        "p95": 8,
+        "max": 4063
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "breakdown": {
+        "analyze_job": {
+          "started_count": 0,
+          "completed_count": 11,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 11
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 11,
+          "operation_duration_ms": {
+            "samples": 11,
+            "total": 4123,
+            "mean": 374.818,
+            "p50": 6,
+            "p95": 4063,
+            "max": 4063
+          },
+          "per_run_count": {
+            "samples": 24,
+            "total": 11,
+            "mean": 0.458,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_started_count": null,
+          "per_run_duration_ms": {
+            "samples": 24,
+            "total": 4123,
+            "mean": 171.792,
+            "p50": 0,
+            "p95": 8,
+            "max": 4063
+          },
+          "successful_duration_ms": {
+            "samples": 11,
+            "total": 4123,
+            "mean": 374.818,
+            "p50": 6,
+            "p95": 4063,
+            "max": 4063
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "find_saved_jobs": {
+          "started_count": 0,
+          "completed_count": 6,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 6
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 6,
+          "operation_duration_ms": {
+            "samples": 6,
+            "total": 9,
+            "mean": 1.5,
+            "p50": 1,
+            "p95": 2,
+            "max": 2
+          },
+          "per_run_count": {
+            "samples": 24,
+            "total": 6,
+            "mean": 0.25,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_started_count": null,
+          "per_run_duration_ms": {
+            "samples": 24,
+            "total": 9,
+            "mean": 0.375,
+            "p50": 0,
+            "p95": 2,
+            "max": 2
+          },
+          "successful_duration_ms": {
+            "samples": 6,
+            "total": 9,
+            "mean": 1.5,
+            "p50": 1,
+            "p95": 2,
+            "max": 2
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "get_saved_job": {
+          "started_count": 0,
+          "completed_count": 2,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 2
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 2,
+          "operation_duration_ms": {
+            "samples": 2,
+            "total": 2,
+            "mean": 1.0,
+            "p50": 0,
+            "p95": 2,
+            "max": 2
+          },
+          "per_run_count": {
+            "samples": 24,
+            "total": 2,
+            "mean": 0.083,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_started_count": null,
+          "per_run_duration_ms": {
+            "samples": 24,
+            "total": 2,
+            "mean": 0.083,
+            "p50": 0,
+            "p95": 0,
+            "max": 2
+          },
+          "successful_duration_ms": {
+            "samples": 2,
+            "total": 2,
+            "mean": 1.0,
+            "p50": 0,
+            "p95": 2,
+            "max": 2
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "list_applications": {
+          "started_count": 0,
+          "completed_count": 6,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 6
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 6,
+          "operation_duration_ms": {
+            "samples": 6,
+            "total": 9,
+            "mean": 1.5,
+            "p50": 1,
+            "p95": 2,
+            "max": 2
+          },
+          "per_run_count": {
+            "samples": 24,
+            "total": 6,
+            "mean": 0.25,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_started_count": null,
+          "per_run_duration_ms": {
+            "samples": 24,
+            "total": 9,
+            "mean": 0.375,
+            "p50": 0,
+            "p95": 2,
+            "max": 2
+          },
+          "successful_duration_ms": {
+            "samples": 6,
+            "total": 9,
+            "mean": 1.5,
+            "p50": 1,
+            "p95": 2,
+            "max": 2
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "list_interviews": {
+          "started_count": 0,
+          "completed_count": 6,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 6
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 6,
+          "operation_duration_ms": {
+            "samples": 6,
+            "total": 5,
+            "mean": 0.833,
+            "p50": 1,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_count": {
+            "samples": 24,
+            "total": 6,
+            "mean": 0.25,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_started_count": null,
+          "per_run_duration_ms": {
+            "samples": 24,
+            "total": 5,
+            "mean": 0.208,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "successful_duration_ms": {
+            "samples": 6,
+            "total": 5,
+            "mean": 0.833,
+            "p50": 1,
+            "p95": 1,
+            "max": 1
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "list_resumes": {
+          "started_count": 0,
+          "completed_count": 7,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 7
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 7,
+          "operation_duration_ms": {
+            "samples": 7,
+            "total": 12,
+            "mean": 1.714,
+            "p50": 2,
+            "p95": 2,
+            "max": 2
+          },
+          "per_run_count": {
+            "samples": 24,
+            "total": 7,
+            "mean": 0.292,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_started_count": null,
+          "per_run_duration_ms": {
+            "samples": 24,
+            "total": 12,
+            "mean": 0.5,
+            "p50": 0,
+            "p95": 2,
+            "max": 2
+          },
+          "successful_duration_ms": {
+            "samples": 7,
+            "total": 12,
+            "mean": 1.714,
+            "p50": 2,
+            "p95": 2,
+            "max": 2
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "search_capabilities": {
+          "started_count": 0,
+          "completed_count": 6,
+          "unfinished_model_calls": 0,
+          "outcomes": {
+            "succeeded": 6
+          },
+          "missing_duration_count": 0,
+          "runs_with_events": 6,
+          "operation_duration_ms": {
+            "samples": 6,
+            "total": 0,
+            "mean": 0.0,
+            "p50": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "per_run_count": {
+            "samples": 24,
+            "total": 6,
+            "mean": 0.25,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "per_run_started_count": null,
+          "per_run_duration_ms": {
+            "samples": 24,
+            "total": 0,
+            "mean": 0.0,
+            "p50": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "successful_duration_ms": {
+            "samples": 6,
+            "total": 0,
+            "mean": 0.0,
+            "p50": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "failed_duration_ms": {
+            "samples": 0,
+            "total": 0,
+            "mean": null,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        }
+      }
+    },
+    "summary_compaction": {
+      "started_count": 0,
+      "completed_count": 18,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "failed": 18
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 12,
+      "operation_duration_ms": {
+        "samples": 18,
+        "total": 547854,
+        "mean": 30436.333,
+        "p50": 30418,
+        "p95": 30599,
+        "max": 30599
+      },
+      "per_run_count": {
+        "samples": 24,
+        "total": 18,
+        "mean": 0.75,
+        "p50": 0,
+        "p95": 2,
+        "max": 2
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 24,
+        "total": 547854,
+        "mean": 22827.25,
+        "p50": 0,
+        "p95": 60917,
+        "max": 61050
+      },
+      "successful_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "failed_duration_ms": {
+        "samples": 18,
+        "total": 547854,
+        "mean": 30436.333,
+        "p50": 30418,
+        "p95": 30599,
+        "max": 30599
+      }
+    }
+  },
+  "context_cohorts": {
+    "short_lt_4000": {
+      "runs": 0,
+      "decision": {
+        "started_count": 0,
+        "completed_count": 0,
+        "unfinished_model_calls": 0,
+        "outcomes": {},
+        "missing_duration_count": 0,
+        "runs_with_events": 0,
+        "operation_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "per_run_count": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "per_run_started_count": null,
+        "per_run_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "successful_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "failed_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        }
+      }
+    },
+    "medium_4000_11999": {
+      "runs": 24,
+      "decision": {
+        "started_count": 80,
+        "completed_count": 80,
+        "unfinished_model_calls": 0,
+        "outcomes": {
+          "succeeded": 80
+        },
+        "missing_duration_count": 0,
+        "runs_with_events": 24,
+        "operation_duration_ms": {
+          "samples": 80,
+          "total": 445465,
+          "mean": 5568.312,
+          "p50": 2727,
+          "p95": 30576,
+          "max": 40041
+        },
+        "per_run_count": {
+          "samples": 24,
+          "total": 80,
+          "mean": 3.333,
+          "p50": 3,
+          "p95": 6,
+          "max": 6
+        },
+        "per_run_started_count": {
+          "samples": 24,
+          "total": 80,
+          "mean": 3.333,
+          "p50": 3,
+          "p95": 6,
+          "max": 6
+        },
+        "per_run_duration_ms": {
+          "samples": 24,
+          "total": 445465,
+          "mean": 18561.042,
+          "p50": 16322,
+          "p95": 36915,
+          "max": 45675
+        },
+        "successful_duration_ms": {
+          "samples": 80,
+          "total": 445465,
+          "mean": 5568.312,
+          "p50": 2727,
+          "p95": 30576,
+          "max": 40041
+        },
+        "failed_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        }
+      }
+    },
+    "long_gte_12000": {
+      "runs": 0,
+      "decision": {
+        "started_count": 0,
+        "completed_count": 0,
+        "unfinished_model_calls": 0,
+        "outcomes": {},
+        "missing_duration_count": 0,
+        "runs_with_events": 0,
+        "operation_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "per_run_count": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "per_run_started_count": null,
+        "per_run_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "successful_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "failed_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        }
+      }
+    }
+  },
+  "warnings": [
+    "specialist_worker: only 1 timed operations; p95 is a descriptive small-sample statistic.",
+    "summary_compaction: only 18 timed operations; p95 is a descriptive small-sample statistic.",
+    "summary_compaction: no successful timed operations; a successful-operation baseline is unavailable."
+  ],
+  "semantics": [
+    "Durations include failures and internal retries; model_retry is not an extra decision.",
+    "Decision counts are logical decide() calls; provider_request_count uses attempt_count to include internal retries when available.",
+    "Tool execution is inclusive of nested workers/embedding; phase totals must not be added.",
+    "Embedding measures one embed() operation including its batches; startup warmup outside a turn is excluded.",
+    "Summary timing covers summarize() including validation, not the entire context load/commit.",
+    "Observed trace span excludes time before the first event; it is not end-to-end response latency.",
+    "Per-run counts include zero-use runs; duration totals exclude runs with missing phase timings.",
+    "Context cohorts use the first decision context_chars, not the full serialized request token count."
+  ],
+  "post_tool_response_message": {
+    "by_action": {
+      "final": {
+        "started_count": 0,
+        "completed_count": 2,
+        "unfinished_model_calls": 0,
+        "outcomes": {
+          "succeeded": 2
+        },
+        "missing_duration_count": 0,
+        "runs_with_events": 2,
+        "operation_duration_ms": {
+          "samples": 2,
+          "total": 22625,
+          "mean": 11312.5,
+          "p50": 10224,
+          "p95": 12401,
+          "max": 12401
+        },
+        "per_run_count": {
+          "samples": 24,
+          "total": 2,
+          "mean": 0.083,
+          "p50": 0,
+          "p95": 1,
+          "max": 1
+        },
+        "per_run_started_count": null,
+        "per_run_duration_ms": {
+          "samples": 24,
+          "total": 22625,
+          "mean": 942.708,
+          "p50": 0,
+          "p95": 10224,
+          "max": 12401
+        },
+        "successful_duration_ms": {
+          "samples": 2,
+          "total": 22625,
+          "mean": 11312.5,
+          "p50": 10224,
+          "p95": 12401,
+          "max": 12401
+        },
+        "failed_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        }
+      },
+      "ask_user": {
+        "started_count": 0,
+        "completed_count": 10,
+        "unfinished_model_calls": 0,
+        "outcomes": {
+          "succeeded": 10
+        },
+        "missing_duration_count": 0,
+        "runs_with_events": 10,
+        "operation_duration_ms": {
+          "samples": 10,
+          "total": 235217,
+          "mean": 23521.7,
+          "p50": 21496,
+          "p95": 40041,
+          "max": 40041
+        },
+        "per_run_count": {
+          "samples": 24,
+          "total": 10,
+          "mean": 0.417,
+          "p50": 0,
+          "p95": 1,
+          "max": 1
+        },
+        "per_run_started_count": null,
+        "per_run_duration_ms": {
+          "samples": 24,
+          "total": 235217,
+          "mean": 9800.708,
+          "p50": 0,
+          "p95": 34180,
+          "max": 40041
+        },
+        "successful_duration_ms": {
+          "samples": 10,
+          "total": 235217,
+          "mean": 23521.7,
+          "p50": 21496,
+          "p95": 40041,
+          "max": 40041
+        },
+        "failed_duration_ms": {
+          "samples": 0,
+          "total": 0,
+          "mean": null,
+          "p50": null,
+          "p95": null,
+          "max": null
+        }
+      }
+    },
+    "combined": {
+      "started_count": 0,
+      "completed_count": 12,
+      "unfinished_model_calls": 0,
+      "outcomes": {
+        "succeeded": 12
+      },
+      "missing_duration_count": 0,
+      "runs_with_events": 12,
+      "operation_duration_ms": {
+        "samples": 12,
+        "total": 257842,
+        "mean": 21486.833,
+        "p50": 13225,
+        "p95": 40041,
+        "max": 40041
+      },
+      "per_run_count": {
+        "samples": 24,
+        "total": 12,
+        "mean": 0.5,
+        "p50": 0,
+        "p95": 1,
+        "max": 1
+      },
+      "per_run_started_count": null,
+      "per_run_duration_ms": {
+        "samples": 24,
+        "total": 257842,
+        "mean": 10743.417,
+        "p50": 0,
+        "p95": 34180,
+        "max": 40041
+      },
+      "successful_duration_ms": {
+        "samples": 12,
+        "total": 257842,
+        "mean": 21486.833,
+        "p50": 13225,
+        "p95": 40041,
+        "max": 40041
+      },
+      "failed_duration_ms": {
+        "samples": 0,
+        "total": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      }
+    },
+    "per_completed_run_share": {
+      "samples": 18,
+      "total": 8.01,
+      "mean": 0.445,
+      "p50": 0.4671200203135622,
+      "p95": 0.9290811534175563,
+      "max": 0.9290811534175563
+    },
+    "share_eligible_runs": 18,
+    "completed_runs_without_tool_trace": 6,
+    "runs_with_reply": 12,
+    "completed_runs_without_reply": 6,
+    "weighted_share_among_reply_runs": 0.7043284903157975,
+    "weighted_share": 0.43279731841506114,
+    "runs": [
+      {
+        "run_id": "009c0d0b53b04334a8b15c3f32285164",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": null,
+        "trace_span_ms": 67618.509,
+        "share": null
+      },
+      {
+        "run_id": "04507c34c2c540cbb976115593c45841",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 10214,
+        "trace_span_ms": 21205.056,
+        "share": 0.48167757727213734
+      },
+      {
+        "run_id": "1c0cb8544b584e9da486821c61016a67",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": null,
+        "trace_span_ms": 68597.825,
+        "share": null
+      },
+      {
+        "run_id": "1e3ff4d1006b46388ea49b709435065d",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 36494.259999999995,
+        "share": 0.0
+      },
+      {
+        "run_id": "33fcf011fb15441eb09ce03e26f0ffa2",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": null,
+        "trace_span_ms": 67053.21,
+        "share": null
+      },
+      {
+        "run_id": "39660df7d86b45788997e4aa6404edbd",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 31187,
+        "trace_span_ms": 34035.933999999994,
+        "share": 0.9162962885049667
+      },
+      {
+        "run_id": "584b2155eeb44135b4ea0e58375e3880",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 36981.359,
+        "share": 0.0
+      },
+      {
+        "run_id": "58d91699bd254ac29e20707f414375ef",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 30576,
+        "trace_span_ms": 41435.048,
+        "share": 0.7379260185724896
+      },
+      {
+        "run_id": "661796e74f8947ec85c82c00889506e2",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 38039.794,
+        "share": 0.0
+      },
+      {
+        "run_id": "66a1bc7590784b07b69ad8f1c95af036",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": null,
+        "trace_span_ms": 66747.917,
+        "share": null
+      },
+      {
+        "run_id": "6fbf795c4f1a4cffbdfc43bee032cf70",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 10224,
+        "trace_span_ms": 21671.168,
+        "share": 0.4717789091940037
+      },
+      {
+        "run_id": "7f0160fbb11345f9bcad597c0c2c24c0",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 40041,
+        "trace_span_ms": 46113.755,
+        "share": 0.8683092495937492
+      },
+      {
+        "run_id": "849270b3daae4d2396d72519aafb1676",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 37934.825,
+        "share": 0.0
+      },
+      {
+        "run_id": "8ab4b9c0d96c4ff8b0439357b54a14ea",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": null,
+        "trace_span_ms": 78337.281,
+        "share": null
+      },
+      {
+        "run_id": "941b1e77251c4e5c8847d1e31da4f57a",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 39977.792,
+        "share": 0.0
+      },
+      {
+        "run_id": "aae79ad853b44252a8b0f5c2f757832c",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 40246.871,
+        "share": 0.0
+      },
+      {
+        "run_id": "b606f497832d4b389c78f5e1464567fe",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": null,
+        "trace_span_ms": 66516.508,
+        "share": null
+      },
+      {
+        "run_id": "bb4a48a3d79d45dfb821b58719ec22e5",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 34180,
+        "trace_span_ms": 36789.036,
+        "share": 0.9290811534175563
+      },
+      {
+        "run_id": "bca703bee67e4842b55936428377add0",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 21496,
+        "trace_span_ms": 24564.122,
+        "share": 0.8750974286807401
+      },
+      {
+        "run_id": "c48b292d8c0b4f61be42d4be5194f48c",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 12401,
+        "trace_span_ms": 26547.781,
+        "share": 0.4671200203135622
+      },
+      {
+        "run_id": "da836c40498a4ab08ddb47947278294d",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 31791,
+        "trace_span_ms": 35684.309,
+        "share": 0.8908957715840875
+      },
+      {
+        "run_id": "e90b5fb304df40cd9b49071aabec3d9d",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 13225,
+        "trace_span_ms": 27603.428,
+        "share": 0.47910716016865734
+      },
+      {
+        "run_id": "f3f41a063174454f9d9e98f7627c1903",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 10732,
+        "trace_span_ms": 24166.561,
+        "share": 0.4440847003427587
+      },
+      {
+        "run_id": "f6dcf1948fd44303917fddd200876f29",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 11775,
+        "trace_span_ms": 26265.827,
+        "share": 0.4483011328750471
+      }
+    ],
+    "semantics": "Successful final or ask_user after an executed tool. ask_user can be an answer with a follow-up or a needed clarification; it is not necessarily successful task completion. Further tool selection, questionnaire and failed decisions are separate. Shares include only completed runs with known response timings; denominator is trace span, not first-card or end-to-end user latency. Completed turns with fully paired decision telemetry and no response call contribute a true zero. Incomplete or unknown telemetry is not imputed as zero; conditional shares among reply runs are also reported."
+  },
+  "capture_wall_time": {
+    "manifest": "output/latency-tool-default-v5/capture.json",
+    "attempted_turns": 24,
+    "wall_ms": {
+      "samples": 24,
+      "total": 1029833,
+      "mean": 42909.708,
+      "p50": 37963,
+      "p95": 69216,
+      "max": 79131
+    },
+    "share_eligible_turns": 24,
+    "turns_with_reply": 12,
+    "known_zero_reply_turns": 12,
+    "per_turn_reply_share": {
+      "samples": 24,
+      "total": 7.816,
+      "mean": 0.326,
+      "p50": 0.0,
+      "p95": 0.8929195178515189,
+      "max": 0.9113208553298139
+    },
+    "weighted_reply_share": 0.2503726332327669,
+    "weighted_reply_share_among_reply_turns": 0.6873165699479932,
+    "runs": [
+      {
+        "run_id": "009c0d0b53b04334a8b15c3f32285164",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 67618.509,
+        "share": null,
+        "conversation": 1,
+        "turn": 4,
+        "wall_ms": 68301,
+        "wall_share": 0.0
+      },
+      {
+        "run_id": "04507c34c2c540cbb976115593c45841",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 10214,
+        "trace_span_ms": 21205.056,
+        "share": 0.48167757727213734,
+        "conversation": 1,
+        "turn": 1,
+        "wall_ms": 21950,
+        "wall_share": 0.46533029612756266
+      },
+      {
+        "run_id": "1c0cb8544b584e9da486821c61016a67",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 68597.825,
+        "share": null,
+        "conversation": 3,
+        "turn": 4,
+        "wall_ms": 69216,
+        "wall_share": 0.0
+      },
+      {
+        "run_id": "1e3ff4d1006b46388ea49b709435065d",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 36494.259999999995,
+        "share": 0.0,
+        "conversation": 3,
+        "turn": 3,
+        "wall_ms": 37670,
+        "wall_share": 0.0
+      },
+      {
+        "run_id": "33fcf011fb15441eb09ce03e26f0ffa2",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 67053.21,
+        "share": null,
+        "conversation": 4,
+        "turn": 4,
+        "wall_ms": 67993,
+        "wall_share": 0.0
+      },
+      {
+        "run_id": "39660df7d86b45788997e4aa6404edbd",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 31187,
+        "trace_span_ms": 34035.933999999994,
+        "share": 0.9162962885049667,
+        "conversation": 4,
+        "turn": 2,
+        "wall_ms": 34927,
+        "wall_share": 0.8929195178515189
+      },
+      {
+        "run_id": "584b2155eeb44135b4ea0e58375e3880",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 36981.359,
+        "share": 0.0,
+        "conversation": 4,
+        "turn": 3,
+        "wall_ms": 37963,
+        "wall_share": 0.0
+      },
+      {
+        "run_id": "58d91699bd254ac29e20707f414375ef",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 30576,
+        "trace_span_ms": 41435.048,
+        "share": 0.7379260185724896,
+        "conversation": 1,
+        "turn": 2,
+        "wall_ms": 42119,
+        "wall_share": 0.7259431610437095
+      },
+      {
+        "run_id": "661796e74f8947ec85c82c00889506e2",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 38039.794,
+        "share": 0.0,
+        "conversation": 1,
+        "turn": 3,
+        "wall_ms": 39010,
+        "wall_share": 0.0
+      },
+      {
+        "run_id": "66a1bc7590784b07b69ad8f1c95af036",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 66747.917,
+        "share": null,
+        "conversation": 6,
+        "turn": 4,
+        "wall_ms": 67549,
+        "wall_share": 0.0
+      },
+      {
+        "run_id": "6fbf795c4f1a4cffbdfc43bee032cf70",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 10224,
+        "trace_span_ms": 21671.168,
+        "share": 0.4717789091940037,
+        "conversation": 4,
+        "turn": 1,
+        "wall_ms": 22367,
+        "wall_share": 0.4571019805964144
+      },
+      {
+        "run_id": "7f0160fbb11345f9bcad597c0c2c24c0",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 40041,
+        "trace_span_ms": 46113.755,
+        "share": 0.8683092495937492,
+        "conversation": 6,
+        "turn": 2,
+        "wall_ms": 46739,
+        "wall_share": 0.8566935535634053
+      },
+      {
+        "run_id": "849270b3daae4d2396d72519aafb1676",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 37934.825,
+        "share": 0.0,
+        "conversation": 5,
+        "turn": 3,
+        "wall_ms": 38682,
+        "wall_share": 0.0
+      },
+      {
+        "run_id": "8ab4b9c0d96c4ff8b0439357b54a14ea",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 78337.281,
+        "share": null,
+        "conversation": 5,
+        "turn": 4,
+        "wall_ms": 79131,
+        "wall_share": 0.0
+      },
+      {
+        "run_id": "941b1e77251c4e5c8847d1e31da4f57a",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 39977.792,
+        "share": 0.0,
+        "conversation": 6,
+        "turn": 3,
+        "wall_ms": 41042,
+        "wall_share": 0.0
+      },
+      {
+        "run_id": "aae79ad853b44252a8b0f5c2f757832c",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 40246.871,
+        "share": 0.0,
+        "conversation": 2,
+        "turn": 3,
+        "wall_ms": 40899,
+        "wall_share": 0.0
+      },
+      {
+        "run_id": "b606f497832d4b389c78f5e1464567fe",
+        "completed": true,
+        "has_tool_execution": false,
+        "response_calls": 0,
+        "response_ms": 0,
+        "trace_span_ms": 66516.508,
+        "share": null,
+        "conversation": 2,
+        "turn": 4,
+        "wall_ms": 67234,
+        "wall_share": 0.0
+      },
+      {
+        "run_id": "bb4a48a3d79d45dfb821b58719ec22e5",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 34180,
+        "trace_span_ms": 36789.036,
+        "share": 0.9290811534175563,
+        "conversation": 3,
+        "turn": 2,
+        "wall_ms": 37506,
+        "wall_share": 0.9113208553298139
+      },
+      {
+        "run_id": "bca703bee67e4842b55936428377add0",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 21496,
+        "trace_span_ms": 24564.122,
+        "share": 0.8750974286807401,
+        "conversation": 2,
+        "turn": 2,
+        "wall_ms": 25188,
+        "wall_share": 0.8534222645704304
+      },
+      {
+        "run_id": "c48b292d8c0b4f61be42d4be5194f48c",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 12401,
+        "trace_span_ms": 26547.781,
+        "share": 0.4671200203135622,
+        "conversation": 3,
+        "turn": 1,
+        "wall_ms": 27473,
+        "wall_share": 0.4513886361154588
+      },
+      {
+        "run_id": "da836c40498a4ab08ddb47947278294d",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 31791,
+        "trace_span_ms": 35684.309,
+        "share": 0.8908957715840875,
+        "conversation": 5,
+        "turn": 2,
+        "wall_ms": 36607,
+        "wall_share": 0.8684404622066818
+      },
+      {
+        "run_id": "e90b5fb304df40cd9b49071aabec3d9d",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 13225,
+        "trace_span_ms": 27603.428,
+        "share": 0.47910716016865734,
+        "conversation": 5,
+        "turn": 1,
+        "wall_ms": 28276,
+        "wall_share": 0.4677111331164238
+      },
+      {
+        "run_id": "f3f41a063174454f9d9e98f7627c1903",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 10732,
+        "trace_span_ms": 24166.561,
+        "share": 0.4440847003427587,
+        "conversation": 2,
+        "turn": 1,
+        "wall_ms": 24867,
+        "wall_share": 0.43157598423613625
+      },
+      {
+        "run_id": "f6dcf1948fd44303917fddd200876f29",
+        "completed": true,
+        "has_tool_execution": true,
+        "response_calls": 1,
+        "response_ms": 11775,
+        "trace_span_ms": 26265.827,
+        "share": 0.4483011328750471,
+        "conversation": 6,
+        "turn": 1,
+        "wall_ms": 27124,
+        "wall_share": 0.43411738681610385
+      }
+    ],
+    "semantics": "Denominator is capture run_turn() wall time, including context load/commit. Only exact sequential conversation joins are accepted. Runtime completion is not task-success grading. Failed/unknown timing is excluded from shares; proven no-writer runtime refusals are retained as zero."
+  },
+  "capture_audit": {
+    "source_unchanged_during_capture": true,
+    "attempted": 24,
+    "returned": 24,
+    "context_chars_min": 9049,
+    "context_chars_max": 10872,
+    "worker_coverage": "Only one actual JD analysis worker, later reads reused stored analysis; no resume-match worker. Model refusals/unfinished business requests are retained.",
+    "summary_failure_categories": {
+      "timeout": 18
+    },
+    "provider_load": "Overlapped with the separately preregistered Qwen runtime/holdout recording for part of the capture. Authored workload, not natural usage distribution.",
+    "card_latency": "Capture uses synchronous run_turn without a public event sink; first-visible-card latency is not measured. Streaming order/continuation was independently verified."
+  }
+}

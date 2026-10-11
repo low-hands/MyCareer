@@ -14,7 +14,7 @@ from typing import TypeVar
 from openai import APITimeoutError
 
 from career_agent.agent.providers.openai_client import AgentWorkerError
-from career_agent.harness.observability import record_active_trace
+from career_agent.harness.observability import ModelCallCategory, record_active_trace
 
 
 T = TypeVar("T")
@@ -28,7 +28,10 @@ TRANSPORT_RETRIES = 1
 EMPTY_RESPONSE_RETRIES = 2
 
 
-def retry_invalid_response(call: Callable[[], T], *, code_prefix: str) -> T:
+def retry_invalid_response(
+    call: Callable[[], T], *, code_prefix: str,
+    model_call_category: ModelCallCategory = "capability_agent",
+) -> T:
     """Retry one invalid sample and one dropped connection, then give up.
 
     The inner retry preserves already completed upstream work. Once the
@@ -76,5 +79,5 @@ def retry_invalid_response(call: Callable[[], T], *, code_prefix: str) -> T:
                 error_detail=error.detail,
                 recoverable=True,
                 details={"code_prefix": code_prefix},
-                model_call_category="capability_agent",
+                model_call_category=model_call_category,
             )

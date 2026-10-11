@@ -1,0 +1,214 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "english_empty_resume_receipt",
+  "suite_fingerprint": "2a75ebf7fa9c6b126b0541b4b10b1491e377049947c377d9ad1ff44be070c8ec",
+  "recorded_at": "2026-10-11T07:52:54.585463+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "show my resumes": {
+            "list_resumes": 0.6709644319828856,
+            "get_resume_tailoring_draft": 0.6263722429761163,
+            "get_resume_job_match": 0.5942743601027028,
+            "get_resume_metadata": 0.5856720375604706,
+            "revise_resume_tailoring": 0.579607710687055,
+            "draft_resume_tailoring": 0.5789203960877388,
+            "review_resume_tailoring": 0.5610304390689732,
+            "export_resume_artifact": 0.5594803630582128
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "show my resumes",
+          "assistant_message": "当前没有找到任何简历。如果您需要创建或上传简历，请告诉我您的目标岗位方向、工作经验等基本信息，我可以帮您开始准备。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "ae6ff7f984349769af4daf7652ec7c3b5e0a0c9c052b5a3583293a5d97c7ed0b",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。如果您需要创建或上传简历，请告诉我您的目标岗位方向、工作经验等基本信息，我可以帮您开始准备。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "ae6ff7f984349769af4daf7652ec7c3b5e0a0c9c052b5a3583293a5d97c7ed0b",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "show my resumes": {
+            "list_resumes": 0.670884276363078,
+            "get_resume_tailoring_draft": 0.6262623787057781,
+            "get_resume_job_match": 0.594262169156979,
+            "get_resume_metadata": 0.5856818792843504,
+            "revise_resume_tailoring": 0.5794723695661769,
+            "draft_resume_tailoring": 0.5788034026169965,
+            "review_resume_tailoring": 0.5609269518131409,
+            "export_resume_artifact": 0.5594645513929217
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "show my resumes",
+          "assistant_message": "当前没有找到任何简历。您需要先创建或上传简历才能查看和管理它们。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "ae6ff7f984349769af4daf7652ec7c3b5e0a0c9c052b5a3583293a5d97c7ed0b",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。您需要先创建或上传简历才能查看和管理它们。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "ae6ff7f984349769af4daf7652ec7c3b5e0a0c9c052b5a3583293a5d97c7ed0b",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "show my resumes": {
+            "list_resumes": 0.6709644319828856,
+            "get_resume_tailoring_draft": 0.6263722429761163,
+            "get_resume_job_match": 0.5942743601027028,
+            "get_resume_metadata": 0.5856720375604706,
+            "revise_resume_tailoring": 0.579607710687055,
+            "draft_resume_tailoring": 0.5789203960877388,
+            "review_resume_tailoring": 0.5610304390689732,
+            "export_resume_artifact": 0.5594803630582128
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "show my resumes",
+          "assistant_message": "当前没有找到任何简历。如果您需要创建或上传简历，请告诉我具体需求，我可以帮您搜索相关能力或提供指导。",
+          "executed_calls": [
+            {
+              "name": "list_resumes",
+              "arguments": {
+                "user_id": "eval-user",
+                "target_role_id": null,
+                "query": null
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_resumes",
+                  "arguments": {}
+                }
+              },
+              "schema_fingerprint": "ae6ff7f984349769af4daf7652ec7c3b5e0a0c9c052b5a3583293a5d97c7ed0b",
+              "action": "tool_call",
+              "tool": "list_resumes"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"当前没有找到任何简历。如果您需要创建或上传简历，请告诉我具体需求，我可以帮您搜索相关能力或提供指导。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "ae6ff7f984349769af4daf7652ec7c3b5e0a0c9c052b5a3583293a5d97c7ed0b",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": false,
+          "model_summary_delivered": true,
+          "decision_count": 2,
+          "direct_delivery": false,
+          "result_states": [
+            "no_resumes_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

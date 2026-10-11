@@ -28,7 +28,7 @@ def _wiring_source() -> str:
     # Located from the module object so moving or renaming the file fails loudly
     # instead of silently scanning nothing.
     path = Path(inspect.getsourcefile(cli_module))
-    return path.read_text()
+    return path.read_text(encoding="utf-8")
 
 
 def test_production_wiring_builds_and_passes_a_sqlite_trace_recorder() -> None:
@@ -73,7 +73,7 @@ def test_production_wiring_builds_and_passes_a_sqlite_trace_recorder() -> None:
 
 def _runtime_module_source() -> str:
     path = Path(inspect.getsourcefile(MainAgentRuntime))
-    return path.read_text()
+    return path.read_text(encoding="utf-8")
 
 
 def test_the_runtime_accepts_a_trace_recorder_parameter() -> None:

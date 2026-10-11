@@ -13,14 +13,14 @@ from career_agent.harness.observability import ACTIVE_TRACE_CONTEXT, InMemoryTra
 from career_agent.storage.context import CareerContextStore
 
 
-def test_thirty_synthetic_messages_reduce_five_legacy_compactions_to_one(tmp_path: Path) -> None:
+def test_larger_token_quota_reduces_compactions_and_retains_sources(tmp_path: Path) -> None:
     legacy = run_trajectory(tmp_path / "legacy.sqlite3", recent=8, batch=4, worker=FactSummaryWorker())
     current = run_trajectory(tmp_path / "current.sqlite3", recent=16, batch=8, worker=FactSummaryWorker())
-    assert legacy.compaction_calls == 5
-    assert current.compaction_calls == 1
+    assert legacy.compaction_calls == 6
+    assert current.compaction_calls == 2
     assert current.compaction_calls <= 2
-    assert legacy.watermark == 20
-    assert current.watermark == 8
+    assert legacy.watermark == 24
+    assert current.watermark == 16
     for result in (legacy, current):
         assert result.retained_known_facts == result.known_fact_count == 4
         assert result.history_reachable
@@ -39,7 +39,7 @@ def test_production_defaults_keep_contiguous_history_below_complete_request_occu
     try:
         for index in range(15):
             context = manager.load_for_turn(user_id="u", conversation_id="c", user_message=f"synthetic-{index}")
-            assert len(context.recent_messages) <= 23
+            assert len(context.recent_messages) == index * 2
             assert context.through_sequence + len(context.recent_messages) == index * 2
             if context.recent_messages:
                 assert context.recent_from_sequence == context.through_sequence + 1
@@ -47,11 +47,8 @@ def test_production_defaults_keep_contiguous_history_below_complete_request_occu
     finally:
         ACTIVE_TRACE_CONTEXT.reset(token)
     events = [event for event in recorder.snapshot("synthetic-defaults").events if event.event_type == "context_compacted"]
-    assert len(events) == len(worker.sequences) == 1
-    assert worker.sequences == [tuple(range(1, 9))]
-    assert events[0].details["trigger"] == "projection_overflow"
-    assert events[0].details["occupancy"] < 0.75
-    assert events[0].details["input_occupancy_denominator"] == 32000
+    assert events == []
+    assert worker.sequences == []
     span = store.read_conversation_span(user_id="u", conversation_id="c", from_sequence=1, through_sequence=8)
     assert [item.sequence for item in span.messages] == list(range(1, 9))
     assert span.messages[0].content == "synthetic-0"
@@ -80,8 +77,7 @@ def test_one_long_current_message_triggers_complete_request_occupancy_before_row
     events = [event for event in recorder.snapshot("synthetic-long").events if event.event_type == "context_compacted"]
     assert len(events) == 1
     assert events[0].details["trigger"] == "occupancy"
-    assert events[0].details["projection_overflow"] is False
-    assert events[0].details["occupancy"] >= 0.75
+    assert events[0].details["request_occupancy"] >= 0.75
     assert worker.sequences == [tuple(range(1, 9))]
     assert current.user_message == "long " * 3200
     assert current.through_sequence == 8

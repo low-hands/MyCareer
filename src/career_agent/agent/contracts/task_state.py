@@ -23,11 +23,7 @@ from career_agent.agent.contracts.memory import (
 )
 from career_agent.agent.providers.token_budget import serialized_token_count
 from career_agent.agent.capabilities.effects import approval_policy, owner_rule_capabilities
-from career_agent.agent.capabilities.catalog import (
-    DOMAIN_TOOL_PROFILES,
-    TOOL_PROFILE_NAMES,
-    ToolProfile,
-)
+from career_agent.agent.capabilities.catalog import CAPABILITIES
 from career_agent.agent.contracts.questionnaire import PendingQuestionnaire, UserQuestion
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
 from career_agent.domain.applications import ApplicationStatus
@@ -97,15 +93,6 @@ ACTIVE_RESOURCE_ID_FIELDS = (
 )
 
 
-class RouteToCapabilityToolArguments(ContractModel):
-    domain: ToolProfile = Field(
-        description=(
-            "The capability domain the user's current request belongs to. "
-            "Choose core to leave a domain once its work is finished."
-        ),
-    )
-
-
 class ConversationTaskState(ContractModel):
     """Durable per-conversation task state.
 
@@ -117,15 +104,6 @@ class ConversationTaskState(ContractModel):
     is still in the middle of. Use ``enter_workflow``/``leave_workflow`` rather
     than updating the fields piecemeal.
 
-    ``tool_profile`` is a separate axis: which fixed group of tools the next
-    decision is made against. It answers "what domain is the user working in",
-    not "is a run suspended", so a resume-tailoring turn changes it while
-    ``active_workflow`` stays ``none``. It is switched only through
-    ``route_to_capability`` and persists across turns so a domain is routed
-    into once, not on every decision. High-confidence ingress keyword routing
-    may select the same profile before the first decision; it never selects an
-    action, so ambiguous requests still go through ``route_to_capability``.
-
     ``pending_interaction`` is the only durable wait-for-user slot. Its
     discriminator prevents a questionnaire and a confirmation proposal, or two
     different proposals, from being active at the same time.
@@ -136,9 +114,28 @@ class ConversationTaskState(ContractModel):
     """
 
     workflow: WorkflowState | None = None
-    tool_profile: ToolProfile = "core"
+    loaded_capabilities: tuple[str, ...] = ()
     pending_interaction: PendingInteraction | None = None
     domain_context: DomainTaskContext = Field(default_factory=DomainTaskContext)
+
+    @field_validator("loaded_capabilities", mode="before")
+    @classmethod
+    def _known_loaded_capabilities(cls, value: Any) -> tuple[str, ...]:
+        if not isinstance(value, (list, tuple, set, frozenset)):
+            return ()
+        known = {name for name in value if isinstance(name, str)}
+        return tuple(
+            name for name, descriptor in CAPABILITIES.items()
+            if descriptor.model_callable and name in known
+        )
+
+    def add_loaded_capabilities(self, names: tuple[str, ...]) -> "ConversationTaskState":
+        known = set(self.loaded_capabilities) | set(names)
+        ordered = tuple(
+            name for name, descriptor in CAPABILITIES.items()
+            if descriptor.model_callable and name in known
+        )
+        return self.model_copy(update={"loaded_capabilities": ordered})
 
     @model_validator(mode="before")
     @classmethod
@@ -149,6 +146,7 @@ class ConversationTaskState(ContractModel):
             value = dict(value)
             value.pop("active_resume_analysis_id", None)
             value.pop("resume_analysis_status", None)
+            value.pop("tool_profile", None)
             value = cls._migrate_domain_context(value)
             value = cls._migrate_pending_interaction(value)
             value = cls._migrate_workflow(value)

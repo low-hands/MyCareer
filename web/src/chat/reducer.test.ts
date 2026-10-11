@@ -416,3 +416,22 @@ describe("chatReducer", () => {
     )).size).toBe(state.progressSteps.length);
   });
 });
+
+it("shows a durable report before reply text while the turn continues", () => {
+  const submitted = chatReducer(initialChatState, {
+    type: "submit", messageId: "u", assistantMessageId: "a", content: "分析岗位再给建议",
+  });
+  const early = chatReducer(submitted, {
+    type: "stream_event",
+    event: { type: "report_ready", kind: "job_analysis", resource_id: "analysis-1" },
+  });
+  expect(early.phase).toBe("running");
+  expect(early.messages.at(-1)?.content).toBe("");
+  expect(early.messages.at(-1)?.resources).toEqual([{ kind: "job_analysis", resourceId: "analysis-1", statusAtDelivery: undefined, anchoredByOtherJob: undefined }]);
+  const reply = chatReducer(early, {
+    type: "stream_event", event: { type: "content_delta", delta: "建议先准备项目证据。" },
+  });
+  expect(reply.phase).toBe("running");
+  expect(reply.messages.at(-1)?.resources).toEqual(early.messages.at(-1)?.resources);
+  expect(reply.messages.at(-1)?.content).toContain("准备项目证据");
+});

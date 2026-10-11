@@ -1,0 +1,41 @@
+{
+  "fixed_samples": 5,
+  "fixture_sha256": "9d54be5dd23b6222e3c8841961d82197f7058605e9dfaf844fb314db84fbe139",
+  "input_sha256": "58f67072e903f099dfa732c2f9b19c43f26db3c69c1b0ed52d9e2816640ffd44",
+  "source_characters": 2919,
+  "model": "qwen3.7-plus",
+  "disable_thinking": true,
+  "timeout_seconds": 30.0,
+  "attempts": [
+    {
+      "sample": 1,
+      "status": "failed",
+      "error_code": "CONVERSATION_SUMMARY_TRANSPORT_ERROR",
+      "wall_ms": 259
+    },
+    {
+      "sample": 2,
+      "status": "failed",
+      "error_code": "CONVERSATION_SUMMARY_TRANSPORT_ERROR",
+      "wall_ms": 3
+    },
+    {
+      "sample": 3,
+      "status": "failed",
+      "error_code": "CONVERSATION_SUMMARY_TRANSPORT_ERROR",
+      "wall_ms": 3
+    },
+    {
+      "sample": 4,
+      "status": "failed",
+      "error_code": "CONVERSATION_SUMMARY_TRANSPORT_ERROR",
+      "wall_ms": 2
+    },
+    {
+      "sample": 5,
+      "status": "failed",
+      "error_code": "CONVERSATION_SUMMARY_TRANSPORT_ERROR",
+      "wall_ms": 2
+    }
+  ]
+}

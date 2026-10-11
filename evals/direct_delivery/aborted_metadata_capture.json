@@ -1,0 +1,8 @@
+{
+  "status": "aborted_before_batch_persistence",
+  "reason": "Recorder omitted deliver_direct metadata, making replay invalid. Both 10-sample batches were stopped; no scores used. Number of attempted and completed requests unavailable. Complete replacement batches recorded after fix.",
+  "roots": [
+    "model_declared/deepseek",
+    "model_declared/qwen"
+  ]
+}

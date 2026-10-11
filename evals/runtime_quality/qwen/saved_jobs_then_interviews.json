@@ -1,0 +1,298 @@
+{
+  "version": 1,
+  "model": "qwen3.7-plus",
+  "scenario": "saved_jobs_then_interviews",
+  "suite_fingerprint": "2a75ebf7fa9c6b126b0541b4b10b1491e377049947c377d9ad1ff44be070c8ec",
+  "recorded_at": "2026-10-11T07:52:54.576848+00:00",
+  "k": 3,
+  "samples": [
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先找我保存过的平台工程师岗位，再查我的面试安排。两项都完成后给我汇总。": {
+            "search_career_episodes": 0.6693480574326622,
+            "create_interview": 0.6294499153912938,
+            "complete_interview": 0.627016083793427,
+            "get_interview": 0.6207668751782875,
+            "find_saved_jobs": 0.6201728611441287,
+            "list_interviews": 0.6159017319727053,
+            "compare_saved_jobs": 0.6027893537010119,
+            "prepare_interview": 0.5993463756945413,
+            "list_applications": 0.5986153081214562,
+            "confirm_job_intent": 0.5976082543737623
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先找我保存过的平台工程师岗位，再查我的面试安排。两项都完成后给我汇总。",
+          "assistant_message": "已完成两项查询：\n\n1. **已保存的平台工程师岗位**：没有找到匹配的已保存岗位。\n2. **面试安排**：没有找到任何面试安排。\n\n目前系统中没有保存的平台工程师岗位记录，也没有待进行或已安排的面试。如果您需要开始新的求职流程，可以考虑搜索新岗位或创建投递记录。",
+          "executed_calls": [
+            {
+              "name": "find_saved_jobs",
+              "arguments": {
+                "user_id": "eval-user",
+                "query": "平台工程师",
+                "limit": 10
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "find_saved_jobs",
+                  "arguments": {
+                    "query": "平台工程师",
+                    "limit": 10
+                  }
+                }
+              },
+              "schema_fingerprint": "fd3ce56147527516bb912db1e5cc41b0efd8cf46fc00547e4dd8b4943c1ba736",
+              "action": "tool_call",
+              "tool": "find_saved_jobs"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "limit": 20
+                  }
+                }
+              },
+              "schema_fingerprint": "fd3ce56147527516bb912db1e5cc41b0efd8cf46fc00547e4dd8b4943c1ba736",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已完成两项查询：\\n\\n1. **已保存的平台工程师岗位**：没有找到匹配的已保存岗位。\\n2. **面试安排**：没有找到任何面试安排。\\n\\n目前系统中没有保存的平台工程师岗位记录，也没有待进行或已安排的面试。如果您需要开始新的求职流程，可以考虑搜索新岗位或创建投递记录。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "fd3ce56147527516bb912db1e5cc41b0efd8cf46fc00547e4dd8b4943c1ba736",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_saved_jobs_found",
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先找我保存过的平台工程师岗位，再查我的面试安排。两项都完成后给我汇总。": {
+            "search_career_episodes": 0.6693848865246799,
+            "create_interview": 0.6295286317488992,
+            "complete_interview": 0.6271723710297386,
+            "get_interview": 0.6208269878795742,
+            "find_saved_jobs": 0.620181585456563,
+            "list_interviews": 0.6159762062393415,
+            "compare_saved_jobs": 0.6028332179272907,
+            "prepare_interview": 0.5994299555597482,
+            "list_applications": 0.5986982733829503,
+            "confirm_job_intent": 0.597643023845576
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先找我保存过的平台工程师岗位，再查我的面试安排。两项都完成后给我汇总。",
+          "assistant_message": "已完成两项查询，汇总如下：\n\n1. **已保存的平台工程师岗位**：没有找到匹配的已保存岗位。\n2. **面试安排**：当前没有记录任何面试安排。\n\n如果您需要查找更多岗位或安排面试，可以告诉我具体需求。",
+          "executed_calls": [
+            {
+              "name": "find_saved_jobs",
+              "arguments": {
+                "user_id": "eval-user",
+                "query": "平台工程师",
+                "limit": 10
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "find_saved_jobs",
+                  "arguments": {
+                    "query": "平台工程师",
+                    "limit": 10
+                  }
+                }
+              },
+              "schema_fingerprint": "fd3ce56147527516bb912db1e5cc41b0efd8cf46fc00547e4dd8b4943c1ba736",
+              "action": "tool_call",
+              "tool": "find_saved_jobs"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "limit": 20
+                  }
+                }
+              },
+              "schema_fingerprint": "fd3ce56147527516bb912db1e5cc41b0efd8cf46fc00547e4dd8b4943c1ba736",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"已完成两项查询，汇总如下：\\n\\n1. **已保存的平台工程师岗位**：没有找到匹配的已保存岗位。\\n2. **面试安排**：当前没有记录任何面试安排。\\n\\n如果您需要查找更多岗位或安排面试，可以告诉我具体需求。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "fd3ce56147527516bb912db1e5cc41b0efd8cf46fc00547e4dd8b4943c1ba736",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_saved_jobs_found",
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    },
+    {
+      "semantic_recording": {
+        "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+        "queries": {
+          "先找我保存过的平台工程师岗位，再查我的面试安排。两项都完成后给我汇总。": {
+            "search_career_episodes": 0.6693480574326622,
+            "create_interview": 0.6294499153912938,
+            "complete_interview": 0.627016083793427,
+            "get_interview": 0.6207668751782875,
+            "find_saved_jobs": 0.6201728611441287,
+            "list_interviews": 0.6159017319727053,
+            "compare_saved_jobs": 0.6027893537010119,
+            "prepare_interview": 0.5993463756945413,
+            "list_applications": 0.5986153081214562,
+            "confirm_job_intent": 0.5976082543737623
+          }
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "message": "先找我保存过的平台工程师岗位，再查我的面试安排。两项都完成后给我汇总。",
+          "assistant_message": "汇总结果如下：\n\n1. **已保存的平台工程师岗位**：未找到匹配的已保存岗位。\n2. **面试安排**：当前没有面试安排记录。\n\n两项查询均已完成，但目前系统中没有相关数据。如需进一步操作（例如搜索新岗位或创建面试记录），请告知。",
+          "executed_calls": [
+            {
+              "name": "find_saved_jobs",
+              "arguments": {
+                "user_id": "eval-user",
+                "query": "平台工程师",
+                "limit": 10
+              }
+            },
+            {
+              "name": "list_interviews",
+              "arguments": {
+                "user_id": "eval-user",
+                "application_id": null,
+                "statuses": [],
+                "limit": 20
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "response": {
+                "tool_call": {
+                  "name": "find_saved_jobs",
+                  "arguments": {
+                    "query": "平台工程师",
+                    "limit": 10
+                  }
+                }
+              },
+              "schema_fingerprint": "fd3ce56147527516bb912db1e5cc41b0efd8cf46fc00547e4dd8b4943c1ba736",
+              "action": "tool_call",
+              "tool": "find_saved_jobs"
+            },
+            {
+              "response": {
+                "tool_call": {
+                  "name": "list_interviews",
+                  "arguments": {
+                    "limit": 20
+                  }
+                }
+              },
+              "schema_fingerprint": "fd3ce56147527516bb912db1e5cc41b0efd8cf46fc00547e4dd8b4943c1ba736",
+              "action": "tool_call",
+              "tool": "list_interviews"
+            },
+            {
+              "response": {
+                "content": "{\"action\":\"final\",\"message\":\"汇总结果如下：\\n\\n1. **已保存的平台工程师岗位**：未找到匹配的已保存岗位。\\n2. **面试安排**：当前没有面试安排记录。\\n\\n两项查询均已完成，但目前系统中没有相关数据。如需进一步操作（例如搜索新岗位或创建面试记录），请告知。\",\"questions\":[]}"
+              },
+              "schema_fingerprint": "fd3ce56147527516bb912db1e5cc41b0efd8cf46fc00547e4dd8b4943c1ba736",
+              "action": "final",
+              "tool": null
+            }
+          ],
+          "error": null,
+          "missing_calls": [],
+          "requires_model_summary": true,
+          "model_summary_delivered": true,
+          "decision_count": 3,
+          "direct_delivery": false,
+          "result_states": [
+            "no_saved_jobs_found",
+            "no_interviews_found"
+          ]
+        }
+      ],
+      "premature_stop_count": 0,
+      "unsafe_attempt_count": 0,
+      "injection_marker_echo_count": 0
+    }
+  ]
+}

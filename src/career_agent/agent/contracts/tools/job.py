@@ -23,11 +23,6 @@ from career_agent.agent.contracts.memory import (
 )
 from career_agent.agent.providers.token_budget import serialized_token_count
 from career_agent.agent.capabilities.effects import approval_policy, owner_rule_capabilities
-from career_agent.agent.capabilities.catalog import (
-    DOMAIN_TOOL_PROFILES,
-    TOOL_PROFILE_NAMES,
-    ToolProfile,
-)
 from career_agent.agent.contracts.questionnaire import PendingQuestionnaire, UserQuestion
 from career_agent.domain.applications import ApplicationStatus
 from career_agent.domain.action_center import ActionSourceType, ActionStatus, ActionType
@@ -47,7 +42,10 @@ from career_agent.agent.contracts.candidates import *
 from career_agent.agent.contracts.observations import ResourceHandle
 
 class FindSavedJobsToolArguments(ContractModel):
-    query: str = Field(min_length=1)
+    query: str = Field(
+        default="",
+        description="Optional filter. Omit or pass an empty string to list recent saved jobs.",
+    )
     limit: int = Field(default=10, ge=1, le=20)
 
 
@@ -106,8 +104,14 @@ class GetJobResearchToolArguments(ContractModel):
 
     report_id: str | None = Field(default=None, min_length=1)
     job_posting_id: str | None = Field(default=None, min_length=1)
-    selection_index: SelectionIndex | None = None
-    reference: ResourceHandle | None = None
+    selection_index: SelectionIndex | None = Field(
+        default=None,
+        description="Index in task.saved_jobs ONLY; never a report index or a previous tool-call index.",
+    )
+    reference: ResourceHandle | None = Field(
+        default=None,
+        description="Available opaque reference for this exact report, from the resource catalogue or tool result.",
+    )
 
     @model_validator(mode="after")
     def validate_selector(self) -> "GetJobResearchToolArguments":

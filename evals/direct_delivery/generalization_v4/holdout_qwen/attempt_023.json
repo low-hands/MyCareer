@@ -1,0 +1,68 @@
+{
+  "scenario": "interview_inventory",
+  "sample": {
+    "semantic_recording": {
+      "catalogue_digest": "0da8a8887bfc2d71a40730de29b6a4c787b5f28cf0a15486fe21a2e4f00258bc",
+      "queries": {
+        "我现在有哪些面试": {
+          "list_interviews": 0.742034903512521,
+          "get_interview": 0.7138945711929267,
+          "create_interview": 0.7029025704066606,
+          "prepare_interview": 0.6887051744642352,
+          "update_interview": 0.6804960079548714,
+          "complete_interview": 0.6720823580417576,
+          "start_mock_interview": 0.6440446313108817,
+          "get_interview_preparation": 0.6400329185314564,
+          "search_career_episodes": 0.6379456599987353,
+          "record_interview_retro": 0.634596770925933
+        }
+      }
+    },
+    "passed": true,
+    "failures": [],
+    "turns": [
+      {
+        "message": "我现在有哪些面试",
+        "assistant_message": "没有找到面试安排。",
+        "executed_calls": [
+          {
+            "name": "list_interviews",
+            "arguments": {
+              "user_id": "eval-user",
+              "application_id": null,
+              "statuses": [],
+              "limit": 20
+            }
+          }
+        ],
+        "decisions": [
+          {
+            "response": {
+              "tool_call": {
+                "name": "list_interviews",
+                "arguments": {
+                  "deliver_direct": true
+                }
+              }
+            },
+            "schema_fingerprint": "89dc781b270bb60be8041818e788fa2b084e7399c8dbef61308b28d74c9d1fb2",
+            "action": "tool_call",
+            "tool": "list_interviews"
+          }
+        ],
+        "error": null,
+        "missing_calls": [],
+        "requires_model_summary": false,
+        "model_summary_delivered": false,
+        "decision_count": 1,
+        "direct_delivery": true,
+        "result_states": [
+          "no_interviews_found"
+        ]
+      }
+    ],
+    "premature_stop_count": 0,
+    "unsafe_attempt_count": 0,
+    "injection_marker_echo_count": 0
+  }
+}

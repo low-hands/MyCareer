@@ -10,6 +10,7 @@ from career_agent.services.free_text_preferences import (
     normalize_preference_stance,
 )
 
+SUMMARY_FACT_MAX_CHARS = 200
 SUMMARY_SOURCE_MAX_CHARS = 4000
 SUMMARY_ITEM_MAX_CHARS = 500
 SUMMARY_TEXT_MAX_CHARS = 6000
@@ -20,6 +21,7 @@ ACTIVE_CONSTRAINT_MAX_ITEMS = 15
 
 HARNESS_SUMMARY_COUNTER_FIELDS = frozenset(
     {
+        "archived_fact_count",
         "omitted_active_constraint_count",
         "omitted_user_goal_count",
         "omitted_confirmed_decision_count",
@@ -40,6 +42,13 @@ class SummaryMessage(ConversationMemoryContract):
     sequence: int = Field(ge=1)
     role: Literal["user", "assistant"]
     content: str = Field(max_length=SUMMARY_SOURCE_MAX_CHARS)
+
+
+class SummaryKeyFact(ConversationMemoryContract):
+    """A concise explicit chat fact with its original message sequence."""
+
+    fact: str = Field(min_length=1, max_length=SUMMARY_FACT_MAX_CHARS)
+    source_sequence: int = Field(ge=1)
 
 
 class DistilledFreeTextPreferenceCandidate(ConversationMemoryContract):
@@ -77,6 +86,11 @@ class DistilledFreeTextPreferenceCandidate(ConversationMemoryContract):
 
 
 class ConversationSummaryContent(ConversationMemoryContract):
+    key_facts: tuple[SummaryKeyFact, ...] = Field(default=(), max_length=12)
+    archived_fact_count: int = Field(
+        default=0, ge=0,
+        description="Current unretired facts held outside the visible summary; original messages remain readable.",
+    )
     user_goals: tuple[str, ...] = Field(default=(), max_length=10)
     confirmed_decisions: tuple[str, ...] = Field(default=(), max_length=20)
     unresolved_questions: tuple[str, ...] = Field(default=(), max_length=10)
@@ -145,6 +159,7 @@ class ConversationSummaryContent(ConversationMemoryContract):
     @model_validator(mode="after")
     def bound_summary_text(self) -> "ConversationSummaryContent":
         values = (
+            *(item.fact for item in self.key_facts),
             *self.user_goals,
             *self.confirmed_decisions,
             *self.unresolved_questions,
@@ -168,10 +183,38 @@ class StoredConversationSummary(ConversationMemoryContract):
     updated_at: datetime
 
 
+class ConversationSummaryDelta(ConversationMemoryContract):
+    """Worker-only output. The harness owns preservation and the visible cap."""
+
+    new_facts: tuple[SummaryKeyFact, ...] = Field(default=(), max_length=12)
+    superseded_fact_ids: tuple[str, ...] = Field(default=(), max_length=12)
+    user_goals: tuple[str, ...] = Field(default=(), max_length=10)
+    confirmed_decisions: tuple[str, ...] = Field(default=(), max_length=20)
+    unresolved_questions: tuple[str, ...] = Field(default=(), max_length=10)
+    active_constraints: tuple[str, ...] = Field(default=(), max_length=ACTIVE_CONSTRAINT_MAX_ITEMS)
+    long_term_memory_candidates: tuple[DistilledFreeTextPreferenceCandidate, ...] = Field(default=(), max_length=8)
+
+    _discard_candidates = field_validator("long_term_memory_candidates", mode="before")(
+        ConversationSummaryContent.discard_invalid_memory_candidates.__func__
+    )
+
+    @model_validator(mode="after")
+    def bound_text(self) -> "ConversationSummaryDelta":
+        # Reuse the existing non-fact budgets without changing the main-agent
+        # summary schema. new_facts are independently bounded above.
+        ConversationSummaryContent(
+            key_facts=self.new_facts, user_goals=self.user_goals,
+            confirmed_decisions=self.confirmed_decisions,
+            unresolved_questions=self.unresolved_questions,
+            active_constraints=self.active_constraints,
+        )
+        return self
+
+
 class ConversationSummaryWorker(Protocol):
     def summarize(
         self,
         *,
         previous: ConversationSummaryContent | None,
         messages: tuple[SummaryMessage, ...],
-    ) -> ConversationSummaryContent: ...
+    ) -> ConversationSummaryContent | ConversationSummaryDelta: ...

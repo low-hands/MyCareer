@@ -1,0 +1,184 @@
+{
+  "scenario": "a_report_that_scrolled_out_of_the_catalogue_is_not_faked",
+  "policy": "Only reports the projection still names can be read back. When the report the user asks about is not among them, say it can no longer be reached instead of sending some other report's handle.",
+  "model": "deepseek-flash",
+  "prompt_fingerprint": "467aaf7014e3ae8e5848caf9a2b71d72758d0383199871629b91d6a4c57a5da5",
+  "context_shape_fingerprint": "7dc8bc63cc400316563ba507e92c92ea31ce9eb9fd7f1f2b25265cfaa69c36b7",
+  "recorded_at": "2026-10-11T07:45:31.243056+00:00",
+  "steps": [
+    {
+      "content": "{\"action\":\"ask_user\",\"message\":\"我没有找到上个月关于 Shopee 的调研记录（归档的 12 份调研报告里没有 Shopee，另有 3 份更早的报告未列出且无法按引用取回，跨对话事件检索也没有匹配到 Shopee）。\\n\\n请确认一下：你说的这份 Shopee 调研，是下面哪种情况？\\n1）它在别处生成（例如你自己保存的文件/链接），可以把报告或引用发给我；\\n2）你记错了公司名，实际是归档里的某一份（字节跳动、腾讯、阿里巴巴、美团、小红书、快手、百度、京东、网易、滴滴、拼多多、华为）；\\n3）这份报告确实已不在可访问范围内——那我无法读出它的内容，也不会代为推测。\",\"questions\":[]}",
+      "scenario_step": 0,
+      "selected_schema_fingerprint": "f4794cf9b21f5941147ccac86cb72ee37aa826d3f6a94198e729abdb16259dc3",
+      "decision_shape_fingerprint": "445ca03f34bb6c3cfb923e49d61b5e12d5591cd5b633d7109230b3e67398a7bf",
+      "offered_tools": [
+        "load_skill",
+        "fetch_archived_constraints",
+        "search_career_memory",
+        "get_job_research",
+        "search_career_episodes",
+        "search_capabilities"
+      ],
+      "elapsed_ms": 4675.8,
+      "model_request_count": 2,
+      "decision_retry_telemetry_version": 1,
+      "decision_retry_events": [
+        {
+          "reason": "text_rejected",
+          "retried": true,
+          "forced_interaction": false,
+          "raw_output": {
+            "content": "I can't answer that — there's no Shopee research report available in this conversation.\n\nWhat I checked:\n\n- **Episode search (job_research)** for \"Shopee 主要竞争对手 调研\": returned no matching past job-research events. So there's no record I can point to for a Shopee report.\n- **Archived reports** visible in this window: 12 reports, all delivered 2026-08-31, for 字节跳动、腾讯、阿里巴巴、美团、小红书、快手、百度、京东、网易、滴滴、拼多多、华为 — no Shopee. The archive also notes 3 older reports are unlisted and cannot be retrieved by reference.\n\nConcretely, this means:\n\n1. I have no Shopee report to read, and no tool here can find one that isn't in the catalogue.\n2. Even if a report existed, its contents aren't in front of me — I'd need to read it via the report tool, which requires a report reference or a saved job to select from. Neither exists for Shopee here.\n3. The visible 2026-08-31 reports are all dated to August 31, which is last month relative to today (2026-10-11), so the timing you're describing is plausible — but nothing in this session ties a Shopee report to it, and I won't substitute a different company's report (e.g., 拼多多, whose Temu/overseas business is a Shopee competitor) for the one you asked about.\n\nIf you have the report's reference or the Shopee job posting you saved, share it and I'll read the actual document. Otherwise you can ask me to run fresh company research on Shopee, and I'll ground the competitor answer in that report instead of an older one.",
+            "tool_calls": []
+          },
+          "decision_invocation": 1
+        }
+      ],
+      "recording_retry_events": [],
+      "decision_invocations": 1
+    }
+  ],
+  "sample_count": 3,
+  "samples": [
+    {
+      "recorded_at": "2026-10-11T07:45:30.432222+00:00",
+      "elapsed_ms": 4677.4,
+      "steps": [
+        {
+          "content": "{\"action\":\"ask_user\",\"message\":\"我没有找到上个月关于 Shopee 的调研记录（归档的 12 份调研报告里没有 Shopee，另有 3 份更早的报告未列出且无法按引用取回，跨对话事件检索也没有匹配到 Shopee）。\\n\\n请确认一下：你说的这份 Shopee 调研，是下面哪种情况？\\n1）它在别处生成（例如你自己保存的文件/链接），可以把报告或引用发给我；\\n2）你记错了公司名，实际是归档里的某一份（字节跳动、腾讯、阿里巴巴、美团、小红书、快手、百度、京东、网易、滴滴、拼多多、华为）；\\n3）这份报告确实已不在可访问范围内——那我无法读出它的内容，也不会代为推测。\",\"questions\":[]}",
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "f4794cf9b21f5941147ccac86cb72ee37aa826d3f6a94198e729abdb16259dc3",
+          "decision_shape_fingerprint": "445ca03f34bb6c3cfb923e49d61b5e12d5591cd5b633d7109230b3e67398a7bf",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 4675.8,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I can't answer that — there's no Shopee research report available in this conversation.\n\nWhat I checked:\n\n- **Episode search (job_research)** for \"Shopee 主要竞争对手 调研\": returned no matching past job-research events. So there's no record I can point to for a Shopee report.\n- **Archived reports** visible in this window: 12 reports, all delivered 2026-08-31, for 字节跳动、腾讯、阿里巴巴、美团、小红书、快手、百度、京东、网易、滴滴、拼多多、华为 — no Shopee. The archive also notes 3 older reports are unlisted and cannot be retrieved by reference.\n\nConcretely, this means:\n\n1. I have no Shopee report to read, and no tool here can find one that isn't in the catalogue.\n2. Even if a report existed, its contents aren't in front of me — I'd need to read it via the report tool, which requires a report reference or a saved job to select from. Neither exists for Shopee here.\n3. The visible 2026-08-31 reports are all dated to August 31, which is last month relative to today (2026-10-11), so the timing you're describing is plausible — but nothing in this session ties a Shopee report to it, and I won't substitute a different company's report (e.g., 拼多多, whose Temu/overseas business is a Shopee competitor) for the one you asked about.\n\nIf you have the report's reference or the Shopee job posting you saved, share it and I'll read the actual document. Otherwise you can ask me to run fresh company research on Shopee, and I'll ground the competitor answer in that report instead of an older one.",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:27.391793+00:00",
+      "elapsed_ms": 1254.1,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_career_memory",
+            "arguments": {
+              "query": "Shopee 调研 竞争对手"
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "f4794cf9b21f5941147ccac86cb72ee37aa826d3f6a94198e729abdb16259dc3",
+          "decision_shape_fingerprint": "445ca03f34bb6c3cfb923e49d61b5e12d5591cd5b633d7109230b3e67398a7bf",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1250.9,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    },
+    {
+      "recorded_at": "2026-10-11T07:45:31.243056+00:00",
+      "elapsed_ms": 5072.4,
+      "steps": [
+        {
+          "tool_call": {
+            "name": "search_capabilities",
+            "arguments": {
+              "names": [
+                "find_saved_jobs",
+                "get_job_research"
+              ]
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "f4794cf9b21f5941147ccac86cb72ee37aa826d3f6a94198e729abdb16259dc3",
+          "decision_shape_fingerprint": "445ca03f34bb6c3cfb923e49d61b5e12d5591cd5b633d7109230b3e67398a7bf",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 1653.5,
+          "model_request_count": 1,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        },
+        {
+          "tool_call": {
+            "name": "find_saved_jobs",
+            "arguments": {
+              "query": "Shopee",
+              "limit": 10
+            }
+          },
+          "scenario_step": 0,
+          "selected_schema_fingerprint": "1afe417cdade294bf28ac0bfd8590bce080c09de8b4ec6cc956455ccd40cfb2f",
+          "decision_shape_fingerprint": "9bf2b1073655708863b99e07cf8b83af897876c05e2af008e118f0026dd87630",
+          "offered_tools": [
+            "load_skill",
+            "fetch_archived_constraints",
+            "search_career_memory",
+            "find_saved_jobs",
+            "get_job_research",
+            "search_career_episodes",
+            "search_capabilities"
+          ],
+          "elapsed_ms": 3413.1,
+          "model_request_count": 2,
+          "decision_retry_telemetry_version": 1,
+          "decision_retry_events": [
+            {
+              "reason": "text_rejected",
+              "retried": true,
+              "forced_interaction": false,
+              "raw_output": {
+                "content": "I can't answer that one — there's no Shopee research report I can read.\n\nWhat I checked:\n- **Cross-conversation episodes** (`search_career_episodes` for job‑research episodes mentioning Shopee) → no matching past event.\n- **Available report references**: the only job‑research reports on file are 字节跳动、腾讯、阿里巴巴、美团、小红书、快手、百度、京东、网易、滴滴、拼多多、华为. There is no Shopee report, and no reference I could use to read one. (The archive also notes 3 older reports that were not listed and cannot be retrieved by reference.)\n\nSo the report you remember from last month either isn't in my readable archive under Shopee, or is one of those unrecoverable older entries.\n\nIf you'd like, I can:\n1. **Run a fresh Shopee/Sea Ltd research** — its main competitors in Southeast Asia are typically Lazada (Alibaba), TikTok Shop (ByteDance), Tokopedia/GoTo, and local players like Bukalapak (Indonesia) and Tiki (Vietnam), depending on market. But note I'd be stating this from general knowledge, not from your saved report.\n2. Or if you have the report file/reference handy, share it and I'll read it.\n\nWant me to start a new Shopee research (just say \"research Shopee\")?",
+                "tool_calls": []
+              },
+              "decision_invocation": 1
+            }
+          ],
+          "recording_retry_events": [],
+          "decision_invocations": 1
+        }
+      ]
+    }
+  ]
+}

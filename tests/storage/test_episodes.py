@@ -71,6 +71,21 @@ def test_fts_tracks_the_latest_synopsis_without_authorizing_facts(tmp_path) -> N
     assert fts_hits == 1
 
 
+def test_sentence_search_finds_two_character_company_and_reports_missing_terms(tmp_path) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    store.upsert(_draft(summary="已完成配送算法面试。").model_copy(update={
+        "title": "美团 · 配送算法工程师 · 第 1 轮面试",
+    }))
+
+    assert [item.title for item in store.search(
+        user_id="u1", query="我在美团的面试怎么样"
+    )] == ["美团 · 配送算法工程师 · 第 1 轮面试"]
+    matched, partial, unmatched = store.term_matches(user_id="u1", query="饿了么 面试")
+    assert "面试" in matched
+    assert partial == ()
+    assert "饿了么" in unmatched
+
+
 def test_delete_for_scope_removes_episode_and_fts_index(tmp_path) -> None:
     store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
     scope_key = "career_evidence/record-1/claim"
@@ -441,6 +456,24 @@ def test_half_life_days_really_halves_salience() -> None:
     ) == pytest.approx(0.5)
 
 
+def test_search_accepts_every_episode_kind(tmp_path) -> None:
+    store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
+    store.upsert(_draft(summary="美团简历投递记录。"))
+    tailored = store.upsert(
+        _draft(summary="为美团岗位定制了简历。").model_copy(
+            update={"kind": "resume_tailoring", "source_run_id": "tailoring-1"}
+        )
+    )
+
+    assert [item.id for item in store.search(
+        user_id="u1", query="美团 简历", kinds=("resume_tailoring",)
+    )] == [tailored.id]
+    for kind in ("resume_analysis", "intent_confirmation"):
+        assert store.search(user_id="u1", query="", kinds=(kind,)) == ()
+    with pytest.raises(ValueError, match="unknown episode kind"):
+        store.search(user_id="u1", query="", kinds=("not_a_kind",))
+
+
 def test_time_filters_compare_instants_and_require_offsets(tmp_path) -> None:
     store = SQLiteCareerEpisodeStore(tmp_path / "context.sqlite3")
     store.upsert(_draft())
@@ -519,7 +552,7 @@ def test_v1_unicode_index_is_rebuilt_and_backfilled_as_trigram(tmp_path) -> None
             "WHERE career_episodes_fts MATCH ?",
             ("模拟面试",),
         ).fetchall()
-    assert version == 8
+    assert version == 9
     assert indexed_ids == [(stored.id,)]
     assert reopened.get_by_source(
         user_id="u1",

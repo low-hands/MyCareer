@@ -63,10 +63,24 @@ class InteractionCoordinator:
         context_manager: ContextManager,
         tools: MainAgentToolRegistry,
         confirmation_store: SQLiteCapabilityConfirmationStore | None,
+        record_trace_event: Callable[..., None] | None = None,
     ) -> None:
         self._context_manager = context_manager
         self._tools = tools
         self._confirmation_store = confirmation_store
+        self._record_trace_event = record_trace_event
+
+    def _trace_resumed(
+        self, *, interaction_kind: str, tool_name: str | None
+    ) -> None:
+        if self._record_trace_event is None:
+            return
+        details: dict[str, object] = {"interaction_kind": interaction_kind}
+        if tool_name is not None:
+            details["tool_name"] = tool_name
+        self._record_trace_event(
+            "run_resumed", "resume", outcome="started", details=details
+        )
 
     def prepare_questionnaire_continuation(
         self,
@@ -90,6 +104,8 @@ class InteractionCoordinator:
         if (
             task.active_workflow != pending.active_workflow
             or task.active_resume_version_id != pending.resume_version_id
+            or (pending.resume_job_match_id is not None and
+                task.active_resume_job_match_id != pending.resume_job_match_id)
             or task.active_job_posting_id != pending.job_posting_id
             or task.active_jd_snapshot_id != pending.jd_snapshot_id
         ):
@@ -138,9 +154,14 @@ class InteractionCoordinator:
             conversation_id=conversation_id,
             user_message=message,
         )
+        self._trace_resumed(
+            interaction_kind="questionnaire",
+            tool_name=pending.continuation_capability,
+        )
         return context.model_copy(
             update={
                 "task": context.task.clear_pending_questionnaire(),
+                "turn_continuation_capability": pending.continuation_capability,
                 "user_message_source": "已提交当前任务问卷：\n"
                 + "\n".join(visible_answers),
                 "user_interaction_id": pending.interaction_id,
@@ -247,6 +268,10 @@ class InteractionCoordinator:
             raise RuntimeError("confirmation execution context is unavailable")
         action_token = ACTION_INVOCATION.set(
             (invocation[0], f"confirmation:{sealed.confirmation_id}")
+        )
+        self._trace_resumed(
+            interaction_kind="capability_confirmation",
+            tool_name=sealed.capability,
         )
         try:
             graph_state = invoke_confirmed(sealed)

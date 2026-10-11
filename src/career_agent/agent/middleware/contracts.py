@@ -5,12 +5,18 @@ from typing import Literal
 
 
 AuthorizationRefusalKind = Literal[
-    "out_of_profile",
+    "not_offered",
+    "precondition",
+    "waiting_for_user",
     "preference_deny",
     "budget_exhausted",
     "duplicate_call",
     "retry_limit",
     "seal_unavailable",
+    # Refused after the gates above, by argument binding rather than policy.
+    # They count against projection_refusals, not authorization_refusals.
+    "argument_projection",
+    "working_notes",
 ]
 
 

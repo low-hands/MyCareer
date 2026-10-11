@@ -1,0 +1,89 @@
+{
+  "scenario": "research_is_not_started_as_part_of_matching",
+  "sample": 16,
+  "started_at": "2026-10-10T01:21:17.079142+00:00",
+  "recording": {
+    "recorded_at": "2026-10-10T01:21:22.239479+00:00",
+    "elapsed_ms": 5159.1,
+    "steps": [
+      {
+        "tool_call": {
+          "name": "search_capabilities",
+          "arguments": {
+            "names": [
+              "list_resumes"
+            ]
+          }
+        },
+        "scenario_step": 0,
+        "selected_schema_fingerprint": "e1f01fde757217be4af2cfb3d5b0713827b5024c5670f60703675ea5787bef42",
+        "decision_shape_fingerprint": "b56038af5f7402cf2ff88686d63be66c055ca96c9652fc358c7f264c8725eb48",
+        "offered_tools": [
+          "load_skill",
+          "fetch_archived_constraints",
+          "search_career_memory",
+          "get_saved_job",
+          "analyze_job",
+          "compare_saved_jobs",
+          "match_resume_to_job",
+          "search_capabilities"
+        ],
+        "elapsed_ms": 3479.1,
+        "model_request_count": 1,
+        "decision_retry_telemetry_version": 1,
+        "decision_retry_events": [
+          {
+            "reason": "implicit_capability_load",
+            "retried": true,
+            "raw_output": {
+              "content": "我需要先检查是否有简历版本可用，然后进行岗位分析和匹配。\n\n从当前状态来看：\n- 有一个已保存的岗位（示例科技的算法工程师，selection_index: 1）\n- has_active_resume_version 为 true，说明有活跃简历版本\n- job_analysis_status 为 \"ready\"，说明岗位分析已完成\n\n但我需要确认是否有简历版本可供选择。让我先列出简历版本。\n\n",
+              "tool_calls": [
+                {
+                  "name": "list_resumes",
+                  "arguments": "{}"
+                }
+              ]
+            },
+            "decision_invocation": 1
+          }
+        ],
+        "recording_retry_events": [],
+        "decision_invocations": 1
+      },
+      {
+        "tool_call": {
+          "name": "list_resumes",
+          "arguments": {}
+        },
+        "scenario_step": 0,
+        "selected_schema_fingerprint": "cd2eff533df5dd11b76490f9b3023de47debf899c8401b1d0c65080ec6179f23",
+        "decision_shape_fingerprint": "e0e4844696276d00e2304462aef8f2c0935e0c6a7cd4db3fb864f5970f417a2c",
+        "offered_tools": [
+          "load_skill",
+          "fetch_archived_constraints",
+          "search_career_memory",
+          "list_resumes",
+          "get_saved_job",
+          "analyze_job",
+          "compare_saved_jobs",
+          "match_resume_to_job",
+          "search_capabilities"
+        ],
+        "elapsed_ms": 1673.7,
+        "model_request_count": 1,
+        "decision_retry_telemetry_version": 1,
+        "decision_retry_events": [],
+        "recording_retry_events": [],
+        "decision_invocations": 1
+      }
+    ]
+  },
+  "passed": false,
+  "failures": [
+    "research_is_not_started_as_part_of_matching[0]: expected tool 'match_resume_to_job', got 'list_resumes'"
+  ],
+  "quality_failures": [],
+  "prompt_fingerprint": "3ece913158723078fb8b2d87d9b20a5ecc68a36b41419613877016749d2eef64",
+  "model": "qwen3.7-plus",
+  "source_arm": "baseline"
+}

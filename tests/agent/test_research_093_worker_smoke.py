@@ -230,7 +230,7 @@ def test_matrix_makes_each_probe_once_and_prints_no_provider_body(
 
     with patch.object(smoke.httpx, "Client", Client), patch.object(smoke, "_full_agent", return_value={"synthetic_only": True}):
         results = smoke.run_matrix(_config(), report_path=tmp_path / "report.json")
-    assert json.loads((tmp_path / "report.json").read_text()) == results
+    assert json.loads((tmp_path / "report.json").read_text(encoding="utf-8")) == results
     assert len(results) == 6 and len(calls) == 5
     assert all(result["passed"] is False for result in results[:5])
     assert all(result["request_count"] == 1 for result in results[:5])
