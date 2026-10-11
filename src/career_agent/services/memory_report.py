@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sqlite3
 
+from career_agent.storage.sqlite import open_connection
 from career_agent.storage.episodes import DecayPolicy
 
 
@@ -83,7 +84,7 @@ def build_memory_report(
     policy = decay_policy or DecayPolicy()
     database_path = path.expanduser().resolve()
 
-    with sqlite3.connect(
+    with open_connection(
         database_path.as_uri() + "?mode=ro",
         uri=True,
     ) as connection:

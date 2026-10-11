@@ -8,12 +8,12 @@ import logging
 import math
 import os
 from pathlib import Path
-import sqlite3
 from typing import Protocol
 from urllib.parse import urlsplit
 
 from openai import OpenAI
 
+from career_agent.storage.sqlite import open_connection
 from career_agent.storage.career_history import CareerHistoryStore
 from career_agent.storage.aliases import expand_organization_aliases
 from career_agent.harness.observability import traced_provider_call
@@ -199,7 +199,7 @@ class SQLiteCareerEvidenceSemanticRetriever:
         if not selected:
             return 0
         placeholders = ",".join("?" for _ in selected)
-        with sqlite3.connect(self._cache_path) as connection:
+        with open_connection(self._cache_path) as connection:
             cursor = connection.execute(
                 f"""
                 DELETE FROM {self._table}
@@ -228,7 +228,7 @@ class SQLiteCareerEvidenceSemanticRetriever:
         return vectors
 
     def _initialize(self) -> None:
-        with sqlite3.connect(self._cache_path) as connection:
+        with open_connection(self._cache_path) as connection:
             connection.execute(
                 f"""
                 CREATE TABLE IF NOT EXISTS {self._table}(
@@ -249,7 +249,7 @@ class SQLiteCareerEvidenceSemanticRetriever:
         placeholders = ",".join("?" for _ in expected)
         if not placeholders:
             return {}
-        with sqlite3.connect(self._cache_path) as connection:
+        with open_connection(self._cache_path) as connection:
             rows = connection.execute(
                 f"""
                 SELECT {self._id_column}, content_digest, dimensions, vector_json
@@ -269,7 +269,7 @@ class SQLiteCareerEvidenceSemanticRetriever:
         return vectors
 
     def _store_vectors(self, rows: Sequence[tuple[object, tuple[float, ...]]]) -> None:
-        with sqlite3.connect(self._cache_path) as connection:
+        with open_connection(self._cache_path) as connection:
             connection.executemany(
                 f"""
                 INSERT INTO {self._table}(

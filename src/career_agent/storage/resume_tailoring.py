@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import Iterator
 from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
@@ -9,6 +11,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from career_agent.storage.sqlite import open_connection
 from career_agent.storage.schema import apply_schema
 from career_agent.agent.workflows.resume_tailoring.contracts import (
     ResumeReviewTrace,
@@ -475,10 +478,10 @@ class SQLiteResumeTailoringDraftStore:
             ).rowcount
         return self.get(user_id=user_id, draft_id=draft_id) if updated else None
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path, timeout=30.0)
-        connection.execute("PRAGMA foreign_keys=ON")
-        return connection
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        with open_connection(self.path, pragmas=("PRAGMA foreign_keys=ON",)) as connection:
+            yield connection
 
     @staticmethod
     def _record(

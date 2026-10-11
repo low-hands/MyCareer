@@ -9,10 +9,10 @@ import heapq
 import logging
 import os
 from pathlib import Path
-import sqlite3
 from threading import Event, RLock
 from collections.abc import Sequence
 
+from career_agent.storage.sqlite import open_connection
 from career_agent.agent.context.semantic_retrieval import (
     CareerEmbeddingConfig, EmbeddingClient, OpenAICompatibleEmbeddingClient,
     SQLiteCareerEvidenceSemanticRetriever,
@@ -73,7 +73,7 @@ class SQLiteCareerEpisodeSemanticIndex(SQLiteCareerEvidenceSemanticRetriever):
 
     def prune_orphans(self) -> int:
         # The cache is a separate database, hence eventual, not atomic consistency.
-        with self._lock, sqlite3.connect(self._cache_path) as connection:
+        with self._lock, open_connection(self._cache_path) as connection:
             connection.execute("ATTACH DATABASE ? AS episodes", (str(self._episode_path),))
             cursor = connection.execute("""
                 DELETE FROM career_episode_embeddings
@@ -121,7 +121,7 @@ class SQLiteCareerEpisodeSemanticIndex(SQLiteCareerEvidenceSemanticRetriever):
         if not episode_ids:
             return ()
         placeholders = ",".join("?" for _ in episode_ids)
-        with sqlite3.connect(self._episode_path) as connection:
+        with open_connection(self._episode_path) as connection:
             rows = connection.execute(
                 f"SELECT id,title,summary FROM career_episodes WHERE id IN ({placeholders})",
                 tuple(episode_ids)).fetchall()
@@ -196,7 +196,7 @@ class SQLiteCareerEpisodeSemanticIndex(SQLiteCareerEvidenceSemanticRetriever):
             self._cleanup()
             last_id = ""
             while True:
-                with sqlite3.connect(self._episode_path) as connection:
+                with open_connection(self._episode_path) as connection:
                     rows = connection.execute(
                         "SELECT id,title,summary FROM career_episodes WHERE id > ? ORDER BY id LIMIT ?",
                         (last_id, self._batch_size)).fetchall()

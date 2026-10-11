@@ -34,6 +34,8 @@ import sqlite3
 import tempfile
 from typing import Literal, Optional
 
+from career_agent.storage.sqlite import open_connection
+
 
 MANIFEST_NAME = "manifest.json"
 MANIFEST_VERSION = 1
@@ -209,39 +211,38 @@ def _sqlite_check(path: Path) -> str | None:
     """Return None when SQLite considers the file sound, else its complaint."""
 
     try:
-        connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        with open_connection(f"file:{path}?mode=ro", uri=True) as connection:
+            rows = connection.execute("PRAGMA integrity_check").fetchall()
     except sqlite3.Error as error:
         return str(error)
-    try:
-        rows = connection.execute("PRAGMA integrity_check").fetchall()
-    except sqlite3.Error as error:
-        return str(error)
-    finally:
-        connection.close()
     if rows == [("ok",)]:
         return None
     return "; ".join(str(row[0]) for row in rows) or "integrity_check returned nothing"
 
 
 def _copy_sqlite(source: Path, destination: Path) -> None:
+    phase = "open source"
     try:
-        src = sqlite3.connect(source)
+        with open_connection(source) as src:
+            phase = "open destination"
+            with open_connection(destination) as dst:
+                phase = "copy"
+                src.backup(dst)
+                # The copy inherits the source's WAL flag. Make it a
+                # self-contained file without adjacent WAL/SHM files.
+                phase = "write destination"
+                dst.execute("PRAGMA journal_mode=DELETE")
+            phase = "close source"
     except sqlite3.Error as error:
-        raise BackupError(f"cannot open {source}: {error}") from error
-    try:
-        dst = sqlite3.connect(destination)
-        try:
-            src.backup(dst)
-            # The copy inherits the source's WAL flag. A backup is a single
-            # self-contained file, so switch it to rollback journaling: no
-            # ``-wal``/``-shm`` appear beside it when it is later checked.
-            dst.execute("PRAGMA journal_mode=DELETE")
-        except sqlite3.Error as error:
-            raise BackupError(f"{source} is not a readable SQLite database: {error}") from error
-        finally:
-            dst.close()
-    finally:
-        src.close()
+        if phase == "open source":
+            message = f"cannot open {source}"
+        elif phase in {"open destination", "write destination"}:
+            message = f"cannot write {destination}"
+        elif phase == "close source":
+            message = f"cannot close {source}"
+        else:
+            message = f"cannot copy {source} to {destination}"
+        raise BackupError(f"{message}: {error}") from error
 
 
 def _make_private_dirs(path: Path, *, stop_at: Path) -> None:

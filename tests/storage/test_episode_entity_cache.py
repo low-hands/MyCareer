@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 import sqlite3
 from threading import Event
 
@@ -20,10 +21,11 @@ def _count_title_reads(store, monkeypatch):
     reads = []
     connect = store._connect
 
+    @contextmanager
     def traced_connect():
-        connection = connect()
-        connection.set_trace_callback(lambda sql: reads.append(sql) if sql.startswith("SELECT title FROM career_episodes") else None)
-        return connection
+        with connect() as connection:
+            connection.set_trace_callback(lambda sql: reads.append(sql) if sql.startswith("SELECT title FROM career_episodes") else None)
+            yield connection
 
     monkeypatch.setattr(store, "_connect", traced_connect)
     return reads
@@ -82,16 +84,16 @@ def test_cache_revision_and_titles_use_the_same_read_snapshot(tmp_path, monkeypa
     connect = store._connect
     changes = []
 
+    @contextmanager
     def traced_connect():
-        connection = connect()
+        with connect() as connection:
+            def change_before_title_read(sql):
+                if sql.startswith("SELECT title FROM career_episodes") and not changes:
+                    changes.append(True)
+                    writer.upsert(_draft("New Co · Developer"))
 
-        def change_before_title_read(sql):
-            if sql.startswith("SELECT title FROM career_episodes") and not changes:
-                changes.append(True)
-                writer.upsert(_draft("New Co · Developer"))
-
-        connection.set_trace_callback(change_before_title_read)
-        return connection
+            connection.set_trace_callback(change_before_title_read)
+            yield connection
 
     monkeypatch.setattr(store, "_connect", traced_connect)
     first = store.prepare_query(user_id="u1", query="Pinnacle Robotics")[1]
@@ -131,18 +133,18 @@ def _pause_first_title_read(store, monkeypatch):
     reads = []
     connect = store._connect
 
+    @contextmanager
     def traced_connect():
-        connection = connect()
+        with connect() as connection:
+            def trace(sql):
+                if sql.startswith("SELECT title FROM career_episodes"):
+                    reads.append(sql)
+                    if not started.is_set():
+                        started.set()
+                        release.wait(timeout=5)
 
-        def trace(sql):
-            if sql.startswith("SELECT title FROM career_episodes"):
-                reads.append(sql)
-                if not started.is_set():
-                    started.set()
-                    release.wait(timeout=5)
-
-        connection.set_trace_callback(trace)
-        return connection
+            connection.set_trace_callback(trace)
+            yield connection
 
     monkeypatch.setattr(store, "_connect", traced_connect)
     return started, release, reads

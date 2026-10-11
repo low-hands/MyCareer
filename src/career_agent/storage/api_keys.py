@@ -27,6 +27,8 @@ credential in the weakest storage stops being a credential to everything.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import Iterator
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
@@ -39,6 +41,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from career_agent.storage.sqlite import open_connection
 from career_agent.storage.schema import apply_schema
 
 
@@ -163,8 +166,10 @@ class SQLiteApiKeyStore:
             )
         os.chmod(self.path, 0o600)
 
-    def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.path, timeout=30.0)
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        with open_connection(self.path) as connection:
+            yield connection
 
     @staticmethod
     def _migrate(connection: sqlite3.Connection) -> None:

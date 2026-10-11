@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import Iterator
 from collections.abc import Iterable, Sequence
 from datetime import datetime, timezone
 import hashlib
@@ -13,6 +15,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
+from career_agent.storage.sqlite import open_connection
 from career_agent.agent.presentation.body_contracts import (
     BodyDependency,
     DeliveredBodySource,
@@ -3401,5 +3404,7 @@ class CareerContextStore:
             row = connection.execute(f"SELECT payload FROM {table} WHERE user_id = ?", (user_id,)).fetchone()
         return model.model_validate_json(row[0]) if row else None
 
-    def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.path, timeout=30.0)
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        with open_connection(self.path) as connection:
+            yield connection

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from career_agent.storage.sqlite import open_connection
 from career_agent.storage.aliases import expand_organization_aliases
 
 from collections.abc import Sequence
 from contextlib import contextmanager
+from typing import Iterator
 from datetime import datetime, timezone
 from dataclasses import dataclass
 import hashlib
@@ -1998,20 +2000,12 @@ class CareerHistoryStore:
         )
 
     @contextmanager
-    def _connect(self):
-        connection = sqlite3.connect(self.path, timeout=30.0)
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute("PRAGMA synchronous=FULL")
-        connection.execute("PRAGMA foreign_keys=ON")
-        try:
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        with open_connection(self.path, pragmas=(
+            "PRAGMA journal_mode=WAL", "PRAGMA synchronous=FULL",
+            "PRAGMA foreign_keys=ON",
+        )) as connection:
             yield connection
-        except Exception:
-            connection.rollback()
-            raise
-        else:
-            connection.commit()
-        finally:
-            connection.close()
 
     @staticmethod
     def _record(row: tuple[object, ...]) -> CareerRecord:

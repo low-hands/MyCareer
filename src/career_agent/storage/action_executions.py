@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
@@ -9,6 +11,7 @@ from pathlib import Path
 import sqlite3
 from typing import Literal
 
+from career_agent.storage.sqlite import open_connection
 from career_agent.storage.schema import apply_schema
 
 
@@ -589,10 +592,10 @@ class SQLiteActionExecutionStore:
                     f"ALTER TABLE action_executions ADD COLUMN {name} {declaration}"
                 )
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path, timeout=30.0)
-        connection.execute("PRAGMA foreign_keys=ON")
-        return connection
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        with open_connection(self.path, pragmas=("PRAGMA foreign_keys=ON",)) as connection:
+            yield connection
 
     @staticmethod
     def _validate_output(output: dict[str, object]) -> None:

@@ -14,7 +14,6 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
-import sqlite3
 import sys
 import tempfile
 
@@ -73,6 +72,7 @@ def run_one(case, number, data, args, model, options, client, embedding_client):
         return {'id':case['id'],'sample':number,'status':'stale','passed':False}
     from career_agent.domain.episodes import CareerEpisodeDraft
     from career_agent.storage.episodes import SQLiteCareerEpisodeStore
+    from career_agent.storage.sqlite import open_connection
     from career_agent.agent.capabilities.registry import MainAgentToolRegistry
     requests = None if recorded is None else recorded['requests']
     historical_judge = []
@@ -95,7 +95,7 @@ def run_one(case, number, data, args, model, options, client, embedding_client):
                 kind=item['kind'],title=item['title'],summary=item['summary'],
                 occurred_at=datetime.fromisoformat(item['occurred_at'])))
             stable = 'career_episode_'+hashlib.md5(item['id'].encode()).hexdigest()
-            with sqlite3.connect(store.path) as conn:
+            with open_connection(store.path) as conn:
                 conn.execute('UPDATE career_episodes SET id=? WHERE id=?',(stable,episode.id))
                 conn.execute('UPDATE career_episodes_fts SET episode_id=? WHERE episode_id=?',(stable,episode.id))
         if args.arm=='hybrid':

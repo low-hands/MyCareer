@@ -5,7 +5,6 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from datetime import datetime
-import gc
 import hashlib
 import inspect
 import json
@@ -133,9 +132,6 @@ def run(args, data, sample, client):
                 row["status"] = "step_budget_exhausted"
         except Exception as error:
             row.update(status="infrastructure_error", error_type=type(error).__name__)
-        # SQLite's connection context manager commits but does not close.
-        # Release method-local connections before Windows removes the temp DB.
-        gc.collect()
     if args.record:
         target.write_text(json.dumps({**row, "fixture_sha256": hashlib.sha256(FIXTURE.read_bytes()).hexdigest(), "requests": requests}, ensure_ascii=False, indent=2) + "\n")
     return row

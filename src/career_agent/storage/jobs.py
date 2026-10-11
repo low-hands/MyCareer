@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import Iterator
+from career_agent.storage.sqlite import open_connection
 from career_agent.storage.aliases import expand_organization_aliases
 
 from datetime import datetime, timezone
@@ -1116,7 +1119,7 @@ class SQLiteJobPostingRepository:
         JOIN jd_snapshots s ON s.id = COALESCE(l.jd_snapshot_id, p.latest_snapshot_id)
     """
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path, timeout=30.0)
-        connection.execute("PRAGMA foreign_keys=ON")
-        return connection
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        with open_connection(self.path, pragmas=("PRAGMA foreign_keys=ON",)) as connection:
+            yield connection

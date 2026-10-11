@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import Iterator
 from dataclasses import dataclass
 from collections import OrderedDict
 from datetime import datetime, timezone
@@ -13,6 +15,7 @@ from threading import RLock
 from typing import get_args
 from uuid import uuid4
 
+from career_agent.storage.sqlite import open_connection
 from career_agent.domain.episodes import (
     CareerEpisode,
     CareerEpisodeDraft,
@@ -1089,7 +1092,7 @@ class SQLiteCareerEpisodeStore:
             created_at=row[12],
         )
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path, timeout=30.0)
-        connection.execute("PRAGMA busy_timeout=30000")
-        return connection
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        with open_connection(self.path, pragmas=("PRAGMA busy_timeout=30000",)) as connection:
+            yield connection

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import Iterator
 from collections.abc import Sequence
 from datetime import datetime, timezone
 import hashlib
@@ -12,6 +14,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict
 
+from career_agent.storage.sqlite import open_connection
 from career_agent.domain.intent_memory import IntentMemoryVersion
 from career_agent.domain.resume import Resume, ResumeVersion, TargetRole
 from career_agent.storage.intent_versions import (
@@ -881,10 +884,10 @@ class ResumeStore:
             """
         )
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path, timeout=30.0)
-        connection.execute("PRAGMA foreign_keys=ON")
-        return connection
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        with open_connection(self.path, pragmas=("PRAGMA foreign_keys=ON",)) as connection:
+            yield connection
 
     @staticmethod
     def _role(row: tuple) -> TargetRole:

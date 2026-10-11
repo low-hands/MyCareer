@@ -47,7 +47,7 @@ def test_next_alias_dataset_is_separate_and_contains_unknown_aliases():
     from pathlib import Path
     from career_agent.storage.aliases import ORGANIZATION_ALIASES
     root = Path(__file__).resolve().parents[2] / 'evals/episode_retrieval/alias_v3'
-    cases = json.loads((root / 'cases.json').read_text())
+    cases = json.loads((root / 'cases.json').read_text(encoding='utf-8'))
     known = {a.casefold() for aliases in ORGANIZATION_ALIASES.values() for a in aliases}
     for category in ('known_identity', 'unseen_alias', 'ambiguous_negative'):
         selected = [c for c in cases if c['category'] == category]

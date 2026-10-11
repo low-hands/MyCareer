@@ -101,4 +101,4 @@
 - [ ] 5 个分支原有的失败测试，见 103
 - [ ] `registry.py` 6,081 行，按领域拆分
 - [ ] `deepagents` 锁在 `<0.8`；LangGraph checkpoint 兼容；升级检查流程
-- [ ] Windows 文件锁实机测试
+- [ ] Windows 文件锁：SQLite 连接统一经 `storage/sqlite.py` 的 `open_connection` 退出即关闭，Windows 全量 2851 通过；待 Mac 全量验收

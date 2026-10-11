@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import Iterator
 from datetime import datetime, timezone
 import os
 from pathlib import Path
@@ -8,6 +10,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict
 
+from career_agent.storage.sqlite import open_connection
 from career_agent.domain.interview_preparation import InterviewPreparationResult
 from career_agent.storage.schema import apply_schema
 
@@ -175,8 +178,10 @@ class SQLiteInterviewPreparationStore:
                 (user_id, interview_round_id),
             ).rowcount
 
-    def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.path, timeout=30.0)
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        with open_connection(self.path) as connection:
+            yield connection
 
     @staticmethod
     def _record(row) -> StoredInterviewPreparation:

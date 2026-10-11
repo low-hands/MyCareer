@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import Iterator
 from datetime import datetime, timezone
 import os
 import re
@@ -7,6 +9,7 @@ from pathlib import Path
 import sqlite3
 from uuid import uuid4
 
+from career_agent.storage.sqlite import open_connection
 from career_agent.domain.applications import (
     Application,
     ApplicationEvent,
@@ -387,10 +390,10 @@ class SQLiteApplicationStore:
             "ON application_events(application_id, occurred_at)"
         )
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path, timeout=30.0)
-        connection.execute("PRAGMA foreign_keys=ON")
-        return connection
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        with open_connection(self.path, pragmas=("PRAGMA foreign_keys=ON",)) as connection:
+            yield connection
 
     @staticmethod
     def _add_event_reason(connection: sqlite3.Connection) -> None:

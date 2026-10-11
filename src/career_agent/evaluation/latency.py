@@ -10,6 +10,8 @@ from pathlib import Path
 import sqlite3
 from typing import Any
 
+from career_agent.storage.sqlite import open_connection
+
 PHASES = ("decision", "specialist_worker", "embedding", "tool_execution", "summary_compaction")
 
 
@@ -51,7 +53,7 @@ def _utc(value: str) -> datetime:
 
 def read_runs(path: Path) -> dict[str, list[dict[str, Any]]]:
     # mode=ro cannot create a missing file, migrate schema or touch permissions.
-    with sqlite3.connect(path.expanduser().resolve().as_uri() + "?mode=ro", uri=True) as connection:
+    with open_connection(path.expanduser().resolve().as_uri() + "?mode=ro", uri=True) as connection:
         connection.row_factory = sqlite3.Row
         rows = connection.execute("SELECT * FROM run_events ORDER BY run_id, sequence")
         runs: dict[str, list[dict[str, Any]]] = defaultdict(list)

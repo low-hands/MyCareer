@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import Iterator
 from datetime import datetime, timezone
 import json
 import os
@@ -7,6 +9,7 @@ from pathlib import Path
 import sqlite3
 from typing import Literal
 
+from career_agent.storage.sqlite import open_connection
 from career_agent.harness.observability import (
     EventType,
     ModelCallCategory,
@@ -185,10 +188,10 @@ class SQLiteTraceRecorder:
             ).fetchall()
         return tuple(self._event(row) for row in reversed(rows))
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path, timeout=30.0)
-        connection.execute("PRAGMA foreign_keys=ON")
-        return connection
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        with open_connection(self.path, pragmas=("PRAGMA foreign_keys=ON",)) as connection:
+            yield connection
 
     @staticmethod
     def _baseline(connection: sqlite3.Connection) -> None:

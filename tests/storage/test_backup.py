@@ -17,6 +17,7 @@ from career_agent.storage.backup import (
     create_backup,
     restore_backup,
     verify_backup,
+    _copy_sqlite,
 )
 
 
@@ -36,6 +37,18 @@ def _rows(path: Path) -> list[str]:
         return [row[0] for row in connection.execute("SELECT body FROM notes ORDER BY body")]
     finally:
         connection.close()
+
+
+def test_copy_sqlite_reports_unwritable_destination(tmp_path: Path) -> None:
+    source = tmp_path / "source.sqlite3"
+    _make_db(source, ["saved"])
+    destination = tmp_path / "unwritable.sqlite3"
+    destination.mkdir()  # SQLite cannot open a directory as a database file.
+
+    with pytest.raises(BackupError) as caught:
+        _copy_sqlite(source, destination)
+    assert f"cannot write {destination}" in str(caught.value)
+    assert "not a readable SQLite database" not in str(caught.value)
 
 
 @pytest.fixture
