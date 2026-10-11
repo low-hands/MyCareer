@@ -181,7 +181,7 @@ def test_large_fact_ledger_is_bounded_for_worker_and_preserved_in_storage(tmp_pa
         assert {fact_id(f) for f in facts[1:]} <= {fact_id(f) for f in remaining}
         assert summary.through_sequence == 12
 
-@pytest.mark.parametrize("input_budget", [32000, 9000])
+@pytest.mark.parametrize("input_budget", [32000, 28000])
 def test_over_budget_summary_batch_shrinks_to_a_whole_prefix_and_finishes(tmp_path, input_budget):
     import json
     from types import SimpleNamespace
@@ -226,25 +226,35 @@ def test_over_budget_summary_batch_shrinks_to_a_whole_prefix_and_finishes(tmp_pa
 
 def test_single_message_over_budget_does_not_advance_or_call_provider(tmp_path):
     from types import SimpleNamespace
+    from career_agent.agent.contracts.memory import ConversationSummaryContent
     from career_agent.agent.providers.conversation_summary import OpenAIConversationSummaryWorker
     from career_agent.agent.providers.openai_client import OpenAICompatibleAgentConfig
 
     store = CareerContextStore(tmp_path / "memory.sqlite3")
     writer = ContextManager(store)
-    context = writer.load_for_turn(user_id="u", conversation_id="c", user_message="我" * 4000)
-    writer.commit_turn(context=context, task=ConversationTaskState(), assistant_message="你" * 4000)
+    context = writer.load_for_turn(user_id="u", conversation_id="c", user_message="已摘要的消息")
+    writer.commit_turn(context=context, task=ConversationTaskState(), assistant_message="旧回答")
+    previous = ConversationSummaryContent(active_constraints=tuple("𓀀" * 500 for _ in range(12)))
+    store.compact_conversation_summary(
+        user_id="u", conversation_id="c", expected_previous_through_sequence=0,
+        through_sequence=2, content=previous,
+    )
+    context = writer.load_for_turn(user_id="u", conversation_id="c", user_message="𓀀" * 4000)
+    writer.commit_turn(context=context, task=ConversationTaskState(), assistant_message="后续回答")
 
     def create(**kwargs):
         raise AssertionError("An over-budget source must not reach the provider")
 
+    # The default budget passes startup validation, but a maximal previous
+    # summary plus high-token-density source remains an irreducible request.
     worker = OpenAIConversationSummaryWorker(OpenAICompatibleAgentConfig(
-        endpoint="https://example.test/v1/chat/completions", api_key="test", model="summary-test", max_input_tokens=2500),
+        endpoint="https://example.test/v1/chat/completions", api_key="test", model="summary-test"),
         client=SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))))
     manager = ContextManager(store, summary_worker=worker, summary_batch_size=2)
     manager._compact_one_batch(user_id="u", conversation_id="c", trigger="occupancy", phase="load", require_occupancy=False,
         measure=lambda seq: manager._legacy_pressure(user_id="u", conversation_id="c", after_sequence=seq))
-    assert store.get_conversation_summary(user_id="u", conversation_id="c") is None
-    assert [m.content for m in store.list_messages_after(user_id="u", conversation_id="c", after_sequence=0, limit=2)] == ["我" * 4000, "你" * 4000]
+    assert store.get_conversation_summary(user_id="u", conversation_id="c").through_sequence == 2
+    assert [m.content for m in store.list_messages_after(user_id="u", conversation_id="c", after_sequence=2, limit=2)] == ["𓀀" * 4000, "后续回答"]
 
 
 

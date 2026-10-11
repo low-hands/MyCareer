@@ -280,3 +280,25 @@ def test_recalled_facts_fit_the_complete_request_with_limited_headroom():
     wire = json.loads(client.completions.kwargs["messages"][1]["content"])
     assert len(wire["existing_facts"]) == len(selected)
     assert wire["new_messages"][0]["content"] == messages[0].content
+
+
+def test_summary_input_budget_is_rejected_before_client_initialization(monkeypatch):
+    from dataclasses import replace
+    from career_agent.agent.providers.openai_client import AgentConfigurationError
+
+    monkeypatch.setattr("career_agent.agent.providers.conversation_summary.OpenAI",
+                        lambda **kwargs: pytest.fail("client initialized before budget validation"))
+    with pytest.raises(AgentConfigurationError, match="maximum-length source message"):
+        OpenAIConversationSummaryWorker(replace(config(), max_input_tokens=16000))
+
+
+def test_default_summary_budget_accepts_a_maximum_source_and_active_facts():
+    from career_agent.agent.contracts.memory import SummaryKeyFact
+
+    worker = OpenAIConversationSummaryWorker(config(), client=Client("unused"))
+    facts = tuple(SummaryKeyFact(fact="𠀀" * 200, source_sequence=i + 1) for i in range(12))
+    assert worker.facts_fit_input_budget(
+        previous=ConversationSummaryContent(key_facts=facts),
+        messages=(SummaryMessage(sequence=13, role="user", content="𠀀" * 4000),),
+        known_facts=facts,
+    )

@@ -38,7 +38,8 @@
 - [x] 摘要请求超预算时按整条消息缩小批次，水位只推进到已处理的前缀
 - [x] 主 agent 能看到 `archived_fact_count`；摘要里没有的早期事实，先用 `read_conversation_span` 读回，见 108
 - [x] 模型自行读取的会话 span 只作证据，不再拼进回答；用户指定序号的读取仍交付原文，见 107
-- [ ] 单条消息与活动事实本身超出摘要输入预算时仍会反复失败，需定处理边界
+- [x] 启动时拒绝无法容纳最大单条消息、活动事实及请求框架的明显小预算，默认 32000 不变，见 114
+- [ ] 单条消息加已有摘要全部字段仍可能超预算；启动最低容量校验不保证所有最大内容组合，需单独处理剩余边界
 - [ ] `explicit_sequence_span` 不随 checkpoint 序列化，恢复后可能不交付原文
 - [x] 查证结果只给模型看、由模型整理回答：`search_career_memory`、`search_career_episodes`、`search_career_history`、`get_career_memory_detail` 改为不拼接原文；`resolve_claim_source` 的简历原句仍逐字交付。若用户直接要列表或修订记录时模型整理不可靠，再为这类工具加"用户明确要原文"的来源判断
 - [ ] DeepSeek 在未压缩对话中问到未提及的公司时仍调用不可用的 `read_conversation_span`（1/3），见 111

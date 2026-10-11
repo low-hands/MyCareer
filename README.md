@@ -145,6 +145,8 @@ CONVERSATION_SUMMARY_AGENT_MAX_OUTPUT_TOKENS=1200
 CONVERSATION_SUMMARY_AGENT_CONTEXT_WINDOW_TOKENS=65536
 ```
 
+摘要 worker 在启动时校验输入预算能否容纳一条最大长度消息、活动事实及请求框架；明显偏小的配置直接报配置错误，不等后台进入重试。默认 32000 保持有效。这是最低容量校验：已有摘要的其他字段仍占预算，不能保证任意最大长度内容组合都能放下。
+
 岗位调研单独配置为支持 Responses `web_search` 的 GPT 通道；这里必须填写完整的 URL、密钥和模型：
 
 ```dotenv

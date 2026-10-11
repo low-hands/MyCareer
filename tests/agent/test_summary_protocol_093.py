@@ -238,7 +238,7 @@ def test_oversized_summary_input_including_schema_is_rejected_before_provider_ca
         pytest.raises(AgentWorkerError) as raised,
     ):
         OpenAIConversationSummaryWorker(
-            replace(config(), max_input_tokens=1024), client=client
+            config(), client=client
         ).summarize(
             previous=None,
             messages=tuple(

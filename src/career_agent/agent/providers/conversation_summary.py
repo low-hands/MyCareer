@@ -24,8 +24,10 @@ from career_agent.agent.contracts.memory import (
     SummaryMessage,
     SummaryKeyFact,
     SUMMARY_FACT_MAX_CHARS,
+    SUMMARY_SOURCE_MAX_CHARS,
 )
 from career_agent.agent.providers.openai_client import (
+    AgentConfigurationError,
     AgentWorkerError,
     OpenAICompatibleAgentConfig,
     provider_worker_error,
@@ -109,6 +111,30 @@ class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
         self._config = config
         self._max_output_tokens = max_output_tokens
         self._disable_thinking = disable_thinking
+        # Reject obviously unusable deployment budgets before opening a client.
+        # Four cl100k tokens per Unicode character conservatively reserve one
+        # full source and the active facts, plus their serialized request frame.
+        # Previous non-fact summary text still consumes additional headroom.
+        active_limit = next(
+            item.max_length
+            for item in ConversationSummaryContent.model_fields["key_facts"].metadata
+            if getattr(item, "max_length", None) is not None
+        )
+        frame = self._request(
+            previous=ConversationSummaryContent(),
+            messages=(SummaryMessage(sequence=1, role="user", content=""),),
+            known_facts=tuple(SummaryKeyFact(fact="x", source_sequence=i + 1)
+                              for i in range(active_limit)),
+        )
+        minimum = count_tokens(json.dumps(frame, ensure_ascii=False, sort_keys=True)) + 4 * (
+            SUMMARY_SOURCE_MAX_CHARS + active_limit * SUMMARY_FACT_MAX_CHARS
+        )
+        if config.max_input_tokens < minimum:
+            raise AgentConfigurationError(
+                "AGENT_CONFIGURATION_INVALID",
+                f"CONVERSATION_SUMMARY_AGENT_MAX_INPUT_TOKENS must be at least {minimum} "
+                "to hold one maximum-length source message and active facts.",
+            )
         self._client = client or OpenAI(
             api_key=config.api_key,
             base_url=_base_url(config.endpoint),
