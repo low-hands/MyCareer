@@ -490,6 +490,7 @@ class EpisodeProjectionContext(ContractModel):
         "interview_round",
     ]
     occurred_at: datetime
+    relative_year: str | None = None
     title: str = Field(min_length=1, max_length=80)
     synopsis: str = Field(min_length=1, max_length=400)
 

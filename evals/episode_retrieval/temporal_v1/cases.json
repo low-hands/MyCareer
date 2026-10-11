@@ -1,0 +1,244 @@
+{
+  "clock": "2026-10-11T12:00:00+08:00",
+  "timezone": "Asia/Shanghai",
+  "cases": [
+    {
+      "id": "last_year_short",
+      "query": "去年投的字节",
+      "expression": "去年",
+      "expected_range": [
+        "2025-01-01 00:00:00",
+        "2025-12-31 23:59:59"
+      ],
+      "tool_parameters": {
+        "start_datetime": "2025-01-01T00:00:00+08:00",
+        "end_datetime": "2025-12-31T23:59:59+08:00"
+      },
+      "expected_label": null
+    },
+    {
+      "id": "last_year_sentence",
+      "query": "帮我找一下去年在字节跳动的投递记录。",
+      "expression": "去年",
+      "expected_range": [
+        "2025-01-01 00:00:00",
+        "2025-12-31 23:59:59"
+      ],
+      "tool_parameters": {
+        "start_datetime": "2025-01-01T00:00:00+08:00",
+        "end_datetime": "2025-12-31T23:59:59+08:00"
+      },
+      "expected_label": null
+    },
+    {
+      "id": "this_year_short",
+      "query": "今年投的字节",
+      "expression": "今年",
+      "expected_range": [
+        "2026-01-01 00:00:00",
+        "2026-12-31 23:59:59"
+      ],
+      "tool_parameters": {
+        "start_datetime": "2026-01-01T00:00:00+08:00",
+        "end_datetime": "2026-12-31T23:59:59+08:00"
+      },
+      "expected_label": null
+    },
+    {
+      "id": "this_year_sentence",
+      "query": "帮我找一下今年在字节跳动的投递记录。",
+      "expression": "今年",
+      "expected_range": [
+        "2026-01-01 00:00:00",
+        "2026-12-31 23:59:59"
+      ],
+      "tool_parameters": {
+        "start_datetime": "2026-01-01T00:00:00+08:00",
+        "end_datetime": "2026-12-31T23:59:59+08:00"
+      },
+      "expected_label": null
+    },
+    {
+      "id": "last_month_short",
+      "query": "上个月投的字节",
+      "expression": "上个月",
+      "expected_range": [
+        "2026-09-01 00:00:00",
+        "2026-09-30 23:59:59"
+      ],
+      "tool_parameters": {
+        "start_datetime": "2026-09-01T00:00:00+08:00",
+        "end_datetime": "2026-09-30T23:59:59+08:00"
+      },
+      "expected_label": null
+    },
+    {
+      "id": "last_month_sentence",
+      "query": "帮我找一下上个月在字节跳动的投递记录。",
+      "expression": "上个月",
+      "expected_range": [
+        "2026-09-01 00:00:00",
+        "2026-09-30 23:59:59"
+      ],
+      "tool_parameters": {
+        "start_datetime": "2026-09-01T00:00:00+08:00",
+        "end_datetime": "2026-09-30T23:59:59+08:00"
+      },
+      "expected_label": null
+    },
+    {
+      "id": "last_week_short",
+      "query": "上周投的字节",
+      "expression": "上周",
+      "expected_range": [
+        "2026-09-28 00:00:00",
+        "2026-10-04 23:59:59"
+      ],
+      "tool_parameters": {
+        "start_datetime": "2026-09-28T00:00:00+08:00",
+        "end_datetime": "2026-10-04T23:59:59+08:00"
+      },
+      "expected_label": null
+    },
+    {
+      "id": "last_week_sentence",
+      "query": "帮我找一下上周在字节跳动的投递记录。",
+      "expression": "上周",
+      "expected_range": [
+        "2026-09-28 00:00:00",
+        "2026-10-04 23:59:59"
+      ],
+      "tool_parameters": {
+        "start_datetime": "2026-09-28T00:00:00+08:00",
+        "end_datetime": "2026-10-04T23:59:59+08:00"
+      },
+      "expected_label": null
+    },
+    {
+      "id": "spring_short",
+      "query": "今年春天投的字节",
+      "expression": "今年春天",
+      "expected_range": [
+        "2026-03-01 00:00:00",
+        "2026-05-31 23:59:59"
+      ],
+      "tool_parameters": {
+        "start_datetime": "2026-03-01T00:00:00+08:00",
+        "end_datetime": "2026-05-31T23:59:59+08:00"
+      },
+      "expected_label": null
+    },
+    {
+      "id": "spring_sentence",
+      "query": "帮我找一下今年春天在字节跳动的投递记录。",
+      "expression": "今年春天",
+      "expected_range": [
+        "2026-03-01 00:00:00",
+        "2026-05-31 23:59:59"
+      ],
+      "tool_parameters": {
+        "start_datetime": "2026-03-01T00:00:00+08:00",
+        "end_datetime": "2026-05-31T23:59:59+08:00"
+      },
+      "expected_label": null
+    },
+    {
+      "id": "first_half_short",
+      "query": "上半年投的字节",
+      "expression": "上半年",
+      "expected_range": [
+        "2026-01-01 00:00:00",
+        "2026-06-30 23:59:59"
+      ],
+      "tool_parameters": {
+        "start_datetime": "2026-01-01T00:00:00+08:00",
+        "end_datetime": "2026-06-30T23:59:59+08:00"
+      },
+      "expected_label": null
+    },
+    {
+      "id": "first_half_sentence",
+      "query": "帮我找一下上半年在字节跳动的投递记录。",
+      "expression": "上半年",
+      "expected_range": [
+        "2026-01-01 00:00:00",
+        "2026-06-30 23:59:59"
+      ],
+      "tool_parameters": {
+        "start_datetime": "2026-01-01T00:00:00+08:00",
+        "end_datetime": "2026-06-30T23:59:59+08:00"
+      },
+      "expected_label": null
+    },
+    {
+      "id": "national_day_short",
+      "query": "国庆前后投的字节",
+      "expression": "国庆前后",
+      "expected_range": null,
+      "tool_parameters": {},
+      "expected_label": null
+    },
+    {
+      "id": "national_day_sentence",
+      "query": "帮我找一下国庆前后在字节跳动的投递记录。",
+      "expression": "国庆前后",
+      "expected_range": null,
+      "tool_parameters": {},
+      "expected_label": null
+    },
+    {
+      "id": "summer_break_short",
+      "query": "暑假投的字节",
+      "expression": "暑假",
+      "expected_range": null,
+      "tool_parameters": {},
+      "expected_label": null
+    },
+    {
+      "id": "summer_break_sentence",
+      "query": "帮我找一下暑假在字节跳动的投递记录。",
+      "expression": "暑假",
+      "expected_range": null,
+      "tool_parameters": {},
+      "expected_label": null
+    },
+    {
+      "id": "recent_short",
+      "query": "最近投的字节",
+      "expression": "最近",
+      "expected_range": null,
+      "tool_parameters": {},
+      "expected_label": null
+    },
+    {
+      "id": "recent_sentence",
+      "query": "帮我找一下最近在字节跳动的投递记录。",
+      "expression": "最近",
+      "expected_range": null,
+      "tool_parameters": {},
+      "expected_label": null
+    }
+  ],
+  "label_cases": [
+    {
+      "occurred_at": "2026-03-15T12:00:00+08:00",
+      "expected": "今年 3 月"
+    },
+    {
+      "occurred_at": "2025-03-15T12:00:00+08:00",
+      "expected": "去年 3 月"
+    },
+    {
+      "occurred_at": "2024-03-15T12:00:00+08:00",
+      "expected": "2024 年 3 月"
+    },
+    {
+      "occurred_at": "2027-03-15T12:00:00+08:00",
+      "expected": "明年 3 月"
+    },
+    {
+      "occurred_at": "2025-12-31T16:30:00+00:00",
+      "expected": "今年 1 月"
+    }
+  ]
+}

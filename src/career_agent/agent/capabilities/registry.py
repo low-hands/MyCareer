@@ -35,6 +35,7 @@ from career_agent.agent.presentation.interview_preparation import (
     summarize_interview_preparation,
 )
 from career_agent.agent.presentation.conversation_span import render_conversation_span
+from career_agent.agent.presentation.episode_dates import episode_date_reference, relative_episode_date
 from career_agent.agent.presentation.job_research import summarize_job_research
 from career_agent.agent.providers.structured_responses import validation_detail
 from career_agent.agent.support.summary_text import clamp, condense
@@ -398,6 +399,7 @@ class MainAgentToolRegistry:
         conversation_store: CareerContextStore | None = None,
         career_history_store: CareerHistoryStore | None = None,
         episode_store: SQLiteCareerEpisodeStore | None = None,
+        episode_clock: Callable[[], datetime] | None = None,
         semantic_evidence_cache: SemanticEvidenceCache | None = None,
         working_notes_store: WorkingNotesStore | None = None,
         job_capture_store: JobCaptureStore | None = None,
@@ -455,6 +457,7 @@ class MainAgentToolRegistry:
         self._conversation_store = conversation_store
         self._career_history_store = career_history_store
         self._episode_store = episode_store
+        self._episode_clock = episode_clock
         self._semantic_evidence_cache = semantic_evidence_cache
         self._working_notes_store = working_notes_store
         self._job_capture_store = job_capture_store
@@ -5437,10 +5440,17 @@ class MainAgentToolRegistry:
             user_id=user_id,
             episode_ids=tuple(episode.id for episode in episodes),
         )
+        date_reference = episode_date_reference(
+            self._episode_clock() if self._episode_clock is not None else None
+        )
         items = [
             {
                 "kind": episode.kind,
                 "occurred_at": episode.occurred_at.isoformat(),
+                "local_date": episode.occurred_at.astimezone(date_reference.tzinfo).date().isoformat(),
+                "relative_year": relative_episode_date(
+                    episode.occurred_at, now=date_reference
+                ),
                 "title": episode.title,
                 "summary": episode.summary,
                 "conversation_id": episode.conversation_id,
@@ -5475,7 +5485,7 @@ class MainAgentToolRegistry:
                 },
             )
         body = "过往求职事件：\n" + "\n".join(
-            f"- {item['occurred_at']} [{item['kind']}] "
+            f"- {item['local_date']}（{item['relative_year']}） [{item['kind']}] "
             f"{item['title']}：{item['summary']}"
             for item in items
         )
@@ -5496,6 +5506,7 @@ class MainAgentToolRegistry:
             },
             payload={
                 "items": items,
+                "relative_year_reference": date_reference.isoformat(),
                 "matched_terms": list(matched_terms),
                 "partially_matched_terms": list(partially_matched_terms),
                 "unmatched_terms": list(unmatched_terms),

@@ -1,0 +1,200 @@
+{
+  "clock": "2026-10-11T12:00:00+08:00",
+  "timezone": "Asia/Shanghai",
+  "corpus": [
+    {
+      "id": "E01",
+      "kind": "application",
+      "occurred_at": "2026-03-12T10:00:00+08:00",
+      "title": "字节跳动 · 推荐算法工程师",
+      "summary": "已记录投递：字节跳动 推荐算法工程师（抖音推荐方向），渠道：内推，状态：已投递。"
+    },
+    {
+      "id": "E02",
+      "kind": "interview_round",
+      "occurred_at": "2026-03-26T15:00:00+08:00",
+      "title": "字节跳动 · 推荐算法工程师 · 第 1 轮面试",
+      "summary": "一面已完成。面试官重点问了召回和排序的区别、负采样策略，手写了一道 Top-K 题。复盘：特征交叉部分答得不够深。"
+    },
+    {
+      "id": "E03",
+      "kind": "interview_round",
+      "occurred_at": "2026-04-09T14:00:00+08:00",
+      "title": "字节跳动 · 推荐算法工程师 · 第 2 轮面试",
+      "summary": "二面结束，结果未通过。面试官围绕实习项目连续追问了十几分钟，问到线上 AB 实验指标为什么不显著，回答时有些慌。"
+    },
+    {
+      "id": "E04",
+      "kind": "job_research",
+      "occurred_at": "2026-02-20T09:30:00+08:00",
+      "title": "腾讯 · 公司调研",
+      "summary": "腾讯调研报告已生成：覆盖 IEG 与 CSIG 两个事业群的业务、近期招聘节奏和面试流程，附竞品对比。"
+    },
+    {
+      "id": "E05",
+      "kind": "application",
+      "occurred_at": "2026-02-25T11:00:00+08:00",
+      "title": "腾讯 · 后台开发工程师（CSIG）",
+      "summary": "已记录投递：腾讯 后台开发工程师，事业群 CSIG，状态：已投递。"
+    },
+    {
+      "id": "E06",
+      "kind": "interview_round",
+      "occurred_at": "2026-03-10T16:00:00+08:00",
+      "title": "腾讯 · 后台开发工程师（CSIG） · 第 1 轮面试",
+      "summary": "一面通过。考了 TCP 三次握手、Redis 持久化，还让设计一个短链接服务，要求支持高并发和过期清理。"
+    },
+    {
+      "id": "E07",
+      "kind": "mock_interview",
+      "occurred_at": "2026-03-05T20:00:00+08:00",
+      "title": "模拟面试：后台开发",
+      "summary": "这次模拟面试我们练了从零设计一个秒杀系统：你在限流和库存扣减上思路清楚，但对缓存击穿的处理还可以更完整。下次建议练习用消息队列削峰。"
+    },
+    {
+      "id": "E08",
+      "kind": "mock_interview",
+      "occurred_at": "2026-09-18T20:30:00+08:00",
+      "title": "模拟面试：行为面",
+      "summary": "本次模拟的是行为面试，重点练了“讲一次和同事意见冲突的经历”和“最失败的项目”两道题。你的 STAR 结构完整，但结果部分缺少量化数据。"
+    },
+    {
+      "id": "E09",
+      "kind": "mock_interview",
+      "occurred_at": "2026-09-25T21:00:00+08:00",
+      "title": "模拟面试：HR 面",
+      "summary": "我们模拟了 HR 面的薪资环节：你给出的期望是 35k×15，被追问为什么高于现薪时回答略显被动。建议准备市场数据和其他 offer 作为依据。"
+    },
+    {
+      "id": "E10",
+      "kind": "job_research",
+      "occurred_at": "2026-09-03T10:00:00+08:00",
+      "title": "美团 · 公司调研",
+      "summary": "美团调研报告已生成：本地生活竞争加剧，配送算法团队扩编，面试偏重业务理解与 A/B 实验设计。"
+    },
+    {
+      "id": "E11",
+      "kind": "application",
+      "occurred_at": "2026-09-06T09:00:00+08:00",
+      "title": "美团 · 配送算法工程师",
+      "summary": "已记录投递：美团 配送算法工程师（到家事业群），渠道：官网，状态：已投递。"
+    },
+    {
+      "id": "E12",
+      "kind": "interview_round",
+      "occurred_at": "2026-09-20T14:30:00+08:00",
+      "title": "美团 · 配送算法工程师 · 第 1 轮面试",
+      "summary": "一面已完成：主要聊了运筹优化和路径规划，手推了一个调度问题的整数规划建模。面试官反馈基础扎实。"
+    },
+    {
+      "id": "E13",
+      "kind": "interview_round",
+      "occurred_at": "2026-10-02T10:00:00+08:00",
+      "title": "美团 · 配送算法工程师 · 第 2 轮面试",
+      "summary": "二面已完成，等待结果。面试官让现场设计骑手派单的实时策略，并讨论了如何评估策略上线后的效果。"
+    },
+    {
+      "id": "E14",
+      "kind": "job_research",
+      "occurred_at": "2026-08-15T10:00:00+08:00",
+      "title": "拼多多 · 公司调研",
+      "summary": "拼多多调研报告已生成：主站与 Temu 两条业务线，工作强度高，薪资带宽较大，面试常考算法题与业务 case。"
+    },
+    {
+      "id": "E15",
+      "kind": "application",
+      "occurred_at": "2026-08-18T09:00:00+08:00",
+      "title": "拼多多 · 算法工程师（Temu）",
+      "summary": "已记录投递：拼多多 算法工程师，Temu 搜索方向，状态：简历未通过。"
+    },
+    {
+      "id": "E16",
+      "kind": "application",
+      "occurred_at": "2026-07-02T09:00:00+08:00",
+      "title": "小红书 · 数据科学家",
+      "summary": "已记录投递：小红书 数据科学家（社区增长），渠道：猎头推荐，状态：已投递。"
+    },
+    {
+      "id": "E17",
+      "kind": "interview_round",
+      "occurred_at": "2026-07-16T15:00:00+08:00",
+      "title": "小红书 · 数据科学家 · 第 1 轮面试",
+      "summary": "一面已完成：讨论了因果推断，问到双重差分法的前提假设，以及如何衡量一次笔记推荐改版对留存的影响。"
+    },
+    {
+      "id": "E18",
+      "kind": "application",
+      "occurred_at": "2026-05-11T09:00:00+08:00",
+      "title": "阿里巴巴 · 机器学习平台工程师（阿里云）",
+      "summary": "已记录投递：阿里巴巴 机器学习平台工程师，阿里云 PAI 团队，状态：已投递。"
+    },
+    {
+      "id": "E19",
+      "kind": "job_research",
+      "occurred_at": "2026-05-08T10:00:00+08:00",
+      "title": "阿里巴巴 · 公司调研",
+      "summary": "阿里巴巴调研报告已生成：重点分析阿里云在大模型训练平台的投入、组织调整和近期社招需求。"
+    },
+    {
+      "id": "E20",
+      "kind": "interview_round",
+      "occurred_at": "2026-06-03T22:00:00+08:00",
+      "title": "Pinnacle Robotics · Perception Engineer · 第 1 轮面试",
+      "summary": "First-round interview completed: discussed sensor fusion, Kalman filters and a take-home on LiDAR point cloud segmentation."
+    },
+    {
+      "id": "E21",
+      "kind": "application",
+      "occurred_at": "2026-05-28T09:00:00+08:00",
+      "title": "Pinnacle Robotics · Perception Engineer",
+      "summary": "已记录投递：Pinnacle Robotics 感知算法工程师（远程），状态：已投递。"
+    },
+    {
+      "id": "E22",
+      "kind": "application",
+      "occurred_at": "2026-04-20T09:00:00+08:00",
+      "title": "滴滴 · 策略算法工程师",
+      "summary": "已记录投递：滴滴 策略算法工程师（网约车定价），状态：已投递。"
+    },
+    {
+      "id": "E23",
+      "kind": "interview_round",
+      "occurred_at": "2026-01-15T14:00:00+08:00",
+      "title": "网易 · 游戏 AI 研究员 · 第 1 轮面试",
+      "summary": "一面已完成：介绍了强化学习项目，被问到 PPO 和 DQN 的区别以及奖励稀疏怎么处理。HR 随后告知已进入 offer 审批。"
+    },
+    {
+      "id": "E26",
+      "kind": "mock_interview",
+      "occurred_at": "2026-04-01T20:00:00+08:00",
+      "title": "模拟面试：推荐算法",
+      "summary": "这次模拟面试聚焦推荐算法：你讲清了双塔召回，但面对“冷启动怎么做”时回答比较空泛，建议准备一个具体案例。"
+    }
+  ],
+  "query": {
+    "id": "Q42",
+    "category": "unanswerable",
+    "user_message": "去年投的字节",
+    "tool_query": "字节",
+    "filters": {
+      "start": "2025-01-01T00:00:00+08:00",
+      "end": "2025-12-31T23:59:59+08:00"
+    },
+    "relevant": {},
+    "near_miss": [],
+    "expected_lexical": "pass"
+  },
+  "samples_per_arm": 10,
+  "models": [
+    "qwen3.7-plus",
+    "deepseek-flash"
+  ],
+  "arms": [
+    "main",
+    "year_labels"
+  ],
+  "excluded_before_sampling": {
+    "E24": "resume_tailoring unsupported by main EpisodeProjectionContext",
+    "E25": "resume_tailoring unsupported by main EpisodeProjectionContext"
+  }
+}

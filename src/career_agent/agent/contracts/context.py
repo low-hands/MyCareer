@@ -537,8 +537,9 @@ class MainAgentContext(ContractModel):
             "这里只是摘要；需要细节时调用 search_career_episodes，并传入 detail_ref。",
         ]
         episode_lines.extend(
-            f"- [{item.kind}] {item.title}：{item.synopsis} "
-            f"[detail_ref={item.detail_ref}]"
+            f"- [{item.kind}] {item.occurred_at.date().isoformat()}"
+            f"{f'（{item.relative_year}）' if item.relative_year else ''} "
+            f"[detail_ref={item.detail_ref}] {item.title}：{item.synopsis}"
             for item in self.career_episodes
         )
         bounded_episode_markdown = (

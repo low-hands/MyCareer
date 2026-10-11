@@ -1,0 +1,34 @@
+{
+  "clock": "2026-10-11T12:00:00+08:00",
+  "timezone": "Asia/Shanghai",
+  "cases": [
+    {
+      "occurred_at": "2026-03-12T12:00:00+08:00",
+      "expected": "今年"
+    },
+    {
+      "occurred_at": "2025-03-12T12:00:00+08:00",
+      "expected": "去年"
+    },
+    {
+      "occurred_at": "2024-03-12T12:00:00+08:00",
+      "expected": "2 年前"
+    },
+    {
+      "occurred_at": "2027-03-12T12:00:00+08:00",
+      "expected": "明年"
+    },
+    {
+      "occurred_at": "2028-03-12T12:00:00+08:00",
+      "expected": "2 年后"
+    },
+    {
+      "occurred_at": "2025-12-31T20:00:00+00:00",
+      "expected": "今年"
+    },
+    {
+      "occurred_at": "2026-11-12T12:00:00+08:00",
+      "expected": "今年"
+    }
+  ]
+}

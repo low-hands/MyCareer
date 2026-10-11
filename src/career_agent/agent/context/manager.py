@@ -646,6 +646,11 @@ class ContextManager:
     ) -> tuple[EpisodeProjectionContext, ...]:
         if self._episode_store is None:
             return ()
+        from career_agent.agent.presentation.episode_dates import (
+            episode_date_reference, relative_episode_date,
+        )
+
+        date_reference = episode_date_reference(self.now())
         episodes = self._episode_store.project_relevant(
             user_id=user_id,
             query=user_message,
@@ -656,7 +661,8 @@ class ContextManager:
             EpisodeProjectionContext(
                 detail_ref=f"episode:{episode.id}",
                 kind=episode.kind,
-                occurred_at=episode.occurred_at,
+                occurred_at=episode.occurred_at.astimezone(date_reference.tzinfo),
+                relative_year=relative_episode_date(episode.occurred_at, now=date_reference),
                 title=episode.title,
                 synopsis=episode.summary,
             )
