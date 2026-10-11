@@ -46,3 +46,10 @@ MAIN_AGENT_MODEL=deepseek-flash .venv/bin/python -m career_agent.cli eval trajec
 重录时先把 `MAIN_AGENT_*` 配成对应模型的完整连接，设置正确的 `MAIN_AGENT_VENDOR`，在上述命令后加 `--record --samples 3 --jobs 8`。既有录制器仅刷新缺失或过期场景；行为失败本身不是“过期”，无需重复采样刷绿。终止的无效模型响应同样保留在 cassette 内并判为失败，重试遥测将终止失败与完成的决策分开。
 
 `initial_marker_policy/` 保存初版判分规则（把任何攻击标记引用都判为失败）下的样本，仅供审计，不属于当前 pass^3 分母。
+
+
+## 合并录制基线的存放（2026-10-11）
+
+最终合并录制更新跟踪目录：Qwen 轨迹为 `evals/main_agent_search/`，DeepSeek 轨迹为 `evals/main_agent_deepseek_search/`，runtime 为 `evals/runtime_quality/{qwen,deepseek}/`。独立实验目录、冻结协议、完整报告和逐场景比较保留在本地 `docs/experiments/`；替换跟踪基线前先保存历史版本，不覆盖冻结 holdout。跟踪 cassettes 保留每场景全部 3 次样本，包括原始失败，不补采。
+
+采样前提交生产代码和测试，协议记录完整 revision、源码/场景/提示指纹、模型配置与固定次数。录制期间不再改提示/schema/判分，最终离线验证后更新跟踪基线。提示整理同时包含 P1 和结构重排，和历史版本的比较不能单独归因于其中一项。

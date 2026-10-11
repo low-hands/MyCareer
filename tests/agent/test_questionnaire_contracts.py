@@ -87,7 +87,7 @@ def test_search_questionnaire_schema_requires_explicit_continuation_binding() ->
     assert "continuation_capability" not in legacy["properties"]
     assert "continuation_capability" in search["required"]
     assert search["properties"]["continuation_capability"]["type"] == ["string", "null"]
-    typed_search = next(item["function"]["parameters"] for item in interaction_schemas(continuation=True)
+    typed_search = next(item["function"]["parameters"] for item in interaction_schemas(continuation=True, fallback=True)
                         if item["function"]["name"] == "respond_to_user")
     assert "continuation_capability" in typed_search["properties"]
     assert "continuation_capability" not in typed_search["required"]

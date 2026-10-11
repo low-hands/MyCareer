@@ -225,8 +225,10 @@ def test_span_prompt_states_the_gap_and_summary_loss_explicitly() -> None:
     assert "zero omitted_*_count values" in prompt
     assert "still-active omitted constraints" in prompt
     assert "earlier chat messages, not the active constraint ledger" in prompt
-    assert "Absence from career_profile does not prove the user never said a fact" in prompt
-    assert "call it before asking the user to repeat that fact" in prompt
+    assert "Context projections are bounded views of their sources" in prompt
+    assert "answer directly when visible evidence is sufficient" in prompt
+    assert "Only when a fact needed for the answer is missing from visible context" in prompt
+    assert "before saying it is unknown or asking the user to repeat it" in prompt
 
 
 def test_old_qwen_not_invented_sample_one_now_fails_decoy_assertion() -> None:

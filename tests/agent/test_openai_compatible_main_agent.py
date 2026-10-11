@@ -1906,16 +1906,21 @@ def test_questionnaire_identifiers_are_normalized_without_an_extra_request(name)
     ]}
     if name == "respond_to_user":
         arguments["requires_user_input"] = True
-    maker, completions = _scripted_maker(
-        _response(tool_calls=[_tool_call(name, json.dumps(arguments))])
-    )
+    responses = [_response(tool_calls=[_tool_call(name, json.dumps(arguments))])]
+    if name == "respond_to_user":
+        responses = [
+            _response(content="first", raw_text=True),
+            _response(content="second", raw_text=True),
+            *responses,
+        ]
+    maker, completions = _scripted_maker(*responses)
     decision = maker.decide(_context(), ())
     assert decision.action == "questionnaire"
     assert tuple(question.question_id for question in decision.questions) == ("q1", "q2")
     assert [(option.value, option.label) for option in decision.questions[0].options] == [
         ("option_1", "上海"), ("beijing", "北京"),
     ]
-    assert len(completions.requests) == 1
+    assert len(completions.requests) == (3 if name == "respond_to_user" else 1)
     assert decision.tool_call is None
 
 
@@ -1951,7 +1956,7 @@ def test_invalid_native_interaction_is_repaired_with_one_extra_request():
 def test_production_text_fallback_is_reasked_as_a_typed_interaction():
     maker, completions = _scripted_maker(
         _response(content='{"action":"final","message":"你希望哪座城市？"}', raw_text=True),
-        _response(tool_calls=[_tool_call("respond_to_user", '{"requires_user_input":true,"message":"你希望哪座城市？"}')]),
+        _response(tool_calls=[_tool_call("ask_user", '{"message":"你希望哪座城市？"}')]),
     )
     decision = maker.decide(_context(), ())
     assert decision.action == "ask_user"
@@ -2008,12 +2013,20 @@ def test_second_text_rejection_forces_interaction_on_third_request():
         _response(tool_calls=[_tool_call(
             "respond_to_user", '{"requires_user_input":true,"message":"请补充公司名"}'
         )]),
+        _response(tool_calls=[_tool_call("final_response", '{"message":"完成"}')]),
     )
     assert maker.decide(_context(), ()).action == "ask_user"
     assert completions.requests[1]["tool_choice"] == "auto"
     assert completions.requests[2]["tool_choice"] == {
         "type": "function", "function": {"name": "respond_to_user"},
     }
+
+    assert maker.decide(_context(), ()).action == "final"
+    for index, request in enumerate(completions.requests):
+        names = {spec["function"]["name"] for spec in request["tools"]}
+        assert ("respond_to_user" in names) == (index == 2)
+    assert "respond_to_user" not in completions.requests[0]["messages"][0]["content"]
+    assert "requires_user_input=true" in json.dumps(completions.requests[2]["messages"])
 
 
 def test_persistent_text_fallback_fails_closed_in_production():
@@ -2119,3 +2132,12 @@ def _q(question_id, prompt, *, options=None):
         "allow_free_text": False,
         "allow_skip": True,
     }
+
+
+def test_unoffered_interaction_is_rejected_instead_of_discovered():
+    maker, completions = _scripted_maker(
+        _response(tool_calls=[_tool_call("respond_to_user", '{"requires_user_input":false,"message":"完成"}')]),
+        _response(tool_calls=[_tool_call("final_response", '{"message":"完成"}')]),
+    )
+    assert maker.decide(_context(), ("search_capabilities",)).action == "final"
+    assert len(completions.requests) == 2

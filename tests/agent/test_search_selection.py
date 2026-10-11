@@ -577,3 +577,12 @@ def test_forced_cold_history_call_is_not_offered_and_never_executes(tmp_path, mo
     )
     result = runtime.run_turn(user_id="u1", conversation_id="c1", user_message="之前说了什么？")
     assert result.tool_results == ()
+
+
+@pytest.mark.parametrize("policy", [
+    "Discovery rules with a renamed directory heading",
+    "Discovery rules\n\nCapability directory:\n   ",
+])
+def test_prompt_rejects_a_missing_or_empty_capability_directory(policy) -> None:
+    with pytest.raises(ValueError, match="nonempty capability directory"):
+        OpenAICompatibleMainAgentDecisionMaker._system_prompt(policy)

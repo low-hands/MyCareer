@@ -125,7 +125,10 @@ def test_search_mode_schema_and_prompt_fingerprints_are_stable() -> None:
     # The trajectory fingerprint also reflects cold-session schema suppression
     # and plural normalization plus independent semantic admission, and the
     # adopted baseline search (examples in documents, no evidence gate, stop
-    # words dropped for intent ranking). Tool schemas themselves are unchanged.
+    # words dropped for intent ranking). Business schemas remain unchanged.
+    # Iteration 110 intentionally consolidates the prompt and offers only three
+    # primary interaction schemas; respond_to_user is reserved for forced retries.
+    # The prompt and trajectory hashes below reflect that reviewed revision.
     registered = trajectory_tool_specs()
     assert registered[-1]["function"]["name"] == "search_capabilities"
     encoded_registered = json.dumps(
@@ -142,10 +145,10 @@ def test_search_mode_schema_and_prompt_fingerprints_are_stable() -> None:
         "5441650204630b35a8ac5201e4c34289b1d1885436711643cd441e91fed8e14d"
     )
     assert prompt_fingerprint(schemas) == (
-        "05c2e750c8665eac45975a069093627c733d01c217a91be256ec9bc3b657a719"
+        "adc93e51c66e910e89f25ebd38c883b41027374751d303b178c653a0a4c2c745"
     )
     assert trajectory_prompt_fingerprint(SCENARIOS[0], schemas) == (
-        "0b9dc021078bedbbb919b55bb0f874462b40470cd334b487dc249be992135c4f"
+        "28233e5accdb5cb013f7463cdad34ebfdf6b74ace121517dba26f46f0d08eb5f"
     )
 
 
