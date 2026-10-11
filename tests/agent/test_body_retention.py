@@ -64,6 +64,11 @@ def test_none_retention_keeps_live_readback_without_a_second_persistent_copy(
         tool_name="read", state=state, message="已回读。", payload=payload
     )
     presenter = build_turn_presenter()
+    if state == "conversation_span_found":
+        assert body not in presenter._undelivered_bodies((output,))
+        assert presenter._screen_message(output) == output.message
+        output = output.model_copy(update={"explicit_sequence_span": True})
+        assert body in presenter._screen_message(output)
     assert body in presenter._undelivered_bodies((output,))
     assert presenter.delivered_bodies((output,)) == ()
 

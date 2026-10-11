@@ -178,7 +178,11 @@ _POLICIES: dict[str, DeliveryPolicy] = {
     # Historical rows are useful as a turn-local observation, but storing the
     # rendered span would immediately put the recalled text back into every
     # later recent window. Keep only the bounded receipt in conversation.
-    "conversation_span_found": _summarised(),
+    # Only the runtime's explicit named-span prelude delivers the quoted body.
+    # Model-chosen reads supply evidence for the model's own reply.
+    # The provenance exception is applied by TurnPresenter._model_only_body:
+    # explicit_sequence_span=True uses message delivery for this result.
+    "conversation_span_found": DeliveryPolicy(durable_message="summary", body_delivery="model"),
     # Resume quotations are provenance readbacks, not durable conversation
     # memory. Keep the quote in the bounded turn-local observation only.
     "claim_source_found": _summarised(),

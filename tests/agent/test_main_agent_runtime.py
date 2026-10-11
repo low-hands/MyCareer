@@ -1762,7 +1762,7 @@ def test_conversation_span_is_turn_local_observation_not_recent_history(
         tools=tools,
     )
 
-    agent.run_turn(
+    result = agent.run_turn(
         user_id="u1", conversation_id="c1", user_message="回看缺失的开头。"
     )
 
@@ -1782,6 +1782,7 @@ def test_conversation_span_is_turn_local_observation_not_recent_history(
     assert observation.body is not None
     assert "private-old-user-0" in observation.body
     assert "private-old-assistant-0" in observation.body
+    assert result.assistant_message == "我已根据那段历史继续处理。"
     assert len(tools.calls) == 1
     assert tools.calls[0][0] == "read_conversation_span"
     assert tools.calls[0][1]["user_id"] == "u1"

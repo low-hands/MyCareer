@@ -128,6 +128,10 @@ class ObservationReducer:
         pending = state["pending"]
         result = pending["result"]
         capability_name = pending["name"]
+        if capability_name == "read_conversation_span":
+            result = result.model_copy(update={
+                "explicit_sequence_span": bool(pending.get("policy_prelude")),
+            })
         control = dict(state.get("control", {}))
         synthetic_kind = pending.get("synthetic_kind")
 

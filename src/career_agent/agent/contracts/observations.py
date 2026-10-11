@@ -183,6 +183,8 @@ class ToolResult(ContractModel):
     next_action: str | None = Field(default=None, max_length=NEXT_ACTION_LIMIT)
     """Advice for the next step, in prose. See ``DecisionObservation``."""
     payload: dict[str, Any] = Field(default_factory=dict)
+    # Runtime-owned provenance; never supplied by the model-facing tool schema.
+    explicit_sequence_span: bool = Field(default=False, exclude=True)
     body_source: DeliveredBodySource | None = Field(default=None, exclude=True)
     body_dependencies: tuple[BodyDependency, ...] = Field(default=(), exclude=True)
     resource_ref: ConversationResourceReference | None = None
@@ -553,4 +555,3 @@ def _with_truncation_notice(
         kept.pop()
         dropped += 1
     return ""
-
