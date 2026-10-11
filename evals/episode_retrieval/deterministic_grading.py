@@ -8,7 +8,7 @@ import re
 import unicodedata
 
 PROTOCOL_PATH = Path(__file__).parent / 'grading_v3/protocol.json'
-PROTOCOL = json.loads(PROTOCOL_PATH.read_text())
+PROTOCOL = json.loads(PROTOCOL_PATH.read_text(encoding="utf-8"))
 GRADING_VERSION = PROTOCOL['version']
 GRADING_DIGEST = hashlib.sha256(PROTOCOL_PATH.read_bytes() + Path(__file__).read_bytes()).hexdigest()
 

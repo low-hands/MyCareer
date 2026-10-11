@@ -182,7 +182,7 @@ def test_action_exposure_union_does_not_double_count_write_proposals():
 
 
 def test_policy_amendment_preserves_all_query_targets_and_splits():
-    prior = json.loads(FIXTURE.with_name("model_queries_v3_recall_and_effects.json").read_text())
+    prior = json.loads(FIXTURE.with_name("model_queries_v3_recall_and_effects.json").read_text(encoding="utf-8"))
     fields = ("id", "query", "split", "expected_tools", "required_k")
     assert [{k: c[k] for k in fields} for c in prior["cases"]] == [
         {k: c[k] for k in fields} for c in CASES
@@ -218,7 +218,7 @@ def test_hybrid_dev_meets_step1_recall_floor():
 def test_recorded_scores_reject_stale_or_incomplete_provenance(tmp_path, mismatch):
     from career_agent.evaluation.catalog_search import MODEL_QUERY_SCORES, load_model_query_scores
 
-    payload = json.loads(MODEL_QUERY_SCORES.read_text())
+    payload = json.loads(MODEL_QUERY_SCORES.read_text(encoding="utf-8"))
     if mismatch == "missing_query":
         payload["scores"].pop("resume")
     else:
@@ -243,7 +243,7 @@ ACCEPTED_DEV_RANK_REGRESSIONS = {
 def test_lexical_dev_recall_does_not_regress_from_the_uniform_gate_baseline():
     from career_agent.agent.capabilities.search import search_catalog
 
-    baseline = json.loads(FIXTURE.with_name("uniform_gate_dev_2026-10-08.json").read_text())
+    baseline = json.loads(FIXTURE.with_name("uniform_gate_dev_2026-10-08.json").read_text(encoding="utf-8"))
     # Both saved suites are dev. Never execute a holdout query for this check.
     rows = [row for suite in (baseline["model_queries"],
                               baseline["existing_dev"]["user_sentence_search_catalog"])
@@ -278,7 +278,7 @@ def test_score_recorder_covers_both_splits_without_search_or_evaluation(tmp_path
 
     monkeypatch.setattr(catalog_search, "evaluate_queries", forbidden_evaluation)
     path = record_model_query_scores(Client(), model="fixture-model", output=tmp_path / "scores.json")
-    payload = json.loads(path.read_text())
+    payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["query_count"] == len(payload["scores"]) == 26
     assert set(payload["scores"]) == {c["query"] for c in CASES}
     assert payload["fixture_sha256"] == FIXTURE_SHA256

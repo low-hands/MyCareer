@@ -68,7 +68,7 @@ def run_one(case, number, data, args, model, options, client, embedding_client):
     target = args.root/f"{case['id']}-{number:02}.json"
     if args.record and target.exists():
         raise ValueError('refusing to overwrite any attempt')
-    recorded = None if args.record else json.loads(target.read_text())
+    recorded = None if args.record else json.loads(target.read_text(encoding="utf-8"))
     if recorded is not None and recorded['fixture_sha256'] != args.fixture_digest:
         return {'id':case['id'],'sample':number,'status':'stale','passed':False}
     from career_agent.domain.episodes import CareerEpisodeDraft
@@ -160,7 +160,7 @@ def run_one(case, number, data, args, model, options, client, embedding_client):
     if args.record:
         payload = {**result,'fixture_sha256':args.fixture_digest,'requests':model_tape.rows,
                    'embedding':embedding.snapshot() if embedding is not None else None}
-        target.write_text(json.dumps(payload,ensure_ascii=False,indent=2)+'\n')
+        target.write_text(json.dumps(payload,ensure_ascii=False,indent=2)+'\n', encoding='utf-8')
     return result
 
 
@@ -183,8 +183,8 @@ def main():
     global EmbeddingTape
     EmbeddingTape=module.EmbeddingTape
     fixture=HERE/'frozen_v2/scenarios.json'
-    data=json.loads(fixture.read_text())
-    protocol=json.loads(fixture.with_name('protocol.json').read_text())
+    data=json.loads(fixture.read_text(encoding="utf-8"))
+    protocol=json.loads(fixture.with_name('protocol.json').read_text(encoding="utf-8"))
     args.fixture_digest=hashlib.sha256(fixture.read_bytes()).hexdigest()
     assert args.fixture_digest == _grader.PROTOCOL['fixture_sha256'], 'grader fixture changed'
     assert args.fixture_digest==protocol['scenarios_sha256']
@@ -232,7 +232,7 @@ def main():
             row.get('judgement',{}).get('status')=='human_review'],
         'status_counts':dict(Counter(row['status'] for row in results)),
         'results':sorted(results,key=lambda row:(row['id'],row['sample']))}
-    (args.root/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+    (args.root/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n', encoding='utf-8')
     print(json.dumps({key:value for key,value in report.items() if key!='results'},ensure_ascii=False))
     return int(any(row['status']!='valid' or row.get('judgement',{}).get('status')=='human_review' for row in results))
 

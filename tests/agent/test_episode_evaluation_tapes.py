@@ -36,8 +36,8 @@ def test_frozen_fixture_counts_and_hash():
     import json, hashlib
     from collections import Counter
     fixture=ROOT/'evals/episode_retrieval/frozen_v2/scenarios.json'
-    protocol=json.loads(fixture.with_name('protocol.json').read_text())
-    data=json.loads(fixture.read_text())
+    protocol=json.loads(fixture.with_name('protocol.json').read_text(encoding="utf-8"))
+    data=json.loads(fixture.read_text(encoding="utf-8"))
     assert hashlib.sha256(fixture.read_bytes()).hexdigest()==protocol['scenarios_sha256']
     assert min(Counter(row['category'] for row in data['queries']).values())>=12
     assert Counter(row['split'] for row in data['queries'])=={'dev':68,'test':32}
@@ -126,12 +126,12 @@ def test_e2e_records_no_judge_and_regrades_legacy_judge_separately(tmp_path, mon
     assert result['passed'] and len(calls)==1
     assert all('response_format' not in call for call in calls)
     path=tmp_path/'missing-00.json'
-    recording=json.loads(path.read_text())
+    recording=json.loads(path.read_text(encoding="utf-8"))
     recording.pop('grading_version')
     recording['requests'].append({'request':{'response_format':{'type':'json_object'},'messages':[
         {'role':'system','content':'判断最终回答是否正确回应用户询问的事件和事实。历史裁判'}]},
         'response':{'choices':[{'message':{'content':'{"passed":false}'}}]}})
-    path.write_text(json.dumps(recording,ensure_ascii=False))
+    path.write_text(json.dumps(recording,ensure_ascii=False), encoding="utf-8")
     original=path.read_bytes()
     args.record=False
     replay=runner.run_one(case,0,data,args,'fixture',{},None,None)

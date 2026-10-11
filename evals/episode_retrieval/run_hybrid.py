@@ -22,8 +22,8 @@ def main():
     args = parser.parse_args()
     fixture = Path(__file__).parent/'frozen_v2/scenarios.json'
     digest = hashlib.sha256(fixture.read_bytes()).hexdigest()
-    data = json.loads(fixture.read_text())
-    protocol = json.loads(fixture.with_name('protocol.json').read_text())
+    data = json.loads(fixture.read_text(encoding="utf-8"))
+    protocol = json.loads(fixture.with_name('protocol.json').read_text(encoding="utf-8"))
     assert digest == protocol['scenarios_sha256'], 'frozen scenarios changed'
     tape_path = args.root/'embeddings.json'
     args.root.mkdir(parents=True, exist_ok=True)
@@ -37,8 +37,8 @@ def main():
             parser.error('embedding configuration missing')
         tape = EmbeddingTape(OpenAICompatibleEmbeddingClient(config))
     else:
-        tape = EmbeddingTape(recording=json.loads(tape_path.read_text())['embedding'])
-        assert json.loads(tape_path.read_text())['fixture_sha256'] == digest
+        tape = EmbeddingTape(recording=json.loads(tape_path.read_text(encoding="utf-8"))['embedding'])
+        assert json.loads(tape_path.read_text(encoding="utf-8"))['fixture_sha256'] == digest
     rows = []
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp)
@@ -85,7 +85,7 @@ def main():
         finally:
             index.close()
             if args.record:
-                tape_path.write_text(json.dumps({'fixture_sha256':digest,'embedding':tape.snapshot()},ensure_ascii=False,indent=2)+'\n')
+                tape_path.write_text(json.dumps({'fixture_sha256':digest,'embedding':tape.snapshot()},ensure_ascii=False,indent=2)+'\n', encoding='utf-8')
     grouped = defaultdict(list)
     for row in rows:
         if row['recall'] is not None:
@@ -94,7 +94,7 @@ def main():
                for key,group in grouped.items()}
     report = {'fixture_sha256':digest,'status':'valid','rows':rows,'summary':summary,
         'embedding_failures':sum('error_type' in row for row in tape.records.values())}
-    (args.root/'hybrid-dev-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+    (args.root/'hybrid-dev-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n', encoding='utf-8')
     print(json.dumps(summary,ensure_ascii=False,indent=2))
 
 

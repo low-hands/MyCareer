@@ -20,12 +20,12 @@ def main():
     parser.add_argument('--baseline',type=Path,required=True)
     parser.add_argument('--root',type=Path,required=True)
     args=parser.parse_args()
-    protocol=json.loads((args.root/'protocol.json').read_text())
+    protocol=json.loads((args.root/'protocol.json').read_text(encoding="utf-8"))
     spec=importlib.util.spec_from_file_location('episode_hybrid_evaluator',HERE/'run_hybrid.py')
     runner=importlib.util.module_from_spec(spec);spec.loader.exec_module(runner)
     base_class=runner.SQLiteCareerEpisodeSemanticIndex
     baseline=defaultdict(list)
-    for row in json.loads(args.baseline.read_text()):
+    for row in json.loads(args.baseline.read_text(encoding="utf-8")):
         if 'recall' in row:baseline[row['mode']+'/'+row['category']].append(row)
     baselines={key:{m:sum(row[m] for row in group)/len(group) for m in ('recall','ndcg')}
                for key,group in baseline.items()}
@@ -44,7 +44,7 @@ def main():
         shutil.copyfile(args.embedding_root/'embeddings.json',root/'embeddings.json')
         sys.argv=['run_hybrid.py','--root',str(root)]
         runner.main()
-        report=json.loads((root/'hybrid-dev-report.json').read_text())
+        report=json.loads((root/'hybrid-dev-report.json').read_text(encoding="utf-8"))
         failures=[]
         for key,metrics in report['summary'].items():
             baseline_metrics=baselines[key]
@@ -58,7 +58,7 @@ def main():
     summary={'status':'candidate_available' if any(r['retrieval_gate_passed'] for r in results) else 'no_feasible_threshold',
              'measurement':'offline_retrieval_only_not_E2E_quality','results':results,
              'production_threshold_installed':False}
-    (args.root/'calibration-report.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2)+'\n')
+    (args.root/'calibration-report.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2)+'\n', encoding='utf-8')
     print(json.dumps({key:value for key,value in summary.items() if key!='results'}))
 
 
