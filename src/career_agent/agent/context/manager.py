@@ -660,6 +660,7 @@ class ContextManager:
         return tuple(
             EpisodeProjectionContext(
                 detail_ref=f"episode:{episode.id}",
+                matched_by=episode.matched_by,
                 kind=episode.kind,
                 occurred_at=episode.occurred_at.astimezone(date_reference.tzinfo),
                 relative_year=relative_episode_date(episode.occurred_at, now=date_reference),

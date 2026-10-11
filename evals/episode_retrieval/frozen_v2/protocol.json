@@ -1,0 +1,54 @@
+{
+  "scenarios_sha256": "95c3ce5c09d6dcbba4409519ceef1c1a07b009ddf92c0e2195e2525210175246",
+  "category_counts": {
+    "exact_entity": 12,
+    "alias_abbreviation": 12,
+    "paraphrase": 16,
+    "time_filter": 12,
+    "kind_filter": 12,
+    "short_token": 12,
+    "unanswerable": 12,
+    "colloquial_typo": 12
+  },
+  "test_queries": 32,
+  "retrieval_acceptance": {
+    "paraphrase_recall_at_5_absolute_gain": 0.1,
+    "other_category_recall_and_ndcg_min_delta": 0
+  },
+  "e2e_acceptance": {
+    "unanswerable_accuracy_min_delta": 0,
+    "other_category_accuracy_min_delta": 0
+  },
+  "arms": [
+    "lexical",
+    "hybrid"
+  ],
+  "models": {
+    "qwen": "qwen3.7-plus",
+    "deepseek": "deepseek-flash"
+  },
+  "samples_per_scenario": 10,
+  "query_generation": "model chooses search arguments from user intent; never receive tool_query/relevance labels",
+  "grading": "final answer identifies target event(s) and correct requested facts; missing cases explicitly report no matching record, never invent outcome. Human audit against corpus + independent model judge, preserve both.",
+  "embedding": "record exact text, model id, vectors and failures for both episode and query; strict offline replay with missing/stale reported separately",
+  "test_policy": "32 test scenarios only in one final frozen run per arm/model, retain all 10 attempts; never tune after test",
+  "no_threshold": true,
+  "e2e_experiment_ids": [
+    "Q14",
+    "Q17",
+    "Q18",
+    "Q22",
+    "Q39",
+    "Q40",
+    "Q41",
+    "Q42",
+    "Q43",
+    "N-unanswerable-01",
+    "N-unanswerable-02",
+    "N-unanswerable-03"
+  ],
+  "e2e_judge": "Same fixed model in a separate request, frozen rubric; automated judgement is provisional until audited.",
+  "e2e_measurement": "Isolated model-generated episode tool query plus final answer; production tool/store/projection, not full MainAgentRuntime. Existing runtime separately replayed.",
+  "e2e_runner_sha256": "f3fecfbfc6788086613e427abf757ddbfca938295572a3814c84aea9fa877d3c",
+  "lexical_source_revision": "b5424378296b3343d74391e1794c593541d7efab"
+}

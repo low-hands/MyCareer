@@ -18,6 +18,7 @@ from career_agent.agent.context.deployment import (
 from career_agent.agent.context.manager import ContextManager
 from career_agent.agent.context.career import CareerContextProjector
 from career_agent.agent.context.semantic_retrieval import optional_semantic_retriever
+from career_agent.agent.context.episode_semantic import optional_episode_semantic_index
 from career_agent.agent.contracts.observations import ToolObservation
 from career_agent.agent.contracts.profile import canonical_confirm_before
 from career_agent.agent.runtime.main_agent_runtime import MainAgentRuntime, ReplayedTurn
@@ -218,6 +219,15 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
             "AGENT_CONFIGURATION_INVALID",
             str(error),
         ) from error
+    try:
+        episode_index = optional_episode_semantic_index(
+            episode_path=episode_store.path,
+            cache_path=Path(args.resume_store).expanduser().with_name("career_embeddings.sqlite3"),
+        )
+    except ValueError as error:
+        raise AgentConfigurationError("AGENT_CONFIGURATION_INVALID", str(error)) from error
+    episode_store.semantic_index = episode_index
+    context_store.episode_semantic_index = episode_index
     job_repository = SQLiteJobPostingRepository(Path(args.job_store).expanduser())
     match_store = SQLiteResumeJobMatchStore(Path(args.resume_store).expanduser())
     application_store = SQLiteApplicationStore(
@@ -320,9 +330,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
     return MainAgentRuntime(
         context_manager=context_manager,
         episode_reconciler=EpisodeReconciler(
-            episodes=SQLiteCareerEpisodeStore(
-                Path(args.context_store).expanduser()
-            ),
+            episodes=episode_store,
             applications=application_store,
             interviews=interview_store,
             mock_interviews=mock_interview_store,
@@ -350,6 +358,7 @@ def build_main_agent_runtime(args: argparse.Namespace) -> MainAgentRuntime:
         ),
         turn_receipt_store=turn_receipt_store,
         owned_resources=(
+            *((episode_index,) if episode_index is not None else ()),
             main_checkpoint_owner,
             mock_checkpoint_owner,
             job_research_checkpoint_owner,

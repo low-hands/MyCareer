@@ -55,6 +55,7 @@ class CareerEpisodeDraft(EpisodeContract):
 
 class CareerEpisode(CareerEpisodeDraft):
     id: str = Field(min_length=1)
+    matched_by: Literal["lexical", "semantic", "both"] = "lexical"
     salience: float = 1.0
     last_accessed_at: datetime | None = None
     access_count: int = Field(default=0, ge=0)

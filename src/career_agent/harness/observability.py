@@ -20,6 +20,7 @@ from career_agent.security.redaction import redact, redact_text
 
 
 EventType = Literal[
+    "episode_semantic_fallback",
     # A turn paused for the owner (approval, questionnaire, a question or a
     # capability interaction), and a later turn continuing from that pause.
     # Tool name and closed-set interaction kind only, never argument values.

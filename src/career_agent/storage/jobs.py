@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from career_agent.storage.aliases import expand_organization_aliases
+
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -718,7 +720,7 @@ class SQLiteJobPostingRepository:
 
     def search_saved_jobs(self, *, user_id: str, query: str, limit: int = 20, include_dismissed: bool) -> tuple[StoredJobSummary, ...]:
         self._validate_limit(limit)
-        normalized_query = query.strip()
+        normalized_query = expand_organization_aliases(query).strip()
         if not normalized_query:
             return self.list_jobs(
                 user_id=user_id, limit=limit, include_dismissed=include_dismissed

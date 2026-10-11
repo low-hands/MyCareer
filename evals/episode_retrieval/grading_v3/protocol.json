@@ -1,0 +1,184 @@
+{
+  "version": "episode-deterministic-v3",
+  "fixture_sha256": "95c3ce5c09d6dcbba4409519ceef1c1a07b009ddf92c0e2195e2525210175246",
+  "fixed_before_next_sampling": true,
+  "rules": {
+    "Q14": {
+      "events": [
+        "E03"
+      ],
+      "required": {
+        "company": [
+          "字节跳动",
+          "ByteDance"
+        ],
+        "time": [
+          "4月9日",
+          "4月09日",
+          "04月09日",
+          "4/9",
+          "04/09",
+          "04-09"
+        ],
+        "round": [
+          "二面",
+          "第二轮",
+          "第2轮",
+          "第2轮面试",
+          "第二次面试"
+        ],
+        "result": [
+          "未通过",
+          "没通过",
+          "没有通过",
+          "不通过",
+          "失败",
+          "被拒",
+          "未过"
+        ],
+        "fact": [
+          "连续追问",
+          "追问了十几分钟",
+          "不断追问",
+          "连续提问"
+        ]
+      },
+      "forbidden": [
+        "一面",
+        "第一轮",
+        "第1轮",
+        "2025",
+        "去年",
+        "(?<!未)(?<!没)(?<!没有)(?<!不)通过了",
+        "成功通过",
+        "(?<!\\d)(?:19\\d{2}|20(?:0\\d|1\\d|2[0-57-9]|[3-9]\\d))(?!\\d)",
+        "(?<!未)(?<!没)(?<!没有)(?<!不)(?<!未能)(?<!没能)通过",
+        "(?<!未)(?<!没)(?<!没有)(?<!不)过关"
+      ]
+    },
+    "Q17": {
+      "events": [
+        "E07"
+      ],
+      "required": {
+        "identity": [
+          "模拟面试",
+          "模拟练习"
+        ],
+        "time": [
+          "3月5日",
+          "3月05日",
+          "03月05日",
+          "3/5",
+          "03/05",
+          "03-05"
+        ],
+        "scenario": [
+          "秒杀"
+        ],
+        "strength": [
+          "限流"
+        ],
+        "strength_inventory": [
+          "库存扣减",
+          "扣减库存"
+        ],
+        "weakness": [
+          "缓存击穿"
+        ]
+      },
+      "forbidden": [
+        "2025",
+        "去年",
+        "(?<!\\d)(?:19\\d{2}|20(?:0\\d|1\\d|2[0-57-9]|[3-9]\\d))(?!\\d)"
+      ]
+    },
+    "Q18": {
+      "events": [
+        "E09"
+      ],
+      "required": {
+        "identity": [
+          "HR面",
+          "HR模拟",
+          "模拟HR"
+        ],
+        "time": [
+          "9月25日",
+          "09月25日",
+          "9/25",
+          "09/25",
+          "09-25"
+        ],
+        "salary": [
+          "35k×15",
+          "35k*15",
+          "35kx15",
+          "35k，15薪",
+          "35k、15薪",
+          "35k/15薪",
+          "35000×15",
+          "3.5万×15"
+        ],
+        "result": [
+          "被动",
+          "说服力不足",
+          "依据不足"
+        ]
+      },
+      "forbidden": [
+        "2025",
+        "去年",
+        "(?<!\\d)(?:19\\d{2}|20(?:0\\d|1\\d|2[0-57-9]|[3-9]\\d))(?!\\d)"
+      ]
+    },
+    "Q22": {
+      "events": [
+        "E26"
+      ],
+      "required": {
+        "identity": [
+          "模拟面试",
+          "模拟练习"
+        ],
+        "time": [
+          "4月1日",
+          "4月01日",
+          "04月01日",
+          "4/1",
+          "04/01",
+          "04-01"
+        ],
+        "topic": [
+          "推荐算法"
+        ],
+        "strength": [
+          "双塔召回",
+          "双塔模型"
+        ],
+        "weakness_topic": [
+          "冷启动"
+        ],
+        "result": [
+          "空泛",
+          "不具体",
+          "缺少具体",
+          "缺乏具体",
+          "没有具体",
+          "没答好"
+        ]
+      },
+      "forbidden": [
+        "2025",
+        "去年",
+        "(?<!\\d)(?:19\\d{2}|20(?:0\\d|1\\d|2[0-57-9]|[3-9]\\d))(?!\\d)"
+      ]
+    }
+  },
+  "policy": {
+    "positive": "All required fact groups must match. Conflicting facts fail. Unsupported cases or ambiguous assertions go to independent human review.",
+    "negative": "Explicit absence assertion required; any corpus organization mention fails, even a supplemental list. Negated absence assertions never pass.",
+    "manual_review": "No automatic model judge. Preserve answer, matched/missing groups, reason; reviewers independently verify corpus. Pending review is not a pass.",
+    "historical_replay": "Validate agent request prefix; keep historical model judge suffix separately, never consume it as the score. Grading is a new audit, not replacement historical scores."
+  }
+}

@@ -254,7 +254,8 @@ class CareerProfileStore(Protocol):
 
 
 class CareerContextStore:
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, episode_semantic_index=None) -> None:
+        self.episode_semantic_index = episode_semantic_index
         self.path = path.expanduser()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
@@ -2247,8 +2248,10 @@ class CareerContextStore:
                 "INSERT INTO conversation_task_state(user_id, conversation_id, payload, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, conversation_id) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at",
                 (user_id, conversation_id, task.model_dump_json(), now),
             )
-            for draft in episode_drafts:
-                SQLiteCareerEpisodeStore.upsert_on(connection, draft)
+            episodes = [SQLiteCareerEpisodeStore.upsert_on(connection, draft)
+                        for draft in episode_drafts]
+        if self.episode_semantic_index is not None:
+            self.episode_semantic_index.schedule_episode_ids(tuple(item.id for item in episodes if item))
         os.chmod(self.path, 0o600)
 
     def list_message_records(
@@ -2848,6 +2851,7 @@ class CareerContextStore:
                     connection,
                     user_id=user_id,
                     scope_key=binding_key,
+                    semantic_index=self.episode_semantic_index,
                 )
                 for binding_key in binding_keys
             )
@@ -2856,6 +2860,8 @@ class CareerContextStore:
                 user_id=user_id,
                 update_ids=update_ids,
             )
+        if self.episode_semantic_index is not None:
+            self.episode_semantic_index.schedule_cleanup()
         return {
             "conversation_fragments": len(bound_rows),
             "conversation_summaries": summary_count,
@@ -3384,12 +3390,10 @@ class CareerContextStore:
                     redact_conversation_receipts_on(connection, user_id, conversation_id)
                 else:
                     redact_turn_receipts_on(connection, user_id, conversation_id, (turn_id,))
-            for draft in episode_drafts:
-                SQLiteCareerEpisodeStore.upsert_on(
-                    connection,
-                    draft,
-                    memory_scope_keys=scope_keys,
-                )
+            episodes = [SQLiteCareerEpisodeStore.upsert_on(
+                connection, draft, memory_scope_keys=scope_keys) for draft in episode_drafts]
+        if self.episode_semantic_index is not None:
+            self.episode_semantic_index.schedule_episode_ids(tuple(item.id for item in episodes if item))
         os.chmod(self.path, 0o600)
 
     def _get_single(self, table: str, user_id: str, model):

@@ -1,0 +1,290 @@
+[
+  {
+    "id": "known_identity-01",
+    "category": "known_identity",
+    "split": "dev",
+    "surface": "ByteDance",
+    "canonical": "字节跳动",
+    "query": "ByteDance 第一轮反馈"
+  },
+  {
+    "id": "known_identity-02",
+    "category": "known_identity",
+    "split": "dev",
+    "surface": "Pinduoduo",
+    "canonical": "拼多多",
+    "query": "Pinduoduo 第一轮反馈"
+  },
+  {
+    "id": "known_identity-03",
+    "category": "known_identity",
+    "split": "dev",
+    "surface": "Tencent",
+    "canonical": "腾讯",
+    "query": "Tencent 第一轮反馈"
+  },
+  {
+    "id": "known_identity-04",
+    "category": "known_identity",
+    "split": "dev",
+    "surface": "Alibaba",
+    "canonical": "阿里巴巴",
+    "query": "Alibaba 第一轮反馈"
+  },
+  {
+    "id": "known_identity-05",
+    "category": "known_identity",
+    "split": "dev",
+    "surface": "Meituan",
+    "canonical": "美团",
+    "query": "Meituan 第一轮反馈"
+  },
+  {
+    "id": "known_identity-06",
+    "category": "known_identity",
+    "split": "dev",
+    "surface": "NetEase",
+    "canonical": "网易",
+    "query": "NetEase 第一轮反馈"
+  },
+  {
+    "id": "known_identity-07",
+    "category": "known_identity",
+    "split": "dev",
+    "surface": "Kuaishou",
+    "canonical": "快手",
+    "query": "Kuaishou 第一轮反馈"
+  },
+  {
+    "id": "known_identity-08",
+    "category": "known_identity",
+    "split": "dev",
+    "surface": "ByteDance",
+    "canonical": "字节跳动",
+    "query": "ByteDance 招聘沟通记录"
+  },
+  {
+    "id": "known_identity-09",
+    "category": "known_identity",
+    "split": "test",
+    "surface": "Pinduoduo",
+    "canonical": "拼多多",
+    "query": "Pinduoduo 招聘沟通记录"
+  },
+  {
+    "id": "known_identity-10",
+    "category": "known_identity",
+    "split": "test",
+    "surface": "Tencent",
+    "canonical": "腾讯",
+    "query": "Tencent 招聘沟通记录"
+  },
+  {
+    "id": "known_identity-11",
+    "category": "known_identity",
+    "split": "test",
+    "surface": "Alibaba",
+    "canonical": "阿里巴巴",
+    "query": "Alibaba 招聘沟通记录"
+  },
+  {
+    "id": "known_identity-12",
+    "category": "known_identity",
+    "split": "test",
+    "surface": "Meituan",
+    "canonical": "美团",
+    "query": "Meituan 招聘沟通记录"
+  },
+  {
+    "id": "unseen_alias-01",
+    "category": "unseen_alias",
+    "split": "dev",
+    "surface": "JD.com",
+    "canonical": "京东",
+    "query": "JD.com 面试记录"
+  },
+  {
+    "id": "unseen_alias-02",
+    "category": "unseen_alias",
+    "split": "dev",
+    "surface": "Baidu",
+    "canonical": "百度",
+    "query": "Baidu 面试记录"
+  },
+  {
+    "id": "unseen_alias-03",
+    "category": "unseen_alias",
+    "split": "dev",
+    "surface": "騰訊",
+    "canonical": "腾讯",
+    "query": "騰訊 面试记录"
+  },
+  {
+    "id": "unseen_alias-04",
+    "category": "unseen_alias",
+    "split": "dev",
+    "surface": "網易",
+    "canonical": "网易",
+    "query": "網易 面试记录"
+  },
+  {
+    "id": "unseen_alias-05",
+    "category": "unseen_alias",
+    "split": "dev",
+    "surface": "阿里巴巴集團",
+    "canonical": "阿里巴巴",
+    "query": "阿里巴巴集團 面试记录"
+  },
+  {
+    "id": "unseen_alias-06",
+    "category": "unseen_alias",
+    "split": "dev",
+    "surface": "拼夕夕",
+    "canonical": "拼多多",
+    "query": "拼夕夕 面试记录"
+  },
+  {
+    "id": "unseen_alias-07",
+    "category": "unseen_alias",
+    "split": "dev",
+    "surface": "鹅厂",
+    "canonical": "腾讯",
+    "query": "鹅厂 面试记录"
+  },
+  {
+    "id": "unseen_alias-08",
+    "category": "unseen_alias",
+    "split": "dev",
+    "surface": "PDD",
+    "canonical": "拼多多",
+    "query": "PDD 面试记录"
+  },
+  {
+    "id": "unseen_alias-09",
+    "category": "unseen_alias",
+    "split": "test",
+    "surface": "东哥家",
+    "canonical": "京东",
+    "query": "东哥家 面试记录"
+  },
+  {
+    "id": "unseen_alias-10",
+    "category": "unseen_alias",
+    "split": "test",
+    "surface": "度厂",
+    "canonical": "百度",
+    "query": "度厂 面试记录"
+  },
+  {
+    "id": "unseen_alias-11",
+    "category": "unseen_alias",
+    "split": "test",
+    "surface": "字节",
+    "canonical": "字节跳动",
+    "query": "字节 面试记录"
+  },
+  {
+    "id": "unseen_alias-12",
+    "category": "unseen_alias",
+    "split": "test",
+    "surface": "美团点评",
+    "canonical": "美团",
+    "query": "美团点评 面试记录"
+  },
+  {
+    "id": "ambiguous_negative-01",
+    "category": "ambiguous_negative",
+    "split": "dev",
+    "surface": "JVM 字节码 面试",
+    "canonical": null,
+    "query": "JVM 字节码 面试"
+  },
+  {
+    "id": "ambiguous_negative-02",
+    "category": "ambiguous_negative",
+    "split": "dev",
+    "surface": "字节数怎么计算",
+    "canonical": null,
+    "query": "字节数怎么计算"
+  },
+  {
+    "id": "ambiguous_negative-03",
+    "category": "ambiguous_negative",
+    "split": "dev",
+    "surface": "头条新闻 岗位",
+    "canonical": null,
+    "query": "头条新闻 岗位"
+  },
+  {
+    "id": "ambiguous_negative-04",
+    "category": "ambiguous_negative",
+    "split": "dev",
+    "surface": "字节序如何转换",
+    "canonical": null,
+    "query": "字节序如何转换"
+  },
+  {
+    "id": "ambiguous_negative-05",
+    "category": "ambiguous_negative",
+    "split": "dev",
+    "surface": "零字节文件",
+    "canonical": null,
+    "query": "零字节文件"
+  },
+  {
+    "id": "ambiguous_negative-06",
+    "category": "ambiguous_negative",
+    "split": "dev",
+    "surface": "头条新闻客户端开发",
+    "canonical": null,
+    "query": "头条新闻客户端开发"
+  },
+  {
+    "id": "ambiguous_negative-07",
+    "category": "ambiguous_negative",
+    "split": "dev",
+    "surface": "PDDish面试",
+    "canonical": null,
+    "query": "PDDish面试"
+  },
+  {
+    "id": "ambiguous_negative-08",
+    "category": "ambiguous_negative",
+    "split": "dev",
+    "surface": "myByteDance_id解析",
+    "canonical": null,
+    "query": "myByteDance_id解析"
+  },
+  {
+    "id": "ambiguous_negative-09",
+    "category": "ambiguous_negative",
+    "split": "test",
+    "surface": "TencentCloud SDK调试",
+    "canonical": null,
+    "query": "TencentCloud SDK调试"
+  },
+  {
+    "id": "ambiguous_negative-10",
+    "category": "ambiguous_negative",
+    "split": "test",
+    "surface": "NetEaseMusic接口",
+    "canonical": null,
+    "query": "NetEaseMusic接口"
+  },
+  {
+    "id": "ambiguous_negative-11",
+    "category": "ambiguous_negative",
+    "split": "test",
+    "surface": "AlibabaCloud配置",
+    "canonical": null,
+    "query": "AlibabaCloud配置"
+  },
+  {
+    "id": "ambiguous_negative-12",
+    "category": "ambiguous_negative",
+    "split": "test",
+    "surface": "MeituanAPI变量",
+    "canonical": null,
+    "query": "MeituanAPI变量"
+  }
+]

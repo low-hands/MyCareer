@@ -539,7 +539,8 @@ class MainAgentContext(ContractModel):
         episode_lines.extend(
             f"- [{item.kind}] {item.occurred_at.date().isoformat()}"
             f"{f'（{item.relative_year}）' if item.relative_year else ''} "
-            f"[detail_ref={item.detail_ref}] {item.title}：{item.synopsis}"
+            f"[matched_by={item.matched_by}; detail_ref={item.detail_ref}] "
+            f"{item.title}：{item.synopsis}"
             for item in self.career_episodes
         )
         bounded_episode_markdown = (

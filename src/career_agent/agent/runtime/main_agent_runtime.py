@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from career_agent.agent.context.episode_semantic import episode_query_vector_scope
+
 from typing import Any, Literal
 
 from career_agent.agent.runtime.observability import RuntimeObservability
@@ -152,15 +154,16 @@ class MainAgentRuntime:
         request whose key already committed is answered from its receipt and
         returns a ``ReplayedTurn`` without executing anything.
         """
-        return self._turn_coordinator.run(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            user_message=user_message,
-            request_id=request_id,
-            interaction_response=interaction_response,
-            event_sink=event_sink,
-            input_resources=input_resources,
-        )
+        with episode_query_vector_scope():
+            return self._turn_coordinator.run(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                user_message=user_message,
+                request_id=request_id,
+                interaction_response=interaction_response,
+                event_sink=event_sink,
+                input_resources=input_resources,
+            )
 
     def record_rejected_turn(self, *, user_id: str, conversation_id: str) -> None:
         self._runtime_observability.record_rejected_turn(

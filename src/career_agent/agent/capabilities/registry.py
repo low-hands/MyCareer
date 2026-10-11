@@ -5446,6 +5446,7 @@ class MainAgentToolRegistry:
         items = [
             {
                 "kind": episode.kind,
+                "matched_by": episode.matched_by,
                 "occurred_at": episode.occurred_at.isoformat(),
                 "local_date": episode.occurred_at.astimezone(date_reference.tzinfo).date().isoformat(),
                 "relative_year": relative_episode_date(
@@ -5486,7 +5487,7 @@ class MainAgentToolRegistry:
             )
         body = "过往求职事件：\n" + "\n".join(
             f"- {item['local_date']}（{item['relative_year']}） [{item['kind']}] "
-            f"{item['title']}：{item['summary']}"
+            f"[matched_by={item['matched_by']}] {item['title']}：{item['summary']}"
             for item in items
         )
         if unmatched_terms:

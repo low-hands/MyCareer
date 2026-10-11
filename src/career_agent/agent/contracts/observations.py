@@ -480,6 +480,7 @@ def decision_observation_chars(
 
 
 class EpisodeProjectionContext(ContractModel):
+    matched_by: Literal["lexical", "semantic", "both"] = "lexical"
     detail_ref: str = Field(
         pattern=r"^episode:career_episode_[a-f0-9]{32}$"
     )

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from career_agent.storage.aliases import expand_organization_aliases
+
 from collections.abc import Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -381,7 +383,7 @@ class CareerHistoryStore:
         tokens = tuple(
             dict.fromkeys(
                 token.casefold()
-                for token in re.findall(r"[\w+#.-]{3,}", query.strip(), flags=re.UNICODE)
+                for token in re.findall(r"[\w+#.-]{3,}", expand_organization_aliases(query).strip(), flags=re.UNICODE)
             )
         )
         if not tokens:
@@ -599,7 +601,7 @@ class CareerHistoryStore:
     ) -> CareerEvidenceQueryTerms:
         """Return typed MATCH terms without consulting the evidence corpus."""
 
-        normalized = query.strip().casefold()
+        normalized = expand_organization_aliases(query).strip().casefold()
         latin_tokens = re.findall(r"[a-z0-9][a-z0-9+#.-]*", normalized)
         cjk_tokens = [
             token

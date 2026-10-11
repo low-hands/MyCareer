@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 from openai import OpenAI
 
 from career_agent.storage.career_history import CareerHistoryStore
+from career_agent.storage.aliases import expand_organization_aliases
 from career_agent.harness.observability import traced_provider_call
 
 _EMBED_TIMEOUT_SECONDS = 30.0
@@ -121,6 +122,9 @@ class SQLiteCareerEvidenceSemanticRetriever:
     provenance, correction, and tombstone paths.
     """
 
+    _table = "career_evidence_embeddings"
+    _id_column = "evidence_id"
+
     def __init__(
         self,
         *,
@@ -147,7 +151,7 @@ class SQLiteCareerEvidenceSemanticRetriever:
     ) -> Sequence[str]:
         if not 1 <= limit <= 100:
             raise ValueError("semantic evidence limit must be between 1 and 100")
-        normalized_query = query.strip()
+        normalized_query = expand_organization_aliases(query).strip()
         if not normalized_query:
             return ()
         evidence = self._career_history.list_evidence(
@@ -198,8 +202,8 @@ class SQLiteCareerEvidenceSemanticRetriever:
         with sqlite3.connect(self._cache_path) as connection:
             cursor = connection.execute(
                 f"""
-                DELETE FROM career_evidence_embeddings
-                WHERE evidence_id IN ({placeholders})
+                DELETE FROM {self._table}
+                WHERE {self._id_column} IN ({placeholders})
                 """,
                 selected,
             )
@@ -226,14 +230,14 @@ class SQLiteCareerEvidenceSemanticRetriever:
     def _initialize(self) -> None:
         with sqlite3.connect(self._cache_path) as connection:
             connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS career_evidence_embeddings(
-                    evidence_id TEXT NOT NULL,
+                f"""
+                CREATE TABLE IF NOT EXISTS {self._table}(
+                    {self._id_column} TEXT NOT NULL,
                     model_id TEXT NOT NULL,
                     content_digest TEXT NOT NULL,
                     dimensions INTEGER NOT NULL CHECK(dimensions > 0),
                     vector_json TEXT NOT NULL,
-                    PRIMARY KEY(evidence_id, model_id)
+                    PRIMARY KEY({self._id_column}, model_id)
                 )
                 """
             )
@@ -248,9 +252,9 @@ class SQLiteCareerEvidenceSemanticRetriever:
         with sqlite3.connect(self._cache_path) as connection:
             rows = connection.execute(
                 f"""
-                SELECT evidence_id, content_digest, dimensions, vector_json
-                FROM career_evidence_embeddings
-                WHERE model_id = ? AND evidence_id IN ({placeholders})
+                SELECT {self._id_column}, content_digest, dimensions, vector_json
+                FROM {self._table}
+                WHERE model_id = ? AND {self._id_column} IN ({placeholders})
                 """,
                 (self._client.model_id, *expected),
             ).fetchall()
@@ -267,12 +271,12 @@ class SQLiteCareerEvidenceSemanticRetriever:
     def _store_vectors(self, rows: Sequence[tuple[object, tuple[float, ...]]]) -> None:
         with sqlite3.connect(self._cache_path) as connection:
             connection.executemany(
-                """
-                INSERT INTO career_evidence_embeddings(
-                    evidence_id, model_id, content_digest,
+                f"""
+                INSERT INTO {self._table}(
+                    {self._id_column}, model_id, content_digest,
                     dimensions, vector_json
                 ) VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(evidence_id, model_id) DO UPDATE SET
+                ON CONFLICT({self._id_column}, model_id) DO UPDATE SET
                     content_digest = excluded.content_digest,
                     dimensions = excluded.dimensions,
                     vector_json = excluded.vector_json

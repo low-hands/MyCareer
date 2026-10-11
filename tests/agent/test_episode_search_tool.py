@@ -136,11 +136,11 @@ def test_episode_search_alias_does_not_negate_full_name_match(tmp_path) -> None:
         summary="完成面试。",
     ))
     result = MainAgentToolRegistry(episode_store=store).invoke_atomic_tool(
-        "search_career_episodes", {"user_id": "u1", "query": "腾讯 鹅厂"}
+        "search_career_episodes", {"user_id": "u1", "query": "腾讯 Tencent"}
     )
     assert result.state == "career_episode_search_found"
-    assert result.payload["matched_terms"] == ["腾讯"]
-    assert result.payload["unmatched_terms"] == ["鹅厂"]
+    assert result.payload["matched_terms"] == ["腾讯", "tencent"]
+    assert result.payload["unmatched_terms"] == []
     assert result.payload["items"][0]["title"].startswith("腾讯")
 
 

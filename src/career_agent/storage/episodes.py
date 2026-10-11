@@ -19,6 +19,7 @@ from career_agent.domain.episodes import (
     EpisodeKind,
     EpisodeResourceRef,
 )
+from career_agent.storage.aliases import expand_organization_aliases
 from career_agent.storage.schema import apply_schema
 from career_agent.storage.episode_terms import search_terms, title_entities
 
@@ -132,9 +133,11 @@ class SQLiteCareerEpisodeStore:
         path: Path,
         *,
         decay_policy: DecayPolicy | None = None,
+        semantic_index=None,
     ) -> None:
         self.path = path.expanduser()
         self.decay_policy = decay_policy or DecayPolicy()
+        self.semantic_index = semantic_index
         self._entity_cache: OrderedDict[str, tuple[int, tuple[str, ...]]] = OrderedDict()
         self._entity_cache_lock = RLock()
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -158,6 +161,8 @@ class SQLiteCareerEpisodeStore:
                 memory_scope_keys=memory_scope_keys,
             )
         os.chmod(self.path, 0o600)
+        if episode is not None and self.semantic_index is not None:
+            self.semantic_index.schedule_episode_ids((episode.id,))
         return episode
 
     def upsert_many(
@@ -181,6 +186,8 @@ class SQLiteCareerEpisodeStore:
                 is not None
             )
         os.chmod(self.path, 0o600)
+        if self.semantic_index is not None:
+            self.semantic_index.schedule_episode_ids(tuple(item.id for item in episodes))
         return episodes
 
     @staticmethod
@@ -320,6 +327,7 @@ class SQLiteCareerEpisodeStore:
         *,
         user_id: str,
         scope_key: str,
+        semantic_index=None,
     ) -> int:
         """Remove one association, then delete only orphaned episodes."""
 
@@ -373,9 +381,61 @@ class SQLiteCareerEpisodeStore:
             f"DELETE FROM career_episodes WHERE id IN ({orphan_placeholders})",
             ids,
         )
+        if semantic_index is not None:
+            try:
+                semantic_index.forget_episode_ids(ids)
+            except Exception:
+                semantic_index._fallback()
         return len(ids)
 
+    def get_by_id(self, episode_id: str) -> CareerEpisode | None:
+        """Internal cache warming lookup, never exposed as an unscoped user read."""
+        with self._connect() as connection:
+            row = connection.execute(self._SELECT + " WHERE e.id = ?", (episode_id,)).fetchone()
+        return self._episode(row) if row else None
+
     def search(
+        self, *, user_id: str, query: str, limit: int = 20,
+        start_datetime: datetime | None = None, end_datetime: datetime | None = None,
+        kinds: tuple[str, ...] = (), _terms: tuple[str, ...] | None = None,
+        exclude_conversation_id: str | None = None,
+    ) -> tuple[CareerEpisode, ...]:
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        # Validate through the lexical path before calling a provider.
+        query = expand_organization_aliases(query)
+        if self.semantic_index is None:
+            return self._search_lexical(user_id=user_id, query=query, limit=limit,
+                start_datetime=start_datetime, end_datetime=end_datetime, kinds=kinds,
+                _terms=_terms, exclude_conversation_id=exclude_conversation_id)
+        lexical = self._search_lexical(user_id=user_id, query=query, limit=2**31-1,
+            start_datetime=start_datetime, end_datetime=end_datetime, kinds=kinds,
+            _terms=_terms, exclude_conversation_id=exclude_conversation_id)
+        candidates = self._search_lexical(user_id=user_id, query="", limit=2**31-1,
+            start_datetime=start_datetime, end_datetime=end_datetime, kinds=kinds,
+            exclude_conversation_id=exclude_conversation_id)
+        semantic_ids = self.semantic_index.rank_episode_ids(query=query, candidates=candidates)
+        if not semantic_ids:
+            return lexical[:limit]
+        from career_agent.agent.context.career import reciprocal_rank_fusion
+        lexical_ids = tuple(item.id for item in lexical)
+        fused = reciprocal_rank_fusion(lexical_ids, semantic_ids)
+        lexical_set, semantic_set = set(lexical_ids), set(semantic_ids)
+        by_id = {item.id: item for item in candidates}
+        # Revalidate authoritative rows after the provider call (deletion may race).
+        result = []
+        for episode_id in sorted(fused, key=lambda item: (-fused[item], item)):
+            item = self.get(user_id=user_id, episode_id=episode_id)
+            if item is None or item.model_dump(exclude={"matched_by", "access_count", "last_accessed_at"}) != by_id[episode_id].model_dump(exclude={"matched_by", "access_count", "last_accessed_at"}):
+                continue
+            matched_by = ("both" if episode_id in lexical_set and episode_id in semantic_set
+                          else "lexical" if episode_id in lexical_set else "semantic")
+            result.append(item.model_copy(update={"matched_by": matched_by}))
+            if len(result) >= limit:
+                break
+        return tuple(result)
+
+    def _search_lexical(
         self,
         *,
         user_id: str,
@@ -385,6 +445,7 @@ class SQLiteCareerEpisodeStore:
         end_datetime: datetime | None = None,
         kinds: tuple[str, ...] = (),
         _terms: tuple[str, ...] | None = None,
+        exclude_conversation_id: str | None = None,
     ) -> tuple[CareerEpisode, ...]:
         if limit < 1:
             raise ValueError("limit must be positive")
@@ -419,6 +480,9 @@ class SQLiteCareerEpisodeStore:
                 "e.kind IN (" + ",".join("?" for _ in selected_kinds) + ")"
             )
             filter_parameters.extend(selected_kinds)
+        if exclude_conversation_id is not None:
+            filters.append("(e.conversation_id IS NULL OR e.conversation_id != ?)")
+            filter_parameters.append(exclude_conversation_id)
         where = " AND ".join(filters)
         with self._connect() as connection:
             if not normalized_query:
@@ -434,7 +498,7 @@ class SQLiteCareerEpisodeStore:
                 parameters: list[object] = []
                 if long_tokens:
                     ctes.append(
-                        """
+                        f"""
                         long_hits AS MATERIALIZED (
                             SELECT episode_id,
                                    bm25(
@@ -444,6 +508,7 @@ class SQLiteCareerEpisodeStore:
                             FROM career_episodes_fts
                             WHERE user_id = ?
                               AND career_episodes_fts MATCH ?
+                              AND episode_id IN (SELECT e.id FROM career_episodes e WHERE {where})
                         )
                         """
                     )
@@ -454,6 +519,7 @@ class SQLiteCareerEpisodeStore:
                                 json.dumps(token, ensure_ascii=False)
                                 for token in long_tokens
                             ),
+                            *filter_parameters,
                         )
                     )
                     hit_selects.append(
@@ -561,8 +627,11 @@ class SQLiteCareerEpisodeStore:
         query: str,
         limit: int = 5,
         exclude_conversation_id: str | None = None,
+        start_datetime: datetime | None = None,
+        end_datetime: datetime | None = None,
+        kinds: tuple[str, ...] = (),
     ) -> tuple[CareerEpisode, ...]:
-        """Rank lexical hits after applying access-aware read-time decay.
+        """Rank fused hits after applying access-aware read-time decay.
 
         A pure read: it does not stamp access. Projection runs several times per
         turn — pressure measurement, the turn's own load, a reload after a memory
@@ -579,9 +648,13 @@ class SQLiteCareerEpisodeStore:
             return ()
         candidates = self.search(
             user_id=user_id,
-            query=" ".join(terms),
+            query=query,
             limit=max(_PROJECTION_CANDIDATE_LIMIT, limit * 10),
             _terms=terms,
+            exclude_conversation_id=exclude_conversation_id,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            kinds=kinds,
         )
         if exclude_conversation_id is not None:
             candidates = tuple(
@@ -611,9 +684,9 @@ class SQLiteCareerEpisodeStore:
             indexed: tuple[int, CareerEpisode, float],
         ) -> tuple[float, datetime]:
             rank, episode, effective_salience = indexed
-            lexical_rank = 1.0 / (rank + 1)
+            match_rank = 1.0 / (rank + 1)
             return (
-                0.65 * lexical_rank + 0.35 * effective_salience,
+                0.65 * match_rank + 0.35 * effective_salience,
                 episode.occurred_at,
             )
 
@@ -691,7 +764,7 @@ class SQLiteCareerEpisodeStore:
                         self._entity_cache.move_to_end(user_id)
                         if len(self._entity_cache) > _ENTITY_CACHE_USERS:
                             self._entity_cache.popitem(last=False)
-        return search_terms(query, entities), entities
+        return search_terms(expand_organization_aliases(query), entities), entities
 
     def term_matches(
         self,
@@ -735,7 +808,7 @@ class SQLiteCareerEpisodeStore:
         partial: list[str] = []
         unmatched: list[str] = []
         for word in words:
-            if any(word in body for body in bodies):
+            if any(term in body for term in expand_organization_aliases(word).split() for body in bodies):
                 matched.append(word)
             elif any(
                 fragment in body
