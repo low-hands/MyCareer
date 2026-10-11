@@ -1662,6 +1662,15 @@ class ContextManager:
         )
         active_facts = previous.content.key_facts if previous else ()
         request_fits = getattr(self._summary_worker, "facts_fit_input_budget", None)
+        if request_fits is not None:
+            # Fit the source prefix before spending headroom on archive rows.
+            # Keep at least one whole message so an irreducible request is
+            # reported by the worker without advancing or clipping its source.
+            while len(to_summarize) > 1 and not request_fits(
+                previous=previous.content if previous else None,
+                messages=to_summarize, known_facts=active_facts,
+            ):
+                to_summarize = to_summarize[:-1]
         known_facts = select_worker_facts(
             active_facts, ledger_facts,
             "\n".join(message.content for message in to_summarize),
