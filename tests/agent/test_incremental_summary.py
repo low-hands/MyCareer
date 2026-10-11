@@ -29,6 +29,9 @@ def test_fact_overflow_is_archived_and_explicit_correction_only_retires_its_id(t
     assert {f.fact for f in facts}==set(originals[:18])
     summary=store.get_conversation_summary(user_id='u',conversation_id='c')
     assert len(summary.content.key_facts)==12
+    assert summary.content.archived_fact_count == 6
+    projected = manager.load_for_turn(user_id="u", conversation_id="c", user_message="next").model_context()
+    assert projected["conversation_summary"]["archived_fact_count"] == 6
     assert len(store.list_summary_facts(user_id='u',conversation_id='c',statuses=('archived',)))==6
     archived=facts[0]
     worker.correct=fact_id(archived)
@@ -242,3 +245,17 @@ def test_single_message_over_budget_does_not_advance_or_call_provider(tmp_path):
         measure=lambda seq: manager._legacy_pressure(user_id="u", conversation_id="c", after_sequence=seq))
     assert store.get_conversation_summary(user_id="u", conversation_id="c") is None
     assert [m.content for m in store.list_messages_after(user_id="u", conversation_id="c", after_sequence=0, limit=2)] == ["我" * 4000, "你" * 4000]
+
+
+
+def test_legacy_summary_archive_count_is_derived_from_current_owned_ledger(tmp_path):
+    from career_agent.agent.contracts.memory import ConversationSummaryContent
+    store = CareerContextStore(tmp_path / "memory.sqlite3")
+    facts = tuple(SummaryKeyFact(fact=f"历史{i}", source_sequence=1) for i in range(15))
+    store.compact_conversation_summary(user_id="u", conversation_id="c", expected_previous_through_sequence=0,
+        through_sequence=1, content=ConversationSummaryContent(key_facts=facts[-12:]), all_facts=facts)
+    assert store.get_conversation_summary(user_id="u", conversation_id="c").content.archived_fact_count == 0
+    context = ContextManager(store).load_for_turn(user_id="u", conversation_id="c", user_message="旧事实")
+    assert context.model_context()["conversation_summary"]["archived_fact_count"] == 3
+    assert store.count_archived_summary_facts(user_id="other", conversation_id="c") == 0
+    assert store.count_archived_summary_facts(user_id="u", conversation_id="other") == 0

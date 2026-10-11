@@ -21,6 +21,7 @@ ACTIVE_CONSTRAINT_MAX_ITEMS = 15
 
 HARNESS_SUMMARY_COUNTER_FIELDS = frozenset(
     {
+        "archived_fact_count",
         "omitted_active_constraint_count",
         "omitted_user_goal_count",
         "omitted_confirmed_decision_count",
@@ -86,6 +87,10 @@ class DistilledFreeTextPreferenceCandidate(ConversationMemoryContract):
 
 class ConversationSummaryContent(ConversationMemoryContract):
     key_facts: tuple[SummaryKeyFact, ...] = Field(default=(), max_length=12)
+    archived_fact_count: int = Field(
+        default=0, ge=0,
+        description="Current unretired facts held outside the visible summary; original messages remain readable.",
+    )
     user_goals: tuple[str, ...] = Field(default=(), max_length=10)
     confirmed_decisions: tuple[str, ...] = Field(default=(), max_length=20)
     unresolved_questions: tuple[str, ...] = Field(default=(), max_length=10)

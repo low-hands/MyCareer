@@ -3022,6 +3022,14 @@ class CareerContextStore:
             ).fetchall()
         return tuple(SummaryKeyFact(fact=row[0], source_sequence=row[1]) for row in rows)
 
+    def count_archived_summary_facts(self, *, user_id: str, conversation_id: str) -> int:
+        with self._connect() as connection:
+            return connection.execute(
+                "SELECT COUNT(*) FROM conversation_fact_archive "
+                "WHERE user_id=? AND conversation_id=? AND status='archived'",
+                (user_id, conversation_id),
+            ).fetchone()[0]
+
     def compact_conversation_summary(
         self,
         *,

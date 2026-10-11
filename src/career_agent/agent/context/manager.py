@@ -624,7 +624,13 @@ class ContextManager:
                 if summary is not None and self._archived_resource_limit
                 else 0
             ),
-            conversation_summary=summary.content if summary else None,
+            conversation_summary=(
+                summary.content.model_copy(update={
+                    "archived_fact_count": self._store.count_archived_summary_facts(
+                        user_id=user_id, conversation_id=conversation_id,
+                    ),
+                }) if summary else None
+            ),
             user_message=prompt_message,
             user_message_source=user_message_source,
             user_message_clipped=user_message_clipped,
@@ -1882,6 +1888,7 @@ class ContextManager:
         omitted_unresolved_question_count += dropped_unresolved_questions
         content = ConversationSummaryContent(
             key_facts=tuple(key_facts),
+            archived_fact_count=len(all_facts) - len(key_facts),
             user_goals=tuple(fields["user_goals"]),
             confirmed_decisions=tuple(fields["confirmed_decisions"]),
             unresolved_questions=tuple(fields["unresolved_questions"]),
