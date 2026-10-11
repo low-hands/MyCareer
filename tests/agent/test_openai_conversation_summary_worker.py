@@ -248,3 +248,35 @@ def test_discard_counter_is_not_recorded_when_the_whole_delta_is_invalid() -> No
     finally:
         ACTIVE_TRACE_CONTEXT.reset(token)
     assert not any(event.event_type == "summary_facts_dropped" for event in recorder.snapshot("summary").events)
+
+
+def test_recalled_facts_fit_the_complete_request_with_limited_headroom():
+    from dataclasses import replace
+    from career_agent.agent.context.summary_facts import select_worker_facts
+    from career_agent.agent.contracts.memory import SummaryKeyFact, ConversationSummaryDelta
+    from career_agent.agent.providers.token_budget import serialized_token_count
+
+    client = Client(ConversationSummaryDelta().model_dump_json())
+    worker = OpenAIConversationSummaryWorker(config(), client=client)
+    active = (SummaryKeyFact(fact="活动事实", source_sequence=1),)
+    messages = (SummaryMessage(sequence=2, role="user", content="美团 HR 名字更正。"),)
+    previous = ConversationSummaryContent(key_facts=active)
+    base = worker._request(previous=previous, messages=messages, known_facts=active)
+    worker._config = replace(config(), max_input_tokens=serialized_token_count(base) + 100)
+    archived = tuple(SummaryKeyFact(fact=f"美团 HR 联系人{i}名字", source_sequence=1) for i in range(500))
+    checked = []
+
+    def fits(facts):
+        checked.append(facts)
+        return worker.facts_fit_input_budget(previous=previous, messages=messages, known_facts=facts)
+
+    selected = select_worker_facts(active, archived, messages[0].content,
+        fits=fits)
+    assert 1 < len(selected) < 25
+    assert worker.facts_fit_input_budget(previous=previous, messages=messages, known_facts=selected)
+    assert not worker.facts_fit_input_budget(previous=previous, messages=messages, known_facts=checked[-1])
+    assert len(checked) == len(selected)
+    worker.summarize(previous=previous, messages=messages, known_facts=selected)
+    wire = json.loads(client.completions.kwargs["messages"][1]["content"])
+    assert len(wire["existing_facts"]) == len(selected)
+    assert wire["new_messages"][0]["content"] == messages[0].content

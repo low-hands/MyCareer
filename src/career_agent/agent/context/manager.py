@@ -26,7 +26,7 @@ from career_agent.agent.contracts.memory import (
     SummaryMessage,
 )
 from career_agent.agent.context.career import reciprocal_rank_fusion
-from career_agent.agent.context.summary_facts import merge_facts
+from career_agent.agent.context.summary_facts import merge_facts, select_worker_facts
 from career_agent.agent.contracts.context import MainAgentContext
 from career_agent.agent.contracts.observations import (
     EpisodeProjectionContext,
@@ -1654,11 +1654,23 @@ class ContextManager:
             return pressure
         if not BACKGROUND_PROVIDER_CALL.get():
             self._announce_compaction(phase)
-        known_facts = merge_facts(
+        ledger_facts = merge_facts(
             self._store.list_summary_facts(
                 user_id=user_id, conversation_id=conversation_id
             ),
             previous.content.key_facts if previous else (),
+        )
+        active_facts = previous.content.key_facts if previous else ()
+        request_fits = getattr(self._summary_worker, "facts_fit_input_budget", None)
+        known_facts = select_worker_facts(
+            active_facts, ledger_facts,
+            "\n".join(message.content for message in to_summarize),
+            fits=(
+                lambda facts: request_fits(
+                    previous=previous.content if previous else None,
+                    messages=to_summarize, known_facts=facts,
+                )
+            ) if request_fits is not None else None,
         )
         started = monotonic()
         summary_succeeded = False
@@ -1685,12 +1697,15 @@ class ContextManager:
                 if content.superseded_fact_ids and not content.new_facts:
                     raise ValueError("Supersession requires replacement facts")
                 superseded_fact_ids = content.superseded_fact_ids
+                # Validate corrections against disclosed facts, then merge
+                # into the complete ledger without dropping unselected rows.
+                merge_facts(known_facts, content.new_facts, superseded_fact_ids)
                 all_facts = merge_facts(
-                    known_facts, content.new_facts, superseded_fact_ids
+                    ledger_facts, content.new_facts, superseded_fact_ids
                 )
             else:
                 all_facts = merge_facts(
-                    known_facts,
+                    ledger_facts,
                     tuple(
                         fact for fact in content.key_facts
                         if fact.source_sequence <= previous_through

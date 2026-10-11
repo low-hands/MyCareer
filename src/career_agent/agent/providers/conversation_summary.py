@@ -127,16 +127,7 @@ class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
             "Schema character and array limits are validation ceilings, not an output allowance."
         )
 
-    @traced_provider_call("conversation_summary")
-    def summarize(
-        self,
-        *,
-        previous: ConversationSummaryContent | None,
-        messages: tuple[SummaryMessage, ...],
-        known_facts: tuple[SummaryKeyFact, ...] | None = None,
-    ) -> ConversationSummaryDelta:
-        if not messages:
-            raise ValueError("Conversation summary requires messages")
+    def _request(self, *, previous, messages, known_facts):
         payload = {
             "previous_summary": (
                 previous.model_dump(
@@ -166,23 +157,31 @@ class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
             if self._disable_thinking
             else None
         )
-        request_tokens = count_tokens(
-            json.dumps(
-                {
-                    "model": self._config.model,
-                    "max_tokens": self._max_output_tokens,
-                    "messages": messages_for_model,
-                    "response_format": response_format,
-                    **(
-                        {"extra_body": extra_body}
-                        if extra_body is not None
-                        else {}
-                    ),
-                },
-                ensure_ascii=False,
-                sort_keys=True,
-            )
-        )
+        return {
+            "model": self._config.model,
+            "max_tokens": self._max_output_tokens,
+            "messages": messages_for_model,
+            "response_format": response_format,
+            **({"extra_body": extra_body} if extra_body is not None else {}),
+        }
+
+    def facts_fit_input_budget(self, *, previous, messages, known_facts) -> bool:
+        request = self._request(previous=previous, messages=messages, known_facts=known_facts)
+        return count_tokens(json.dumps(request, ensure_ascii=False, sort_keys=True)) <= self._config.max_input_tokens
+
+    @traced_provider_call("conversation_summary")
+    def summarize(
+        self,
+        *,
+        previous: ConversationSummaryContent | None,
+        messages: tuple[SummaryMessage, ...],
+        known_facts: tuple[SummaryKeyFact, ...] | None = None,
+    ) -> ConversationSummaryDelta:
+        if not messages:
+            raise ValueError("Conversation summary requires messages")
+        facts_catalogue = known_facts if known_facts is not None else (previous.key_facts if previous else ())
+        request = self._request(previous=previous, messages=messages, known_facts=facts_catalogue)
+        request_tokens = count_tokens(json.dumps(request, ensure_ascii=False, sort_keys=True))
         if request_tokens > self._config.max_input_tokens:
             # Do not truncate historical source or advance a partial watermark.
             raise AgentWorkerError(
@@ -191,16 +190,8 @@ class OpenAIConversationSummaryWorker(ConversationSummaryWorker):
             )
         try:
             response = self._client.chat.completions.create(
-                model=self._config.model,
-                max_tokens=self._max_output_tokens,
-                messages=messages_for_model,
-                response_format=response_format,
+                **request,
                 timeout=self._config.timeout_seconds,
-                **(
-                    {"extra_body": extra_body}
-                    if extra_body is not None
-                    else {}
-                ),
             )
         except (APIConnectionError, APIStatusError) as error:
             # Preserve only safe status/code/param/type, never a provider body
