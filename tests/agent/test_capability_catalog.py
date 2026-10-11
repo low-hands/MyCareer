@@ -128,6 +128,7 @@ def test_search_mode_schema_and_prompt_fingerprints_are_stable() -> None:
     # words dropped for intent ranking). Business schemas remain unchanged.
     # Iteration 110 intentionally consolidates the prompt and offers only three
     # primary interaction schemas; respond_to_user is reserved for forced retries.
+    # The final table guard limits retrieval to offered tools and reachable sources.
     # The prompt and trajectory hashes below reflect that reviewed revision.
     registered = trajectory_tool_specs()
     assert registered[-1]["function"]["name"] == "search_capabilities"
@@ -145,10 +146,10 @@ def test_search_mode_schema_and_prompt_fingerprints_are_stable() -> None:
         "5441650204630b35a8ac5201e4c34289b1d1885436711643cd441e91fed8e14d"
     )
     assert prompt_fingerprint(schemas) == (
-        "adc93e51c66e910e89f25ebd38c883b41027374751d303b178c653a0a4c2c745"
+        "faf1d5f88c385d73dfa51fc2a24ca0f24f75446c7d7dcf0e56aff13add6e7345"
     )
     assert trajectory_prompt_fingerprint(SCENARIOS[0], schemas) == (
-        "28233e5accdb5cb013f7463cdad34ebfdf6b74ace121517dba26f46f0d08eb5f"
+        "62d8a729aeed772eff8d095343d305ab3d2baa48c08e6846256e708cee69916c"
     )
 
 
