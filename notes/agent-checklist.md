@@ -40,7 +40,7 @@
 - [x] 模型自行读取的会话 span 只作证据，不再拼进回答；用户指定序号的读取仍交付原文，见 107
 - [ ] 单条消息与活动事实本身超出摘要输入预算时仍会反复失败，需定处理边界
 - [ ] `explicit_sequence_span` 不随 checkpoint 序列化，恢复后可能不交付原文
-- [ ] 其他查证结果（`claim_source_found`、`career_memory_*`、`career_episode_search_found`、`career_history_found`）仍拼进回答，逐类评估交付方式
+- [ ] 查证结果只给模型看、由模型整理回答：`search_career_memory`、`search_career_episodes`、`search_career_history`、`get_career_memory_detail` 改为不拼接原文；`resolve_claim_source` 的简历原句仍逐字交付。若用户直接要列表或修订记录时模型整理不可靠，再为这类工具加"用户明确要原文"的来源判断
 - [ ] DeepSeek 在未压缩对话中问到未提及的公司时仍调用不可用的 `read_conversation_span`（1/3），见 111
 - [ ] 情景记忆补向量：先把 `episode_retrieval` 的未召回用例分类，扩充并冻结评估集（换说法、同行业干扰项、本该找不到），再做混合检索；复用事实记忆的 SQLite 向量存储与删除同步
 - [ ] 防止向量检索在"本该找不到"时乱返回：设相似度阈值，单独评估
