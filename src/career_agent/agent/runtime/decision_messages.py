@@ -8,6 +8,7 @@ from typing import Any, Mapping
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.runtime.conditional_policy import conditional_policy
 
 
 CONTROL_CONTEXT_LABEL = "Harness control state (authoritative runtime state):"
@@ -298,6 +299,9 @@ def project_decision_messages(
     }
     if "behavior_policy" in projected:
         control["behavior_policy"] = projected["behavior_policy"]
+    policy = conditional_policy(context)
+    if policy:
+        control["conditional_policy"] = policy
     for key in ("through_sequence", "recent_from_sequence"):
         if key in projected:
             control[key] = projected[key]

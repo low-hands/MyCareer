@@ -197,9 +197,6 @@ class SearchStrategy:
             "calling that tool. Loading does not grant permission; execution "
             "still checks authorization and approval. Reviewed follow-up and "
             "bound-resource read tools may also be offered as state changes. "
-            "When a questionnaire pauses a requested capability, set its "
-            "continuation_capability to that exact tool name so the resumed "
-            "turn can offer it; omit it for a standalone questionnaire. "
         )
         return guidance + "\n\nCapability directory:\n" + self._directory + "\n\n"
 

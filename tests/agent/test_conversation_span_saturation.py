@@ -234,11 +234,16 @@ def test_span_prompt_states_the_gap_and_summary_loss_explicitly() -> None:
     prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt(
         SearchStrategy().tool_policy()
     )
-    assert "through_sequence > 0 and recent_from_sequence > 1" in prompt
-    assert "summary is a lossy digest" in prompt
-    assert "zero omitted_*_count values" in prompt
-    assert "still-active omitted constraints" in prompt
-    assert "earlier chat messages, not the active constraint ledger" in prompt
+    context = compacted_span_context(user_message=SPAN_HIDDEN_QUESTION, page_in=True)
+    reminder = project_decision_messages(context).control["conditional_policy"]
+    assert "through_sequence > 0 and recent_from_sequence > 1" in reminder
+    assert "summary is a lossy digest" in reminder
+    assert "zero omitted_*_count values" in reminder
+    assert "conditional_policy" not in project_decision_messages(
+        compacted_span_context(user_message=SPAN_HIDDEN_QUESTION, page_in=False)
+    ).control
+    assert "Still-active omitted constraints" in prompt
+    assert "earlier chat messages, not the active constraint ledger" in reminder
     assert "Context projections are bounded views of their sources" in prompt
     assert "answer directly when visible evidence is sufficient" in prompt
     assert "Only when a fact needed for the answer is missing from visible context" in prompt
@@ -306,13 +311,28 @@ def test_context_saturation_gap_favours_page_in_over_stuffing() -> None:
         stuffed_span_context(user_message=SPAN_HIDDEN_QUESTION)
     )
 
-    assert page_in_chars - ablation_chars < 250
-    assert stuffed_chars - page_in_chars >= 600
+    control = project_decision_messages(
+        compacted_span_context(user_message=SPAN_HIDDEN_QUESTION, page_in=True)
+    ).control
+    without_policy = {key: value for key, value in control.items() if key != "conditional_policy"}
+    policy_chars = len(json.dumps(control, ensure_ascii=False, sort_keys=True)) - len(
+        json.dumps(without_policy, ensure_ascii=False, sort_keys=True)
+    )
+    structural_page_in_chars = page_in_chars - policy_chars
+    # The 250-character limit protects the page-in mechanism's metadata cost.
+    # Conditional guidance is measured separately because the ablation has no
+    # compression watermark and therefore receives no such guidance.
+    assert structural_page_in_chars - ablation_chars < 250
+    assert stuffed_chars - structural_page_in_chars >= 600
+    # This is intentionally a hard gate with almost no slack: growth in the
+    # injected policy or any other control field must trigger a review of the
+    # complete model-visible context, not an automatic threshold increase.
+    assert page_in_chars * 100 < stuffed_chars * 91
     # Native turns drop the per-message JSON keys and timestamps, so stuffing
     # costs less than it did in the document-shaped projection. Page-in still
     # saves at least one fifth of the request after adding the native boundary
     # marker, message numbers, summary coverage, and fixed profile Markdown.
-    assert page_in_chars * 100 < stuffed_chars * 81
+    assert structural_page_in_chars * 100 < stuffed_chars * 81
 
 
 def test_an_empty_span_observation_does_not_carry_the_window_decoy() -> None:

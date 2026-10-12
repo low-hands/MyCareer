@@ -130,28 +130,29 @@ def test_search_mode_schema_and_prompt_fingerprints_are_stable() -> None:
     # primary interaction schemas; respond_to_user is reserved for forced retries.
     # The final table guard limits retrieval to offered tools and reachable sources.
     # The 2026-10-11 revision removes cold-history tool-name hints. Job intent
-    # now accepts a new role and incremental target companies; recordings must
-    # be recut with these schemas.
+    # now accepts a new role and incremental target companies. Conditional
+    # runtime policy and revised tool descriptions change model input, so the
+    # earlier recordings are stale and must be recut.
     registered = trajectory_tool_specs()
     assert registered[-1]["function"]["name"] == "search_capabilities"
     encoded_registered = json.dumps(
         registered, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     assert hashlib.sha256(encoded_registered).hexdigest() == (
-        "fc544582e926b1be41dfe1ffad833f52bfe8f9c9fc15833c5f664332029e3dc7"
+        "d6ac6fa99ad0372658546e17f8afc595fb4cf2d3b3d0afa4a41d63e94ae9799a"
     )
     schemas = registered[:-1]
     encoded = json.dumps(
         schemas, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     assert hashlib.sha256(encoded).hexdigest() == (
-        "0df668ed01231016ac47557dd476708aa8d43c5fa6bd1bd9e3a1c3e2cf089490"
+        "7d4997711d76c0c89ce7b8a2a208b7e91c6f411e466826ca932f59dedfeaa812"
     )
     assert prompt_fingerprint(schemas) == (
-        "7ca30889fdb69c98ff280b9bc860311a22403ec8246f6d881b331f2468cead2e"
+        "574477f7d05cfbe45e4a21515b8a10b6cf5ef7a6cc68de4b97b2045243cc82cb"
     )
     assert trajectory_prompt_fingerprint(SCENARIOS[0], schemas) == (
-        "57b0ef0f90282e1c5f9d9de4738b169a0282bf1d34edaa53d8d284a9729bfda4"
+        "140b09fc775fbee75b962ce8dab9ddf1bef16e3158fe42fc53f3716a33a4b64a"
     )
 
 

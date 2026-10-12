@@ -47,7 +47,8 @@ def interaction_schemas(*, continuation: bool = False, fallback: bool = False) -
                 "type": ["string", "null"],
                 "description": (
                     "Exact capability name to resume after these answers when the "
-                    "questionnaire pauses a requested task; otherwise null."
+                    "questionnaire pauses a requested task so the resumed turn "
+                    "can offer it; otherwise null for a standalone questionnaire."
                 ),
             }
         }

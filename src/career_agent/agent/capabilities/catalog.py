@@ -264,7 +264,8 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
         (
             'Replace the complete per-user agent scratchpad. It is unconfirmed and may guide question'
             's or response style only; never use it as a basis for filtering, ranking, applications, '
-            'scheduling, or authoritative state.'
+            'scheduling, or authoritative state. Pass the current projected revision, keep the full '
+            'replacement below 2000 characters, and merge the current note after working_notes_stale.'
         ),
     ),
     'resolve_claim_source': (
@@ -312,8 +313,10 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
         (
             'Create a quarantined career-fact candidate for one projected career record and read the '
             'exact claim back to the user. Use only for an explicit user statement; it is not active '
-            "until confirmed. Supply user_quote as an exact excerpt from the user's message or questi"
-            'onnaire answer to mark user_input provenance; omit it for inference.'
+            "until confirmed. Use the projected record selection_index and a concise claim. Supply "
+            "user_quote as an exact excerpt from the user's message or questionnaire answer to mark "
+            'user_input provenance; omit it for inference. The runtime handles next-turn explicit '
+            'confirmation; do not call confirm_career_fact yourself.'
         ),
     ),
     'confirm_career_fact': (
@@ -828,7 +831,8 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
         'ExecuteCalendarProposalToolArguments',
         (
             'Execute exactly one unchanged, unexpired calendar proposal only after the user explicitl'
-            'y approves that displayed proposal. This is an external write. A failed or outcome-unkno'
+            'y approves that displayed proposal. Use active_calendar_proposal_expires_at as its '
+            'deadline. This is an external write. A failed or outcome-unkno'
             'wn execution must not be repeated or claimed successful; reconcile it, then prepare and '
             'approve a new preview.'
         ),

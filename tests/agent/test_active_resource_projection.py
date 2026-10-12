@@ -16,6 +16,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from career_agent.agent.contracts.context import MainAgentContext
+from career_agent.agent.capabilities.catalog import CAPABILITIES
 from career_agent.agent.contracts.profile import CareerProfileContext
 from career_agent.agent.contracts.task_state import (
     ACTIVE_RESOURCE_ID_FIELDS,
@@ -117,4 +118,5 @@ def test_the_prompt_tells_the_model_these_flags_are_the_only_signal() -> None:
 
     prompt = OpenAICompatibleMainAgentDecisionMaker._system_prompt()
     assert "has_active_*" in prompt
-    assert "active_calendar_proposal_expires_at" in prompt
+    execute_schema = CAPABILITIES["execute_calendar_proposal"].tool_schema()
+    assert "active_calendar_proposal_expires_at" in execute_schema["function"]["description"]

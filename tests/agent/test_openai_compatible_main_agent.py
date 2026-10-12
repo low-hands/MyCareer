@@ -741,9 +741,12 @@ def test_system_policy_resolves_relative_time_and_unique_active_references() -> 
     assert "runtime_clock is the authoritative current instant" in policy
     assert "Use Asia/Shanghai as the default" in policy
     assert "semantic compatibility, recency, and uniqueness" in policy
-    assert "Ask one concise confirmation whether to track the interview" in policy
-    assert "do not ask the same confirmation again" in policy
-    assert "do not attach the interview to an unrelated historical JD" in policy
+    assert "Interview preparation and tracking" in policy
+    interview = _context().model_copy(update={"user_message": "I have an interview tomorrow"})
+    conditional = project_decision_messages(interview).control["conditional_policy"]
+    assert "ask one concise confirmation" in conditional
+    assert "do not ask again" in conditional
+    assert "do not attach an unrelated historical JD" in conditional
 
 
 def test_request_token_usage_counts_tools_and_weights_cjk() -> None:
@@ -801,7 +804,7 @@ def test_configured_implicit_cache_uses_a_stable_key_without_endpoint_sniffing()
     )
     maker.decide(context, ())
     first = client.completions.kwargs["extra_body"]["prompt_cache_key"]
-    maker.decide(context.model_copy(update={"user_message": "second"}), ())
+    maker.decide(context.model_copy(update={"user_message": "I have an interview"}), ())
     second = client.completions.kwargs["extra_body"]["prompt_cache_key"]
 
     assert first == second
