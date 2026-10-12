@@ -96,6 +96,7 @@
 
 > **需要：** Python 3.11+ · [uv](https://docs.astral.sh/uv/) · Node.js `^20.19.0` 或 `>=22.12.0` · 一个 HTTPS 的 OpenAI 兼容模型接口
 > 收藏 BOSS 岗位还需要 Chrome、Edge、Brave、Arc 等 Chromium 内核浏览器。
+> Windows 上请把仓库放在路径较短的目录（如 `C:\code\MyCareer`），或开启系统长路径支持；部分依赖的文件路径很长，目录太深会超过 260 字符上限而导入失败。
 
 **1. 安装依赖**
 
@@ -131,6 +132,12 @@ RESUME_ANALYSIS_AGENT_MODEL=你的模型名
 
 - **QwenCloud**：优先推荐。`qwen3.7-plus` 适合主 Agent、岗位分析、简历匹配和简历定制；`qwen3.8-flash` 适合摘要、邮件识别和模拟面试。QwenCloud 提供 OpenAI 兼容的 Chat Completions 接口，并支持函数调用和结构化数据。[官方模型选择](https://docs.qwencloud.com/developer-guides/getting-started/model-selection) · [官方兼容接口](https://docs.qwencloud.com/developer-guides/getting-started/first-api-call)
 - **DeepSeek**：`deepseek-flash` 适合成本敏感的普通对话、摘要和结构化分析；官方接口支持 JSON Output 和 Tool Calls。[官方模型与能力](https://api-docs.deepseek.com/quick_start/pricing/)
+  主 Agent 用 DeepSeek 时必须再加下面两行；不加时请求按 Qwen 的格式发出，模型调用工具后的下一次请求会被 DeepSeek 以 400 拒绝：
+
+  ```dotenv
+  MAIN_AGENT_VENDOR=deepseek
+  MAIN_AGENT_ENABLE_THINKING=false
+  ```
 - **岗位调研**：继续使用 GPT 通道，因为当前实现依赖 Responses `web_search`；不要把普通 Chat Completions 模型直接填到这个通道。
 
 对话摘要是独立的 Agent worker，但默认复用 `MAIN_AGENT_*` 的连接；只有需要单独模型时才填写完整配置：

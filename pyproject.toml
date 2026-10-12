@@ -40,5 +40,5 @@ where = ["src"]
 "career_agent.agent" = ["_static/tiktoken_cache/*"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 testpaths = ["tests"]

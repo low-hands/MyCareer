@@ -3914,7 +3914,7 @@ class MainAgentToolRegistry:
         if pref_scope != "global":
             where += f"（仅限 {pref_scope}；{timescale}）"
         if saved:
-            return f"已记录{where}：\n{body}"
+            return f"已记录{where}：\n{body}\n"
         return (
             f"我准备把这些记到{where}上：\n{body}\n"
             "确认后才会保存；这只是你告诉我的意向，不是对你能力的判断。"
