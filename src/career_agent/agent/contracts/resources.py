@@ -506,6 +506,15 @@ def career_profile_memory_files(
             now=observed_at,
         )
     )
+    profile_lines.extend(("", "## Target companies"))
+    for company in profile.target_companies:
+        profile_lines.extend(_markdown_fact(
+            label="Target company", value=company,
+            confirmed_at=profile.target_company_confirmed_at.get(company),
+            now=observed_at,
+        ))
+    if not profile.target_companies:
+        profile_lines.append("- None confirmed")
     profile_lines.extend(("", "## Hard constraints"))
     constraints = sorted(
         profile.hard_constraints,

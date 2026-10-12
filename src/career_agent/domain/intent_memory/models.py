@@ -31,7 +31,7 @@ class IntentMemoryVersion(BaseModel):
     update_id: str = Field(pattern=r"^intent_update_[a-f0-9]{32}$")
     user_id: str = Field(min_length=1)
     scope_key: str = Field(
-        pattern=r"^[a-z_]+/[A-Za-z0-9_.:-]+/[a-z][a-z0-9_]*$"
+        pattern=r"^(?:[a-z_]+/[A-Za-z0-9_.:-]+/[a-z][a-z0-9_]*|person_intent/self/target_company/[^/]+)$"
     )
     value: str = Field(min_length=1, max_length=2000)
     content_digest: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
@@ -55,6 +55,7 @@ class IntentMemoryVersion(BaseModel):
         pattern=r"^[a-z][a-z0-9_.:-]{0,79}$",
     )
     superseded_at: datetime | None = None
+    # A version that points to its own update_id was explicitly removed.
     superseded_by: str | None = Field(
         default=None,
         pattern=r"^intent_update_[a-f0-9]{32}$",

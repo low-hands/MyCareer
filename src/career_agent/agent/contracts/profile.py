@@ -10,6 +10,8 @@ from typing import Annotated, Any, Literal, NamedTuple, Protocol, get_args
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 
+from career_agent.domain.organization_aliases import canonical_organization_name
+
 from career_agent.agent.support.summary_text import DELIVERY_SUMMARY_LIMIT, clamp
 from career_agent.agent.presentation.delivery_policy import is_failed, is_waiting
 from career_agent.agent.presentation.body_contracts import (
@@ -172,7 +174,7 @@ class MemoryTelemetryBinding(ContractModel):
 
 
 class CareerProfileContext(ContractModel):
-    """Person-level job intent only.
+    """Person-level city, target companies, and hard constraints.
 
     Everything that varies between the roles a user is pursuing — salary band,
     the experience and education brackets they are searching within, and a city
@@ -184,6 +186,8 @@ class CareerProfileContext(ContractModel):
 
     user_id: str
     default_city: str | None = None
+    target_companies: tuple[str, ...] = Field(default=(), max_length=100)
+    target_company_confirmed_at: dict[str, datetime] = Field(default_factory=dict, exclude=True)
     default_city_confirmed_at: datetime | None = Field(default=None, exclude=True)
     hard_constraints: tuple[HardConstraintContext, ...] = Field(
         default=(),
@@ -224,9 +228,8 @@ class CareerProfileContext(ContractModel):
 class JobIntentUpdate(ContractModel):
     """A proposed change to stated job intent, not yet applied.
 
-    ``target_role_id`` decides the scope. Unset, the update is about the person
-    and may only carry ``city``. Set, it is about that one career track, where a
-    city is an override of the person-level default.
+    ``target_role_id`` or ``new_target_role_title`` scopes role fields to one
+    career track. Company additions and removals always update the person.
 
     The scoping is a validator rather than a prompt instruction because a salary
     recorded against the person cannot be un-mixed later: the two roles it was
@@ -237,6 +240,7 @@ class JobIntentUpdate(ContractModel):
     """
 
     target_role_id: str | None = Field(default=None, min_length=1)
+    new_target_role_title: str | None = Field(default=None, min_length=1, max_length=80)
     pref_scope: str = Field(
         default="global",
         pattern=r"^(?:global|[a-z][a-z0-9_.:-]*)$",
@@ -249,34 +253,58 @@ class JobIntentUpdate(ContractModel):
     salary_expectation: str | None = Field(default=None, min_length=1, max_length=100)
     experience: str | None = Field(default=None, min_length=1, max_length=100)
     education: str | None = Field(default=None, min_length=1, max_length=100)
+    add_target_companies: tuple[str, ...] = Field(default=(), max_length=10)
+    remove_target_companies: tuple[str, ...] = Field(default=(), max_length=10)
     hard_constraints: tuple[HardConstraintContext, ...] = Field(
         default=(),
         max_length=8,
     )
 
+    @field_validator("new_target_role_title")
+    @classmethod
+    def nonblank_new_role_title(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        title = value.strip()
+        if not title:
+            raise ValueError("new target role title must not be blank")
+        return title
+
     @model_validator(mode="after")
     def scope_must_match_the_fields(self) -> "JobIntentUpdate":
         role_scoped = (self.salary_expectation, self.experience, self.education)
-        if self.target_role_id is not None and self.hard_constraints:
+        if self.target_role_id is not None and self.new_target_role_title is not None:
+            raise ValueError("select an existing role or name a new role, not both")
+        if self.is_role_scoped and self.hard_constraints:
             raise ValueError("hard constraints belong to the person, not a target role")
         relations = [item.relation for item in self.hard_constraints]
         if len(relations) != len(set(relations)):
             raise ValueError("hard constraint relations must be unique")
-        if self.target_role_id is None and any(
+        if not self.is_role_scoped and any(
             value is not None for value in role_scoped
         ):
             raise ValueError(
                 "salary, experience, and education belong to a target role and "
                 "need one to be selected"
             )
-        if not any(
+        if not self.is_role_scoped and not self.add_target_companies and not self.remove_target_companies and not any(
             value is not None for value in (self.city, *role_scoped)
         ) and not self.hard_constraints:
             raise ValueError("a job intent update must change at least one field")
+        if any(not name.strip() or len(name) > 200 for name in (*self.add_target_companies, *self.remove_target_companies)):
+            raise ValueError("target company names must be 1-200 characters")
+        added = {canonical_organization_name(name).casefold() for name in self.add_target_companies}
+        removed = {canonical_organization_name(name).casefold() for name in self.remove_target_companies}
+        if added & removed:
+            raise ValueError("the same target company cannot be added and removed together")
         if self.timescale == "situational" and self.pref_scope == "global":
             raise ValueError(
                 "situational intent requires the named situation in pref_scope"
             )
+        if (self.add_target_companies or self.remove_target_companies) and (
+            self.pref_scope != "global" or self.layer not in (None, "stable")
+        ):
+            raise ValueError("target companies are a stable global person-level preference")
         if self.timescale == "permanent" and self.valid_until is not None:
             raise ValueError("permanent intent cannot carry valid_until")
         if self.layer == "transient" and self.timescale != "situational":
@@ -285,10 +313,10 @@ class JobIntentUpdate(ContractModel):
 
     @property
     def is_role_scoped(self) -> bool:
-        return self.target_role_id is not None
+        return self.target_role_id is not None or self.new_target_role_title is not None
 
     def apply_to_profile(self, profile: CareerProfileContext) -> CareerProfileContext:
-        if self.is_role_scoped or self.pref_scope != "global":
+        if self.pref_scope != "global":
             return profile
         constraints = {
             constraint.relation: constraint
@@ -306,7 +334,18 @@ class JobIntentUpdate(ContractModel):
             )
         }
         if self.city is not None:
-            changes["default_city"] = self.city
+            if not self.is_role_scoped:
+                changes["default_city"] = self.city
+        companies = list(profile.target_companies)
+        removed = {canonical_organization_name(name).casefold() for name in self.remove_target_companies}
+        companies = [name for name in companies if canonical_organization_name(name).casefold() not in removed]
+        existing = {canonical_organization_name(name).casefold() for name in companies}
+        for name in self.add_target_companies:
+            canonical = canonical_organization_name(name)
+            if canonical.casefold() not in existing:
+                companies.append(canonical)
+                existing.add(canonical.casefold())
+        changes["target_companies"] = tuple(companies)
         return profile.model_copy(update=changes)
 
 

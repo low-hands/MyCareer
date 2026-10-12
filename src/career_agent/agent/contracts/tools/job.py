@@ -163,6 +163,7 @@ class MatchResumeToJobToolArguments(ContractModel):
 
 class ProposeJobIntentToolArguments(ContractModel):
     target_role_selection_index: SelectionIndex | None = None
+    new_target_role_title: str | None = Field(default=None, min_length=1, max_length=80)
     pref_scope: str = Field(
         default="global",
         pattern=r"^(?:global|[a-z][a-z0-9_.:-]*)$",
@@ -177,10 +178,18 @@ class ProposeJobIntentToolArguments(ContractModel):
     salary_expectation: str | None = Field(default=None, min_length=1, max_length=100)
     experience: str | None = Field(default=None, min_length=1, max_length=100)
     education: str | None = Field(default=None, min_length=1, max_length=100)
+    add_target_companies: tuple[str, ...] = Field(default=(), max_length=10)
+    remove_target_companies: tuple[str, ...] = Field(default=(), max_length=10)
     hard_constraints: tuple[HardConstraintContext, ...] = Field(
         default=(),
         max_length=8,
     )
+
+    @model_validator(mode="after")
+    def one_role_choice(self) -> "ProposeJobIntentToolArguments":
+        if self.target_role_selection_index is not None and self.new_target_role_title is not None:
+            raise ValueError("select an existing role or name a new role, not both")
+        return self
 
 
 class ConfirmJobIntentToolArguments(ContractModel):

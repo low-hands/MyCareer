@@ -121,6 +121,81 @@ class ResumeStore:
             connection.execute("INSERT INTO target_roles(id, user_id, title, priority, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (role.id, role.user_id, role.title, role.priority, role.status, role.created_at.isoformat(), role.updated_at.isoformat()))
         return role
 
+    def create_target_role_with_intent(
+        self, *, user_id: str, title: str, city: str | None = None,
+        salary_expectation: str | None = None, experience: str | None = None,
+        education: str | None = None, source: str = "confirmed_job_intent",
+        role_id: str | None = None,
+        scoped_candidates: tuple[IntentCaptureCandidate, ...] = (),
+    ) -> tuple[TargetRole, tuple[IntentMemoryVersion, ...]]:
+        """Create a career track and its initial intent in one transaction."""
+        title = title.strip()
+        if not title:
+            raise ValueError("target role title is required")
+        now = datetime.now(timezone.utc)
+        fields = {
+            "city": city, "salary_expectation": salary_expectation,
+            "experience": experience, "education": education,
+        }
+        versions: list[IntentMemoryVersion] = []
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            rows = connection.execute(
+                "SELECT title FROM target_roles WHERE user_id = ?", (user_id,)
+            ).fetchall()
+            if any(existing.casefold() == title.casefold() for (existing,) in rows):
+                raise ValueError("target role already exists")
+            priority = connection.execute(
+                "SELECT COALESCE(MAX(priority), -1) + 1 FROM target_roles WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()[0]
+            role = TargetRole(
+                id=role_id or f"target_role_{uuid4().hex}", user_id=user_id, title=title,
+                priority=priority, **fields, created_at=now, updated_at=now,
+            )
+            connection.execute(
+                "INSERT INTO target_roles(id, user_id, title, priority, status, city, "
+                "salary_expectation, experience, education, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (role.id, user_id, title, priority, role.status, city,
+                 salary_expectation, experience, education,
+                 now.isoformat(), now.isoformat()),
+            )
+            for relation, value in fields.items():
+                if value is not None:
+                    append_intent_version(
+                        connection, user_id=user_id,
+                        scope_key=f"target_role_intent/{role.id}/{relation}",
+                        value=value, source=source, valid_from=now,
+                        last_corroborated_at=now,
+                    )
+            for candidate in scoped_candidates:
+                if not candidate.scope_key.startswith(f"target_role_intent/{role.id}/"):
+                    raise ValueError("scoped intent must belong to the new target role")
+                _, version = capture_intent_version(connection, candidate=candidate)
+                if version is not None:
+                    versions.append(version)
+        return role, tuple(versions)
+
+    def delete_unreferenced_target_role(self, *, user_id: str, target_role_id: str) -> None:
+        """Compensate a failed cross-database confirmation of a fresh role."""
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if connection.execute(
+                "SELECT 1 FROM resumes WHERE user_id = ? AND target_role_id = ? LIMIT 1",
+                (user_id, target_role_id),
+            ).fetchone():
+                raise ValueError("cannot remove a target role that has resumes")
+            prefix = f"target_role_intent/{target_role_id}/"
+            connection.execute(
+                "DELETE FROM career_intent_versions WHERE user_id = ? AND substr(scope_key, 1, ?) = ?",
+                (user_id, len(prefix), prefix),
+            )
+            connection.execute(
+                "DELETE FROM target_roles WHERE user_id = ? AND id = ?",
+                (user_id, target_role_id),
+            )
+
     def list_target_roles(
         self, *, user_id: str, limit: int | None = None
     ) -> tuple[TargetRole, ...]:

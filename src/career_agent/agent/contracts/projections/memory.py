@@ -36,6 +36,7 @@ from career_agent.domain.interviews import (
 from career_agent.domain.job_discovery import ContractModel
 from career_agent.domain.job_research.models import company_key
 from career_agent.domain.mock_interviews import MockInterviewType
+from career_agent.domain.organization_aliases import organization_mentioned
 
 from career_agent.agent.contracts.profile import *
 from career_agent.agent.contracts.interactions import pending_confirmation_proposal
@@ -52,6 +53,15 @@ def project_job_intent_arguments(
     _reject_internal_identifiers(name, arguments)
     if name == "propose_job_intent":
         model_arguments = ProposeJobIntentToolArguments.model_validate(arguments)
+        # This separate user-only view survives prompt clipping and summary
+        # compaction. Tool bodies, attached JDs and research cards are absent.
+        user_messages = (*context.recent_user_messages_for_intent, context.stored_user_message())
+        for company in (
+            *model_arguments.add_target_companies,
+            *model_arguments.remove_target_companies,
+        ):
+            if not any(organization_mentioned(company, message) for message in user_messages):
+                raise ValueError("target company must be named in a recent user message")
         payload = model_arguments.model_dump(exclude_none=True)
         selection_index = payload.pop("target_role_selection_index", None)
         if selection_index is not None:

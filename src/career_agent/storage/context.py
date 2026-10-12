@@ -53,6 +53,7 @@ from career_agent.storage.summary_facts import (
 from career_agent.agent.contracts.session import AgentSession
 from career_agent.domain.episodes import CareerEpisodeDraft
 from career_agent.domain.intent_memory import IntentMemoryVersion
+from career_agent.domain.organization_aliases import canonical_organization_name, target_company_scope_key
 from career_agent.storage.episodes import (
     SQLiteCareerEpisodeStore,
     apply_episode_schema,
@@ -802,6 +803,15 @@ class CareerContextStore:
                     source="migration:career_profile_context",
                     valid_from=backfilled_at,
                 )
+            for company in profile.target_companies:
+                canonical = canonical_organization_name(company)
+                scope_key = target_company_scope_key(canonical)
+                if not list_intent_versions(connection, user_id=user_id, scope_key=scope_key, limit=1):
+                    append_intent_version(
+                        connection, user_id=user_id, scope_key=scope_key,
+                        value=canonical, source="migration:career_profile_context",
+                        valid_from=backfilled_at,
+                    )
 
     @staticmethod
     def _migrate(connection: sqlite3.Connection) -> None:
@@ -1147,6 +1157,14 @@ class CareerContextStore:
                 raise ValueError(
                     "removing a hard constraint requires the M3 forget primitive"
                 )
+            previous_companies = {
+                canonical_organization_name(name).casefold(): canonical_organization_name(name)
+                for name in (before.target_companies if before is not None else ())
+            }
+            desired_companies = {
+                canonical_organization_name(name).casefold(): canonical_organization_name(name)
+                for name in profile.target_companies
+            }
             connection.execute(
                 """
                 INSERT INTO career_profile_context(user_id, payload, updated_at)
@@ -1181,6 +1199,27 @@ class CareerContextStore:
                     pref_scope=pref_scope,
                     timescale=timescale,
                     layer=layer,
+                )
+            for key in desired_companies.keys() - previous_companies.keys():
+                company = desired_companies[key]
+                append_intent_version(
+                    connection, user_id=profile.user_id,
+                    scope_key=target_company_scope_key(company),
+                    value=company, source=source, valid_from=now,
+                    last_corroborated_at=now, pref_scope=pref_scope,
+                    timescale=timescale, layer=layer,
+                )
+            for key in previous_companies.keys() - desired_companies.keys():
+                scope_key = target_company_scope_key(previous_companies[key])
+                # The schema requires a successor ID for closed versions. A
+                # self-reference marks an explicit removal without inventing
+                # another active value for this company.
+                connection.execute(
+                    """UPDATE career_intent_versions
+                       SET superseded_at = ?, superseded_by = update_id
+                       WHERE user_id = ? AND scope_key = ? AND pref_scope = 'global'
+                         AND superseded_at IS NULL""",
+                    (now.isoformat(), profile.user_id, scope_key),
                 )
 
     def list_profile_intent_versions(
@@ -2290,6 +2329,26 @@ class CareerContextStore:
             )
             for row in reversed(rows)
         )
+
+    def list_recent_user_messages(
+        self, user_id: str, conversation_id: str, *, limit: int,
+    ) -> tuple[str, ...]:
+        """Read user-authored text without prompt clipping or summary boundaries."""
+        if limit < 1:
+            raise ValueError("recent user message limit must be positive")
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT json_extract(payload, '$.content')
+                FROM conversation_messages
+                WHERE user_id = ? AND conversation_id = ?
+                  AND json_extract(payload, '$.role') = 'user'
+                  {_NOT_SUPPRESSED_SQL}
+                ORDER BY sequence DESC LIMIT ?
+                """,
+                (user_id, conversation_id, limit),
+            ).fetchall()
+        return tuple(str(row[0]) for row in reversed(rows))
 
     def list_delivered_body_references(
         self,

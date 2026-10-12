@@ -50,6 +50,7 @@ from career_agent.agent.providers.token_budget import clip_to_tokens, message_to
 from career_agent.agent.context.session_manager import SessionManager
 from career_agent.domain.episodes import CareerEpisodeDraft
 from career_agent.domain.resume import TargetRole
+from career_agent.domain.organization_aliases import target_company_scope_key
 from career_agent.harness.observability import (
     ACTIVE_TRACE_CONTEXT,
     BACKGROUND_PROVIDER_CALL,
@@ -537,6 +538,11 @@ class ContextManager:
                 )
             )
         )
+        # The current message is committed only after the graph finishes this
+        # turn, so these four stored user turns plus it make a five-turn window.
+        prior_user_messages_for_intent = self._store.list_recent_user_messages(
+            user_id, conversation_id, limit=4,
+        )
         working_notes = None
         if self._working_notes_store is not None:
             snapshot = self._working_notes_store.read(user_id=user_id)
@@ -593,6 +599,7 @@ class ContextManager:
             ),
             task=task,
             recent_messages=tuple(record.message for record in recent_records),
+            recent_user_messages_for_intent=prior_user_messages_for_intent,
             through_sequence=summary.through_sequence if summary else 0,
             recent_from_sequence=(
                 recent_records[0].sequence if recent_records else None
@@ -1040,6 +1047,10 @@ class ContextManager:
                 f"person_intent/self/{constraint.relation}"
                 for constraint in profile.hard_constraints
             ),
+            *(
+                target_company_scope_key(company)
+                for company in profile.target_companies
+            ),
         }
         if not scopes:
             return profile
@@ -1059,6 +1070,11 @@ class ContextManager:
                 "default_city_confirmed_at": confirmed.get(
                     "person_intent/self/default_city"
                 ),
+                "target_company_confirmed_at": {
+                    company: confirmed[target_company_scope_key(company)]
+                    for company in profile.target_companies
+                    if target_company_scope_key(company) in confirmed
+                },
                 "hard_constraints": tuple(
                     constraint.model_copy(
                         update={
@@ -1138,6 +1154,10 @@ class ContextManager:
         profile_scopes.update(
             f"person_intent/self/{constraint.relation}"
             for constraint in profile.hard_constraints
+        )
+        profile_scopes.update(
+            target_company_scope_key(company)
+            for company in profile.target_companies
         )
         target_scopes = {
             f"target_role_intent/{target.target_role_id}/{relation}"

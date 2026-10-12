@@ -105,6 +105,8 @@ class MainAgentContext(ContractModel):
         exclude=True,
     )
     recent_messages: tuple[ConversationMessageContext, ...] = ()
+    recent_user_messages_for_intent: tuple[str, ...] = Field(default=(), exclude=True)
+    """Prior user turns for source checks, read outside the clipped prompt window."""
     through_sequence: int = Field(default=0, ge=0)
     """Last durable message covered by ``conversation_summary``; zero if absent."""
 

@@ -13,6 +13,7 @@ import threading
 import sqlite3
 from typing import Any, Literal
 from urllib.parse import urlencode
+from uuid import uuid4
 
 from pydantic import ValidationError
 
@@ -3395,7 +3396,25 @@ class MainAgentToolRegistry:
     def _propose_job_intent(self, arguments: dict[str, Any]) -> ToolObservation:
         update: JobIntentUpdate = arguments["update"]
         scope = None
-        if update.is_role_scoped and self._resume_store is not None:
+        using_existing_role = False
+        if update.new_target_role_title is not None:
+            if self._resume_store is None:
+                raise ValueError("Resume store is not configured")
+            title = update.new_target_role_title.strip()
+            existing = next(
+                (role for role in self._resume_store.list_target_roles(user_id=str(arguments["user_id"]))
+                 if role.title.strip().casefold() == title.casefold()),
+                None,
+            )
+            if existing is not None:
+                update = update.model_copy(update={
+                    "target_role_id": existing.id, "new_target_role_title": None,
+                })
+                scope = existing.title
+                using_existing_role = True
+            else:
+                update = update.model_copy(update={"new_target_role_title": title})
+        if update.target_role_id is not None and self._resume_store is not None:
             role = self._resume_store.get_target_role(
                 user_id=str(arguments["user_id"]),
                 target_role_id=str(update.target_role_id),
@@ -3411,13 +3430,96 @@ class MainAgentToolRegistry:
         return _proposal_observation(
             tool_name="propose_job_intent",
             state="job_intent_proposed",
-            message=self._job_intent_readback(update, scope=scope),
+            message=self._job_intent_readback(
+                update, scope=scope, using_existing_role=using_existing_role,
+            ),
             proposal=update,
             payload_key="update",
             exclude_none=True,
         )
 
     def _confirm_job_intent(self, arguments: dict[str, Any]) -> ToolObservation:
+        update: JobIntentUpdate = arguments["update"]
+        created_role = None
+        created_versions = ()
+        if update.new_target_role_title is not None:
+            if self._resume_store is None:
+                raise ValueError("Resume store is not configured")
+            user_id = str(arguments["user_id"])
+            title = update.new_target_role_title.strip()
+            existing = next(
+                (role for role in self._resume_store.list_target_roles(user_id=user_id)
+                 if role.title.strip().casefold() == title.casefold()),
+                None,
+            )
+            if existing is None:
+                role_id = f"target_role_{uuid4().hex}"
+                scoped_candidates = ()
+                if update.pref_scope != "global" or update.layer not in (None, "stable"):
+                    scoped_update = update.model_copy(update={
+                        "target_role_id": role_id, "new_target_role_title": None,
+                    })
+                    admitted, _ = self._admit_job_intent_scopes(
+                        user_id=user_id,
+                        conversation_id=arguments.get("conversation_id"),
+                        update=scoped_update,
+                    )
+                    layer = update.layer or (
+                        "transient" if update.timescale == "situational" else "contextual"
+                    )
+                    valid_until = update.valid_until
+                    if update.timescale == "situational" and valid_until is None:
+                        valid_until = datetime.now(timezone.utc) + timedelta(days=30)
+                    scoped_candidates = tuple(
+                        IntentCaptureCandidate(
+                            user_id=user_id, scope_key=scope.scope_key,
+                            pref_scope=update.pref_scope, timescale=update.timescale,
+                            layer=layer, valid_until=valid_until,
+                            value=value, source="confirmed_job_intent", confidence=1.0,
+                        )
+                        for scope, value in admitted
+                    )
+                try:
+                    created_role, created_versions = self._resume_store.create_target_role_with_intent(
+                        user_id=user_id, title=title,
+                        city=update.city if not scoped_candidates else None,
+                        salary_expectation=update.salary_expectation if not scoped_candidates else None,
+                        experience=update.experience if not scoped_candidates else None,
+                        education=update.education if not scoped_candidates else None,
+                        role_id=role_id, scoped_candidates=scoped_candidates,
+                    )
+                    existing = created_role
+                except ValueError as exc:
+                    if str(exc) != "target role already exists":
+                        raise
+                    existing = next(
+                        (role for role in self._resume_store.list_target_roles(user_id=user_id)
+                         if role.title.strip().casefold() == title.casefold()),
+                        None,
+                    )
+                    if existing is None:
+                        raise
+            update = update.model_copy(update={
+                "target_role_id": existing.id, "new_target_role_title": None,
+            })
+        try:
+            return self._confirm_resolved_job_intent(
+                {**arguments, "update": update}, created_role=created_role,
+                created_versions=created_versions,
+            )
+        except Exception:
+            if created_role is not None:
+                try:
+                    self._resume_store.delete_unreferenced_target_role(
+                        user_id=str(arguments["user_id"]), target_role_id=created_role.id,
+                    )
+                except Exception:
+                    logger.exception("failed to compensate newly created target role")
+            raise
+
+    def _confirm_resolved_job_intent(
+        self, arguments: dict[str, Any], *, created_role=None, created_versions=(),
+    ) -> ToolObservation:
         if self._career_profile_store is None:
             raise ValueError("Career profile store is not configured")
         user_id = str(arguments["user_id"])
@@ -3456,8 +3558,10 @@ class MainAgentToolRegistry:
         if update.timescale == "situational" and valid_until is None:
             valid_until = datetime.now(timezone.utc) + timedelta(days=30)
         if update.pref_scope != "global" or layer != "stable":
-            versions = []
+            versions = list(created_versions)
             for scope, value in admitted_scopes:
+                if created_role is not None:
+                    continue
                 candidate = IntentCaptureCandidate(
                     user_id=user_id,
                     scope_key=scope.scope_key,
@@ -3509,7 +3613,7 @@ class MainAgentToolRegistry:
         if update.is_role_scoped:
             if self._resume_store is None:
                 raise ValueError("Resume store is not configured")
-            role = self._resume_store.update_target_role_intent(
+            role = created_role or self._resume_store.update_target_role_intent(
                 user_id=user_id,
                 target_role_id=str(update.target_role_id),
                 city=update.city,
@@ -3521,6 +3625,13 @@ class MainAgentToolRegistry:
                 timescale=update.timescale,
                 layer=layer,
             )
+            if update.add_target_companies or update.remove_target_companies:
+                # Existing-role intent and person-level companies live in
+                # separate SQLite databases, so this pair of writes is not atomic.
+                stored = self._career_profile_store.get_profile(user_id) or CareerProfileContext(user_id=user_id)
+                self._career_profile_store.upsert_profile(
+                    update.apply_to_profile(stored), source="confirmed_job_intent",
+                )
             return ToolObservation(
                 tool_name="confirm_job_intent",
                 state="job_intent_recorded",
@@ -3697,6 +3808,9 @@ class MainAgentToolRegistry:
     ]:
         values = update.model_dump(exclude_none=True)
         values.pop("target_role_id", None)
+        values.pop("new_target_role_title", None)
+        values.pop("add_target_companies", None)
+        values.pop("remove_target_companies", None)
         values.pop("pref_scope", None)
         values.pop("timescale", None)
         values.pop("layer", None)
@@ -3750,7 +3864,7 @@ class MainAgentToolRegistry:
         return tuple(admitted), tuple(proposals)
 
     _JOB_INTENT_LABELS = {
-        "city": "城市",
+        "city": "意向城市",
         "salary_expectation": "薪资期望",
         "experience": "经验",
         "education": "学历",
@@ -3768,24 +3882,35 @@ class MainAgentToolRegistry:
         *,
         scope: str | None,
         saved: bool = False,
+        using_existing_role: bool = False,
     ) -> str:
         fields = update.model_dump(exclude_none=True)
         fields.pop("target_role_id", None)
+        new_title = fields.pop("new_target_role_title", None)
+        added_companies = fields.pop("add_target_companies", ())
+        removed_companies = fields.pop("remove_target_companies", ())
         pref_scope = str(fields.pop("pref_scope", "global"))
         timescale = str(fields.pop("timescale", "permanent"))
         fields.pop("layer", None)
         fields.pop("valid_until", None)
         constraints = fields.pop("hard_constraints", ())
-        lines = [
+        lines = []
+        if new_title is not None:
+            lines.append(f"- 新建目标岗位：{new_title}")
+        elif using_existing_role and scope is not None:
+            lines.append(f"- 使用已有岗位：{scope}")
+        lines.extend(
             f"- {cls._JOB_INTENT_LABELS[field]}：{value}"
             for field, value in fields.items()
-        ]
+        )
+        lines.extend(f"- 新增目标公司：{name}" for name in added_companies)
+        lines.extend(f"- 移除目标公司：{name}" for name in removed_companies)
         lines.extend(
             f"- {cls._HARD_CONSTRAINT_LABELS[item['relation']]}：{item['value']}"
             for item in constraints
         )
         body = "\n".join(lines)
-        where = f"目标岗位「{scope}」" if scope else "整体求职意向"
+        where = f"目标岗位「{scope or new_title}」" if scope or new_title else "整体求职意向"
         if pref_scope != "global":
             where += f"（仅限 {pref_scope}；{timescale}）"
         if saved:

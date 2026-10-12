@@ -129,25 +129,26 @@ def test_search_mode_schema_and_prompt_fingerprints_are_stable() -> None:
     # Iteration 110 intentionally consolidates the prompt and offers only three
     # primary interaction schemas; respond_to_user is reserved for forced retries.
     # The final table guard limits retrieval to offered tools and reachable sources.
-    # The 2026-10-11 revision removes cold-history tool-name hints from the
-    # static prompt and capability schemas; recordings must be recut.
+    # The 2026-10-11 revision removes cold-history tool-name hints. Job intent
+    # now accepts a new role and incremental target companies; recordings must
+    # be recut with these schemas.
     registered = trajectory_tool_specs()
     assert registered[-1]["function"]["name"] == "search_capabilities"
     encoded_registered = json.dumps(
         registered, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     assert hashlib.sha256(encoded_registered).hexdigest() == (
-        "6d4339aa72e03da1064c8c4d0a6c26e56ae2eff1d4535299df31624aefe1d807"
+        "fc544582e926b1be41dfe1ffad833f52bfe8f9c9fc15833c5f664332029e3dc7"
     )
     schemas = registered[:-1]
     encoded = json.dumps(
         schemas, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     assert hashlib.sha256(encoded).hexdigest() == (
-        "e49ded00a711b9776d7ad4ec0425ee63a37bf125c7953c3dfaae89bbfe560ee0"
+        "0df668ed01231016ac47557dd476708aa8d43c5fa6bd1bd9e3a1c3e2cf089490"
     )
     assert prompt_fingerprint(schemas) == (
-        "2ba26f34020a7f2bcf89e19753ac9e7261efdddbad32dcd118f87ca9e081ab5c"
+        "7ca30889fdb69c98ff280b9bc860311a22403ec8246f6d881b331f2468cead2e"
     )
     assert trajectory_prompt_fingerprint(SCENARIOS[0], schemas) == (
         "57b0ef0f90282e1c5f9d9de4738b169a0282bf1d34edaa53d8d284a9729bfda4"

@@ -385,11 +385,13 @@ _SCHEMA_SPECS: Mapping[str, tuple[str | None, str]] = MappingProxyType({
         (
             'Show the user what would be recorded as their stated job intent, without saving anything'
             '. Send only the fields they just stated in their own words; never infer a city, salary, '
-            'or bracket from a job they looked at or from anything you concluded. Salary, experience,'
-            ' and education belong to one target role and require target_role_selection_index from li'
-            'st_target_roles, because a candidate pursuing two tracks wants different numbers for eac'
-            "h. A city sent without a selection index is the person's default; sent with one it overr"
-            'ides that default for that role alone. Person-level hard constraints may use only the de'
+            'or bracket from a job they looked at or from anything you concluded. A new_target_role_title'
+            ' creates a role only after confirmation; target_role_selection_index selects an existing role.'
+            ' Salary, experience, and education belong to that role because different tracks can have'
+            " different numbers. A city without a role is the person's default; with a role it"
+            ' overrides that default for that role alone. Add or remove target companies only when'
+            ' the user explicitly names them; never infer them from a JD or research report.'
+            ' Person-level hard constraints may use only the de'
             'clared work_arrangement, work_schedule, or company_scale relations and must preserve the'
             " user's own wording (for example, 必须远程 or 不接受996); never infer one. This tool records in"
             'tent only: skill and experience claims come from the resume, never from being told.'
